@@ -7,25 +7,25 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * 工序模板实体类
+ * 用户与项目节点关联实体
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
-@TableName("process_template")
-public class ProcessTemplate {
+@TableName("sys_user_project")
+public class UserProject {
     
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
     
     /**
-     * 模板名称
+     * 用户ID（管理员）
      */
-    private String name;
+    private Long userId;
     
     /**
-     * 工序列表（JSON格式）
+     * 项目节点ID
      */
-    private String processList;
+    private Long projectId;
     
     /**
      * 删除标志：0-未删除，1-已删除

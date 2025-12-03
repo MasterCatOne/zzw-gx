@@ -1,13 +1,13 @@
 package com.zzw.zzwgx.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.zzw.zzwgx.entity.Task;
+import com.zzw.zzwgx.entity.UserProject;
 import org.apache.ibatis.annotations.Mapper;
 
 /**
- * 任务Mapper接口
+ * 用户项目关联Mapper
  */
 @Mapper
-public interface TaskMapper extends BaseMapper<Task> {
+public interface UserProjectMapper extends BaseMapper<UserProject> {
 }
 
