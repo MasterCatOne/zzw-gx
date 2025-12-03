@@ -24,7 +24,6 @@ public enum ResultCode {
     USER_NOT_FOUND(2001, "用户不存在"),
     USER_DISABLED(2002, "用户已被禁用"),
     USERNAME_ALREADY_EXISTS(2003, "用户名已存在"),
-    PROJECT_NOT_FOUND(2003, "项目不存在"),
     CYCLE_NOT_FOUND(2004, "循环不存在"),
     PROCESS_NOT_FOUND(2005, "工序不存在"),
     TASK_NOT_FOUND(2006, "任务不存在"),
@@ -33,7 +32,9 @@ public enum ResultCode {
     TASK_NOT_STARTED(2009, "任务未开始"),
     PREVIOUS_PROCESS_NOT_COMPLETED(2010, "上一工序未完成"),
     OVERTIME_REASON_REQUIRED(2011, "超时原因必填"),
-    TEMPLATE_NOT_FOUND(2012, "工序模板不存在");
+    TEMPLATE_NOT_FOUND(2012, "工序模板不存在"),
+    PROJECT_NOT_FOUND(2013, "项目不存在"),
+    USER_ROLE_MISSING(2014, "默认角色未配置");
 
     private final Integer code;
     private final String message;

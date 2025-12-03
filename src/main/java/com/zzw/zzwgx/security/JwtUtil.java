@@ -11,9 +11,12 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * JWT工具类
@@ -66,11 +69,11 @@ public class JwtUtil {
     /**
      * 生成token
      */
-    public String generateToken(Long userId, String username, String role) {
+    public String generateToken(Long userId, String username, List<String> roles) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
         claims.put("username", username);
-        claims.put("role", role);
+        claims.put("roles", roles);
         return createToken(claims, username);
     }
     
@@ -128,9 +131,26 @@ public class JwtUtil {
     /**
      * 从token中获取角色
      */
-    public String getRoleFromToken(String token) {
+    public List<String> getRolesFromToken(String token) {
         Claims claims = getClaimsFromToken(token);
-        return claims != null ? (String) claims.get("role") : null;
+        if (claims == null) {
+            return Collections.emptyList();
+        }
+        Object rolesObj = claims.get("roles");
+        if (rolesObj instanceof List<?>) {
+            return ((List<?>) rolesObj).stream()
+                    .map(Object::toString)
+                    .collect(Collectors.toList());
+        }
+        if (rolesObj instanceof String roleStr) {
+            return Collections.singletonList(roleStr);
+        }
+        return Collections.emptyList();
+    }
+    
+    public String getRoleFromToken(String token) {
+        List<String> roles = getRolesFromToken(token);
+        return roles.isEmpty() ? null : roles.get(0);
     }
     
     /**

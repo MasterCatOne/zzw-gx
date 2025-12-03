@@ -6,7 +6,6 @@ import com.zzw.zzwgx.dto.response.StatisticsResponse;
 import com.zzw.zzwgx.entity.Cycle;
 import com.zzw.zzwgx.entity.Process;
 import com.zzw.zzwgx.entity.Project;
-import com.zzw.zzwgx.entity.Task;
 import com.zzw.zzwgx.service.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +28,6 @@ public class StatisticsServiceImpl implements StatisticsService {
     private final ProjectService projectService;
     private final CycleService cycleService;
     private final ProcessService processService;
-    private final TaskService taskService;
     
     @Override
     public StatisticsResponse.ProcessTimeStat getProcessTimeStatistics(Long projectId, Integer year, Integer month) {
@@ -59,7 +57,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         for (Cycle cycle : cycles) {
             List<Process> processes = processService.getProcessesByCycleId(cycle.getId());
             for (Process process : processes) {
-                if (ProcessStatus.COMPLETED.getCode().equals(process.getStatus())) {
+                if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus())) {
                     totalControlTime += process.getControlTime();
                     if (process.getActualStartTime() != null && process.getActualEndTime() != null) {
                         long minutes = Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
@@ -71,7 +69,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         }
         
         StatisticsResponse.ProcessTimeStat stat = new StatisticsResponse.ProcessTimeStat();
-        stat.setProjectName(project.getName());
+        stat.setProjectName(project.getProjectName());
         if (count > 0) {
             stat.setAverageTime(totalActualTime / count / 60.0); // 转换为小时
             stat.setSavedTime(Math.max(0, (totalControlTime - totalActualTime) / 60.0)); // 转换为小时
@@ -114,7 +112,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         }
         
         StatisticsResponse.AdvanceLengthStat stat = new StatisticsResponse.AdvanceLengthStat();
-        stat.setProjectName(project.getName());
+        stat.setProjectName(project.getProjectName());
         stat.setCycleCount(cycleCount);
         stat.setAdvanceLength(totalAdvanceLength);
         log.info("进总尺长度统计计算完成，项目ID: {}, 循环数量: {}, 总进尺: {} 米", 
@@ -150,7 +148,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         for (Cycle cycle : cycles) {
             List<Process> processes = processService.getProcessesByCycleId(cycle.getId());
             for (Process process : processes) {
-                if (ProcessStatus.COMPLETED.getCode().equals(process.getStatus())) {
+                if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus())) {
                     if (process.getActualStartTime() != null && process.getActualEndTime() != null) {
                         long minutes = Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
                         if (minutes > process.getControlTime()) {
@@ -164,7 +162,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         }
         
         StatisticsResponse.OvertimeStat stat = new StatisticsResponse.OvertimeStat();
-        stat.setProjectName(project.getName());
+        stat.setProjectName(project.getProjectName());
         stat.setOvertime(totalOvertime);
         stat.setSavedTime(totalSavedTime);
         log.info("本周超耗总时间统计计算完成，项目ID: {}, 超时时间: {} 小时，节省时间: {} 小时", 
@@ -172,46 +170,6 @@ public class StatisticsServiceImpl implements StatisticsService {
         
         return stat;
     }
-    
-    @Override
-    public StatisticsResponse.OvertimeStat getWorkerOvertimeStatistics(Long workerId) {
-        log.info("计算施工人员超耗总时间统计，施工人员ID: {}", workerId);
-        LocalDate now = LocalDate.now();
-        LocalDate weekStart = now.minusDays(now.getDayOfWeek().getValue() - 1);
-        LocalDate weekEnd = weekStart.plusDays(6);
-        LocalDateTime weekStartDateTime = weekStart.atStartOfDay();
-        LocalDateTime weekEndDateTime = weekEnd.atTime(23, 59, 59);
-        log.debug("本周时间范围，开始时间: {}, 结束时间: {}", weekStartDateTime, weekEndDateTime);
-        
-        List<Task> tasks = taskService.list(new LambdaQueryWrapper<Task>()
-                .eq(Task::getWorkerId, workerId)
-                .eq(Task::getStatus, "COMPLETED")
-                .between(Task::getActualEndTime, weekStartDateTime, weekEndDateTime));
-        log.debug("查询到任务数量: {}", tasks.size());
-        
-        double totalOvertime = 0;
-        double totalSavedTime = 0;
-        
-        for (Task task : tasks) {
-            Process process = processService.getById(task.getProcessId());
-            if (process != null && task.getActualStartTime() != null && task.getActualEndTime() != null) {
-                long minutes = Duration.between(task.getActualStartTime(), task.getActualEndTime()).toMinutes();
-                if (minutes > process.getControlTime()) {
-                    totalOvertime += (minutes - process.getControlTime()) / 60.0;
-                } else {
-                    totalSavedTime += (process.getControlTime() - minutes) / 60.0;
-                }
-            }
-        }
-        
-        StatisticsResponse.OvertimeStat stat = new StatisticsResponse.OvertimeStat();
-        stat.setProjectName("我的任务");
-        stat.setOvertime(totalOvertime);
-        stat.setSavedTime(totalSavedTime);
-        log.info("施工人员超耗总时间统计计算完成，施工人员ID: {}, 超时时间: {} 小时，节省时间: {} 小时", 
-                workerId, totalOvertime, totalSavedTime);
-        
-        return stat;
-    }
+
 }
 

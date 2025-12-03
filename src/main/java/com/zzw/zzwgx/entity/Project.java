@@ -6,9 +6,6 @@ import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 
-/**
- * 项目实体类
- */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @TableName("project")
@@ -18,24 +15,38 @@ public class Project {
     private Long id;
     
     /**
-     * 工点名称
+     * 父节点ID，为空表示顶级节点
      */
-    private String name;
+    private Long parentId;
     
     /**
-     * 项目状态：IN_PROGRESS-进行中，COMPLETED-已完成，PAUSED-已暂停
+     * 节点类型：PROJECT/SECTION/TUNNEL/SITE 等
      */
-    private String status;
+    private String nodeType;
     
     /**
-     * 围岩等级：LEVEL_I-I级，LEVEL_II-II级
+     * 节点名称
      */
-    private String rockLevel;
+    @TableField("project_name")
+    private String projectName;
     
     /**
-     * 当前循环次数
+     * 节点编码
      */
-    private Integer currentCycle;
+    @TableField("project_code")
+    private String projectCode;
+    
+    /**
+     * 节点描述
+     */
+    @TableField("project_description")
+    private String projectDescription;
+    
+    /**
+     * 节点状态：IN_PROGRESS / COMPLETED / PAUSED
+     */
+    @TableField("project_status")
+    private String projectStatus;
     
     /**
      * 删除标志：0-未删除，1-已删除

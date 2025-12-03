@@ -16,10 +16,13 @@ public class CycleResponse {
     private Integer cycleNumber;
     private Integer controlDuration;
     private LocalDateTime startDate;
+    private LocalDateTime endDate;
+    private LocalDateTime estimatedStartDate;
+    private LocalDateTime estimatedEndDate;
     private BigDecimal estimatedMileage;
     private String status;
     private BigDecimal advanceLength;
-    private Long templateId;
+    private String rockLevel;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

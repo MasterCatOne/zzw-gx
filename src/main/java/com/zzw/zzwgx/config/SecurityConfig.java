@@ -103,9 +103,9 @@ public class SecurityConfig {
                 .and()
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/doc.html", "/webjars/**", "/v3/api-docs/**", "/swagger-ui/**", 
+                        .requestMatchers("/doc.html", "/webjars/**", "/v3/api-docs/**", "/swagger-ui/**",
                                         "/swagger-resources/**", "/favicon.ico").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
                         .requestMatchers("/api/worker/**").hasAnyRole("ADMIN", "WORKER")
                         .requestMatchers("/api/statistics/**").hasAnyRole("ADMIN", "WORKER")
                         .anyRequest().authenticated()

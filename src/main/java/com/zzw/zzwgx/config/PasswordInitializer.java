@@ -6,6 +6,7 @@
 //import lombok.RequiredArgsConstructor;
 //import lombok.extern.slf4j.Slf4j;
 //import org.springframework.boot.CommandLineRunner;
+//import org.springframework.beans.factory.annotation.Value;
 //import org.springframework.security.crypto.password.PasswordEncoder;
 //import org.springframework.stereotype.Component;
 //
@@ -13,7 +14,7 @@
 //
 ///**
 // * 密码初始化器
-// * 在应用启动时自动重置所有用户的密码为123456，确保测试环境密码正确
+// * 在应用启动时自动重置所有用户的密码为123456，确保测试/演示环境账号可用
 // */
 //@Slf4j
 //@Component
@@ -23,15 +24,21 @@
 //    private final UserMapper userMapper;
 //    private final PasswordEncoder passwordEncoder;
 //
+//    @Value("${app.init.reset-password:true}")
+//    private boolean resetPassword;
+//
 //    @Override
 //    public void run(String... args) {
+//        if (!resetPassword) {
+//            log.info("跳过用户密码初始化（app.init.reset-password=false）");
+//            return;
+//        }
+//
 //        log.info("开始初始化用户密码...");
 //        String defaultPassword = "123456";
 //        String encodedPassword = passwordEncoder.encode(defaultPassword);
 //
-//        // 获取所有用户
-//        List<User> users = userMapper.selectList(new LambdaQueryWrapper<User>());
-//
+//        List<User> users = userMapper.selectList(new LambdaQueryWrapper<>());
 //        if (users.isEmpty()) {
 //            log.warn("未找到任何用户，跳过密码初始化");
 //            return;
@@ -46,7 +53,6 @@
 //        }
 //
 //        log.info("用户密码初始化完成，共重置 {} 个用户的密码为: {}", count, defaultPassword);
-//        log.debug("密码哈希值示例: {}", encodedPassword);
 //    }
 //}
 //

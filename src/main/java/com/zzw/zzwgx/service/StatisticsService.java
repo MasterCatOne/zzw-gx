@@ -21,10 +21,6 @@ public interface StatisticsService {
      * 获取本周超耗总时间统计
      */
     StatisticsResponse.OvertimeStat getOvertimeStatistics(Long projectId);
-    
-    /**
-     * 获取施工人员的超耗总时间统计
-     */
-    StatisticsResponse.OvertimeStat getWorkerOvertimeStatistics(Long workerId);
+
 }
 

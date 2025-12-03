@@ -8,7 +8,8 @@ import lombok.Getter;
 @Getter
 public enum UserRole {
     ADMIN("ADMIN", "管理员"),
-    WORKER("WORKER", "施工人员");
+    WORKER("WORKER", "施工人员"),
+    SYSTEMADMIN("SYSTEMWORKER", "系统管理员");
 
     private final String code;
     private final String desc;

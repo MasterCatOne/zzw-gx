@@ -5,18 +5,15 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zzw.zzwgx.common.enums.ProcessStatus;
 import com.zzw.zzwgx.common.enums.ResultCode;
-import com.zzw.zzwgx.common.enums.TaskStatus;
 import com.zzw.zzwgx.common.exception.BusinessException;
 import com.zzw.zzwgx.dto.request.CreateProcessRequest;
 import com.zzw.zzwgx.dto.response.ProcessDetailResponse;
 import com.zzw.zzwgx.dto.response.ProcessResponse;
 import com.zzw.zzwgx.entity.Cycle;
 import com.zzw.zzwgx.entity.Process;
-import com.zzw.zzwgx.entity.Task;
 import com.zzw.zzwgx.entity.User;
 import com.zzw.zzwgx.mapper.CycleMapper;
 import com.zzw.zzwgx.mapper.ProcessMapper;
-import com.zzw.zzwgx.mapper.TaskMapper;
 import com.zzw.zzwgx.service.ProcessService;
 import com.zzw.zzwgx.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +22,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -37,7 +33,6 @@ import java.util.List;
 public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> implements ProcessService {
     
     private final CycleMapper cycleMapper;
-    private final TaskMapper taskMapper;
     private final UserService userService;
     
     @Override
@@ -54,26 +49,16 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         
         Process process = new Process();
         process.setCycleId(request.getCycleId());
-        process.setName(request.getName());
+        process.setProcessName(request.getName());
         process.setControlTime(request.getControlTime());
         process.setActualStartTime(request.getActualStartTime());
-        process.setStatus(ProcessStatus.NOT_STARTED.getCode());
+        process.setProcessStatus(ProcessStatus.NOT_STARTED.getCode());
         process.setOperatorId(request.getWorkerId());
         process.setStartOrder(request.getStartOrder());
         process.setAdvanceLength(java.math.BigDecimal.ZERO);
         
         save(process);
-        log.info("工序创建成功，工序ID: {}, 工序名称: {}", process.getId(), process.getName());
-        
-        // 创建对应的任务 - 直接使用Mapper避免循环依赖
-        Task task = new Task();
-        task.setProcessId(process.getId());
-        task.setWorkerId(request.getWorkerId());
-        task.setStatus(TaskStatus.PENDING.getCode());
-        task.setEstimatedStartTime(request.getActualStartTime() != null ? 
-                request.getActualStartTime() : LocalDateTime.now());
-        taskMapper.insert(task);
-        log.debug("为工序创建任务，工序ID: {}, 任务ID: {}, 施工人员ID: {}", process.getId(), task.getId(), request.getWorkerId());
+        log.info("工序创建成功，工序ID: {}, 工序名称: {}", process.getId(), process.getProcessName());
         return BeanUtil.copyProperties(process, ProcessResponse.class);
     }
     
@@ -98,7 +83,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
                 .last("LIMIT 1");
         Process process = getOne(wrapper);
         if (process != null) {
-            log.debug("查询到上一工序，循环ID: {}, 工序ID: {}, 工序名称: {}", cycleId, process.getId(), process.getName());
+            log.debug("查询到上一工序，循环ID: {}, 工序ID: {}, 工序名称: {}", cycleId, process.getId(), process.getProcessName());
         }
         return process;
     }
@@ -113,9 +98,9 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         
         ProcessDetailResponse response = new ProcessDetailResponse();
         response.setId(process.getId());
-        response.setName(process.getName());
-        response.setStatus(process.getStatus());
-        ProcessStatus status = ProcessStatus.fromCode(process.getStatus());
+        response.setName(process.getProcessName());
+        response.setStatus(process.getProcessStatus());
+        ProcessStatus status = ProcessStatus.fromCode(process.getProcessStatus());
         response.setStatusDesc(status != null ? status.getDesc() : "");
         response.setControlTime(process.getControlTime());
         response.setActualStartTime(process.getActualStartTime());
@@ -143,7 +128,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             }
         }
         
-        log.info("查询工序详情成功，工序ID: {}, 工序名称: {}", processId, process.getName());
+        log.info("查询工序详情成功，工序ID: {}, 工序名称: {}", processId, process.getProcessName());
         return response;
     }
 

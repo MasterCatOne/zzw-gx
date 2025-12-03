@@ -2,17 +2,19 @@ package com.zzw.zzwgx.dto.response;
 
 import lombok.Data;
 
-/**
- * 项目列表响应DTO
- */
 @Data
 public class ProjectListResponse {
     
     private Long id;
-    private String name;
-    private String status;
+    private Long parentId;
+    private String nodeType;
+    private String projectName;
+    private String projectCode;
+    private String projectStatus;
     private String statusDesc;
-    private Integer currentCycle;
+    /** 当前循环次数 */
+    private Integer currentCycleNumber;
+    /** 当前循环围岩等级 */
     private String rockLevel;
     private String rockLevelDesc;
 }

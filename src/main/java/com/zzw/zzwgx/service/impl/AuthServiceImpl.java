@@ -19,6 +19,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 /**
  * 认证服务实现类
  */
@@ -46,20 +48,21 @@ public class AuthServiceImpl implements AuthService {
             SecurityUser securityUser = (SecurityUser) authentication.getPrincipal();
             
             // 生成JWT token
+            List<String> roles = securityUser.getRoleCodes();
             String token = jwtUtil.generateToken(
                     securityUser.getUserId(),
                     securityUser.getUsername(),
-                    securityUser.getRole()
+                    roles
             );
             
             // 获取用户信息
             User user = userService.getById(securityUser.getUserId());
             
             // 构建响应
-            LoginResponse response = buildLoginResponse(token, user);
+            LoginResponse response = buildLoginResponse(token, user, roles);
             
             log.info("用户登录成功，用户ID: {}, 用户名: {}, 角色: {}", 
-                    user.getId(), user.getUsername(), user.getRole());
+                    user.getId(), user.getUsername(), roles);
             return response;
         } catch (BadCredentialsException e) {
             log.warn("用户登录失败，用户名: {}, 原因: 用户名或密码错误", request.getUsername());
@@ -85,17 +88,18 @@ public class AuthServiceImpl implements AuthService {
             SecurityUser securityUser = (SecurityUser) authentication.getPrincipal();
             
             // 生成JWT token
+            List<String> roles = securityUser.getRoleCodes();
             String token = jwtUtil.generateToken(
                     securityUser.getUserId(),
                     securityUser.getUsername(),
-                    securityUser.getRole()
+                    roles
             );
             
             // 构建响应
-            LoginResponse response = buildLoginResponse(token, user);
+            LoginResponse response = buildLoginResponse(token, user, roles);
             
             log.info("用户注册并登录成功，用户ID: {}, 用户名: {}, 角色: {}", 
-                    user.getId(), user.getUsername(), user.getRole());
+                    user.getId(), user.getUsername(), roles);
             return response;
         } catch (BadCredentialsException e) {
             log.error("用户注册后自动登录失败，用户名: {}, 原因: {}", request.getUsername(), e.getMessage());
@@ -117,7 +121,7 @@ public class AuthServiceImpl implements AuthService {
     /**
      * 构建登录响应
      */
-    private LoginResponse buildLoginResponse(String token, User user) {
+    private LoginResponse buildLoginResponse(String token, User user, List<String> roles) {
         LoginResponse response = new LoginResponse();
         response.setToken(token);
         
@@ -125,7 +129,10 @@ public class AuthServiceImpl implements AuthService {
         userInfo.setId(user.getId());
         userInfo.setUsername(user.getUsername());
         userInfo.setRealName(user.getRealName());
-        userInfo.setRole(user.getRole());
+        if (roles != null && !roles.isEmpty()) {
+            userInfo.setRole(roles.get(0));
+        }
+        userInfo.setRoles(roles);
         response.setUserInfo(userInfo);
         
         return response;

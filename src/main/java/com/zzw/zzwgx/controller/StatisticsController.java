@@ -51,14 +51,6 @@ public class StatisticsController {
         StatisticsResponse.OvertimeStat stat = statisticsService.getOvertimeStatistics(projectId);
         return Result.success(stat);
     }
-    
-    @Operation(summary = "获取施工人员超耗总时间统计", description = "查询当前施工人员的超耗总时间统计")
-    @GetMapping("/worker/overtime")
-    public Result<StatisticsResponse.OvertimeStat> getWorkerOvertimeStatistics() {
-        Long workerId = SecurityUtils.getCurrentUserId();
-        log.info("查询施工人员超耗总时间统计，施工人员ID: {}", workerId);
-        StatisticsResponse.OvertimeStat stat = statisticsService.getWorkerOvertimeStatistics(workerId);
-        return Result.success(stat);
-    }
+
 }
 

@@ -8,6 +8,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Spring Security用户对象
@@ -15,15 +17,22 @@ import java.util.Collections;
 @Data
 public class SecurityUser implements UserDetails {
     
-    private User user;
+    private final User user;
+    private final List<String> roleCodes;
     
-    public SecurityUser(User user) {
+    public SecurityUser(User user, List<String> roleCodes) {
         this.user = user;
+        this.roleCodes = roleCodes == null ? Collections.emptyList() : roleCodes;
     }
     
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole()));
+        if (roleCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return roleCodes.stream()
+                .map(code -> new SimpleGrantedAuthority("ROLE_" + code))
+                .collect(Collectors.toList());
     }
     
     @Override
@@ -60,8 +69,12 @@ public class SecurityUser implements UserDetails {
         return user.getId();
     }
     
-    public String getRole() {
-        return user.getRole();
+    public List<String> getRoleCodes() {
+        return roleCodes;
+    }
+    
+    public String getPrimaryRole() {
+        return roleCodes.isEmpty() ? null : roleCodes.get(0);
     }
 }
 

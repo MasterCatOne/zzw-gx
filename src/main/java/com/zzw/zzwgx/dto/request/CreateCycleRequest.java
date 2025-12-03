@@ -20,7 +20,14 @@ public class CreateCycleRequest {
     @NotNull(message = "开始日期不能为空")
     private LocalDateTime startDate;
     
+    private LocalDateTime endDate;
+    private LocalDateTime estimatedStartDate;
+    private LocalDateTime estimatedEndDate;
+    
     private Double estimatedMileage;
+    private Double advanceLength;
+    private String rockLevel;
+    private String status;
     
     @NotNull(message = "工序模板ID不能为空")
     private Long templateId;

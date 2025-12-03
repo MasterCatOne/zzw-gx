@@ -2,31 +2,26 @@ package com.zzw.zzwgx.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zzw.zzwgx.common.enums.ProcessStatus;
 import com.zzw.zzwgx.common.enums.ResultCode;
 import com.zzw.zzwgx.common.exception.BusinessException;
 import com.zzw.zzwgx.dto.request.CreateCycleRequest;
+import com.zzw.zzwgx.dto.request.UpdateCycleRequest;
 import com.zzw.zzwgx.dto.response.CycleResponse;
 import com.zzw.zzwgx.entity.Cycle;
-import com.zzw.zzwgx.entity.Process;
-import com.zzw.zzwgx.entity.ProcessTemplate;
 import com.zzw.zzwgx.entity.Project;
 import com.zzw.zzwgx.mapper.CycleMapper;
 import com.zzw.zzwgx.mapper.ProjectMapper;
 import com.zzw.zzwgx.service.CycleService;
-import com.zzw.zzwgx.service.ProcessService;
-import com.zzw.zzwgx.service.ProcessTemplateService;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 循环服务实现类
@@ -37,9 +32,6 @@ import java.util.Map;
 public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements CycleService {
     
     private final ProjectMapper projectMapper;
-    private final ProcessTemplateService processTemplateService;
-    private final ProcessService processService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
     
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -51,13 +43,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             log.error("创建循环失败，项目不存在，项目ID: {}", request.getProjectId());
             throw new BusinessException(ResultCode.PROJECT_NOT_FOUND);
         }
-        
-        // 验证模板是否存在
-        ProcessTemplate template = processTemplateService.getById(request.getTemplateId());
-        if (template == null) {
-            log.error("创建循环失败，模板不存在，模板ID: {}", request.getTemplateId());
-            throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
-        }
+
         
         // 获取当前循环次数
         Cycle latestCycle = getLatestCycleByProjectId(request.getProjectId());
@@ -70,49 +56,83 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         cycle.setCycleNumber(cycleNumber);
         cycle.setControlDuration(request.getControlDuration());
         cycle.setStartDate(request.getStartDate());
+        cycle.setEndDate(request.getEndDate());
+        cycle.setEstimatedStartDate(request.getEstimatedStartDate());
+        cycle.setEstimatedEndDate(request.getEstimatedEndDate());
         if (request.getEstimatedMileage() != null) {
             cycle.setEstimatedMileage(BigDecimal.valueOf(request.getEstimatedMileage()));
         }
-        cycle.setStatus("IN_PROGRESS");
-        cycle.setAdvanceLength(BigDecimal.ZERO);
-        cycle.setTemplateId(request.getTemplateId());
+        cycle.setAdvanceLength(request.getAdvanceLength() != null
+                ? BigDecimal.valueOf(request.getAdvanceLength())
+                : BigDecimal.ZERO);
+        cycle.setRockLevel(request.getRockLevel());
+        cycle.setStatus(StringUtils.hasText(request.getStatus()) ? request.getStatus() : "IN_PROGRESS");
         save(cycle);
         log.info("循环创建成功，循环ID: {}, 循环次数: {}", cycle.getId(), cycleNumber);
-        
-        // 更新项目的当前循环次数 - 直接使用Mapper避免循环依赖
-        project.setCurrentCycle(cycleNumber);
-        projectMapper.updateById(project);
-        log.debug("更新项目当前循环次数，项目ID: {}, 当前循环次数: {}", project.getId(), cycleNumber);
-        
-        // 根据模板创建工序
-        try {
-            List<Map<String, Object>> processList = objectMapper.readValue(
-                    template.getProcessList(), 
-                    new TypeReference<List<Map<String, Object>>>() {}
-            );
-            log.debug("从模板解析工序列表，模板ID: {}, 工序数量: {}", request.getTemplateId(), processList.size());
-            
-            for (Map<String, Object> processMap : processList) {
-                Process process = new Process();
-                process.setCycleId(cycle.getId());
-                process.setName((String) processMap.get("name"));
-                process.setControlTime(((Number) processMap.get("controlTime")).intValue());
-                process.setStatus(ProcessStatus.NOT_STARTED.getCode());
-                process.setStartOrder(((Number) processMap.get("startOrder")).intValue());
-                if (processMap.get("advanceLength") != null) {
-                    process.setAdvanceLength(BigDecimal.valueOf(((Number) processMap.get("advanceLength")).doubleValue()));
-                } else {
-                    process.setAdvanceLength(BigDecimal.ZERO);
-                }
-                processService.save(process);
-            }
-            log.info("根据模板创建工序完成，循环ID: {}, 工序数量: {}", cycle.getId(), processList.size());
-        } catch (Exception e) {
-            log.error("创建工序失败，模板格式错误，循环ID: {}, 错误信息: {}", cycle.getId(), e.getMessage());
-            throw new BusinessException("工序模板格式错误");
+        return convertToResponse(cycle);
+    }
+    
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CycleResponse updateCycle(Long cycleId, UpdateCycleRequest request) {
+        log.info("更新循环信息，循环ID: {}", cycleId);
+        Cycle cycle = getById(cycleId);
+        if (cycle == null) {
+            throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
         }
-        
-        return BeanUtil.copyProperties(cycle, CycleResponse.class);
+        if (request.getControlDuration() != null) {
+            cycle.setControlDuration(request.getControlDuration());
+        }
+        if (request.getStartDate() != null) {
+            cycle.setStartDate(request.getStartDate());
+        }
+        if (request.getEndDate() != null) {
+            cycle.setEndDate(request.getEndDate());
+        }
+        if (request.getEstimatedStartDate() != null) {
+            cycle.setEstimatedStartDate(request.getEstimatedStartDate());
+        }
+        if (request.getEstimatedEndDate() != null) {
+            cycle.setEstimatedEndDate(request.getEstimatedEndDate());
+        }
+        if (request.getEstimatedMileage() != null) {
+            cycle.setEstimatedMileage(request.getEstimatedMileage());
+        }
+        if (request.getAdvanceLength() != null) {
+            cycle.setAdvanceLength(request.getAdvanceLength());
+        }
+        if (StringUtils.hasText(request.getStatus())) {
+            cycle.setStatus(request.getStatus());
+        }
+        if (StringUtils.hasText(request.getRockLevel())) {
+            cycle.setRockLevel(request.getRockLevel());
+        }
+        updateById(cycle);
+        log.info("循环更新完成，循环ID: {}", cycleId);
+        return convertToResponse(cycle);
+    }
+    
+    @Override
+    public CycleResponse getCycleDetail(Long cycleId) {
+        Cycle cycle = getById(cycleId);
+        if (cycle == null) {
+            throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
+        }
+        return convertToResponse(cycle);
+    }
+    
+    @Override
+    public Page<CycleResponse> getCyclesByProject(Long projectId, Integer pageNum, Integer pageSize) {
+        log.info("分页查询循环列表，项目ID: {}, 页码: {}, 大小: {}", projectId, pageNum, pageSize);
+        Page<Cycle> page = page(new Page<>(pageNum, pageSize),
+                new LambdaQueryWrapper<Cycle>()
+                        .eq(Cycle::getProjectId, projectId)
+                        .orderByDesc(Cycle::getCycleNumber));
+        Page<CycleResponse> responsePage = new Page<>(pageNum, pageSize, page.getTotal());
+        responsePage.setRecords(page.getRecords().stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList()));
+        return responsePage;
     }
     
     @Override
@@ -144,6 +164,26 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             log.debug("查询到最新循环，项目ID: {}, 循环ID: {}, 循环次数: {}", projectId, cycle.getId(), cycle.getCycleNumber());
         }
         return cycle;
+    }
+
+    @Override
+    public Cycle getCycleByProjectAndNumber(Long projectId, Integer cycleNumber) {
+        log.debug("根据项目和循环号查询循环，项目ID: {}, 循环号: {}", projectId, cycleNumber);
+        if (cycleNumber == null) {
+            return null;
+        }
+        LambdaQueryWrapper<Cycle> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Cycle::getProjectId, projectId)
+                .eq(Cycle::getCycleNumber, cycleNumber)
+                .last("LIMIT 1");
+        return getOne(wrapper);
+    }
+    
+    private CycleResponse convertToResponse(Cycle cycle) {
+        if (cycle == null) {
+            return null;
+        }
+        return BeanUtil.copyProperties(cycle, CycleResponse.class);
     }
 }
 

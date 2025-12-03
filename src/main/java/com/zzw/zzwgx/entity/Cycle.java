@@ -33,30 +33,30 @@ public class Cycle {
      */
     private Integer controlDuration;
     
-    /**
-     * 开始日期
-     */
+    /** 开始日期 */
     private LocalDateTime startDate;
     
-    /**
-     * 预估里程（米）
-     */
+    /** 结束日期 */
+    private LocalDateTime endDate;
+    
+    /** 预计开始日期 */
+    private LocalDateTime estimatedStartDate;
+    
+    /** 预计结束日期 */
+    private LocalDateTime estimatedEndDate;
+    
+    /** 预估里程（米） */
     private BigDecimal estimatedMileage;
     
-    /**
-     * 循环状态：IN_PROGRESS-进行中，COMPLETED-已完成
-     */
+    /** 循环状态：IN_PROGRESS/COMPLETED */
+    @TableField("cycle_status")
     private String status;
     
-    /**
-     * 循环进尺（米）
-     */
+    /** 循环进尺（米） */
     private BigDecimal advanceLength;
     
-    /**
-     * 工序模板ID
-     */
-    private Long templateId;
+    /** 围岩等级 */
+    private String rockLevel;
     
     /**
      * 删除标志：0-未删除，1-已删除

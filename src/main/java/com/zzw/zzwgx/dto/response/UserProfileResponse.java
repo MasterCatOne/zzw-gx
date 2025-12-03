@@ -2,6 +2,8 @@ package com.zzw.zzwgx.dto.response;
 
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * 用户个人信息响应DTO
  */
@@ -12,6 +14,7 @@ public class UserProfileResponse {
     private String username;
     private String realName;
     private String role;
+    private List<String> roles;
     private String idCard;
     private String phone;
 }

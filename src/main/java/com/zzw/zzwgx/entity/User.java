@@ -33,11 +33,6 @@ public class User {
     private String realName;
     
     /**
-     * 角色：ADMIN-管理员，WORKER-施工人员
-     */
-    private String role;
-    
-    /**
      * 身份证号（实名信息）
      */
     private String idCard;

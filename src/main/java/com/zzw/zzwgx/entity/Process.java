@@ -23,30 +23,26 @@ public class Process {
      */
     private Long cycleId;
     
-    /**
-     * 工序名称
-     */
-    private String name;
+    /** 工序名称 */
+    private String processName;
     
-    /**
-     * 控制时间（分钟）
-     */
+    /** 控制时间（分钟） */
     private Integer controlTime;
     
-    /**
-     * 实际开始时间
-     */
+    /** 预计开始时间 */
+    private LocalDateTime estimatedStartTime;
+    
+    /** 预计结束时间 */
+    private LocalDateTime estimatedEndTime;
+    
+    /** 实际开始时间 */
     private LocalDateTime actualStartTime;
     
-    /**
-     * 实际结束时间
-     */
+    /** 实际结束时间 */
     private LocalDateTime actualEndTime;
     
-    /**
-     * 工序状态：NOT_STARTED-未开始，IN_PROGRESS-进行中，COMPLETED-已完成
-     */
-    private String status;
+    /** 工序状态：NOT_STARTED/IN_PROGRESS/COMPLETED */
+    private String processStatus;
     
     /**
      * 操作员ID

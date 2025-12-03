@@ -21,6 +21,11 @@ public class ProgressDetailResponse {
     private String currentProcess;
     private LocalDateTime lastCycleEndTime;
     private LocalDateTime currentCycleStartTime;
+    private LocalDateTime estimatedStartDate;
+    private LocalDateTime estimatedEndDate;
+    private LocalDateTime actualStartDate;
+    private LocalDateTime actualEndDate;
+    private BigDecimal controlSpeedPerHour;
     private List<ProcessInfo> processes;
     
     @Data
@@ -33,6 +38,11 @@ public class ProgressDetailResponse {
         private String statusDesc;
         private LocalDateTime actualStartTime;
         private LocalDateTime actualEndTime;
+        private LocalDateTime estimatedStartTime;
+        private LocalDateTime estimatedEndTime;
+        private Integer elapsedMinutes;
+        private Integer timeDifferenceMinutes;
+        private boolean endProcess;
     }
 }
 
