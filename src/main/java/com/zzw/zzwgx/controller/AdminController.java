@@ -46,11 +46,11 @@ public class AdminController {
         return Result.success(response);
     }
     
-    @Operation(summary = "获取项目进度详情", description = "获取指定项目指定循环的进度详情，包括循环信息和工序列表")
+    @Operation(summary = "获取工点进度详情", description = "获取指定工点指定循环的进度详情，包括循环信息和工序列表")
     @GetMapping("/projects/{projectId}/progress")
     public Result<ProgressDetailResponse> getProgressDetail(@PathVariable Long projectId,
                                                             @RequestParam(required = false) Integer cycleNumber) {
-        log.info("查询项目进度详情，项目ID: {}, 循环号: {}", projectId, cycleNumber);
+        log.info("查询工点进度详情，项目ID: {}, 循环号: {}", projectId, cycleNumber);
         ProgressDetailResponse response = projectService.getProgressDetail(projectId, cycleNumber);
         return Result.success(response);
     }
@@ -64,7 +64,7 @@ public class AdminController {
         return Result.success(response);
     }
     
-    @Operation(summary = "获取项目循环列表", description = "分页查询指定项目下的所有循环记录")
+    @Operation(summary = "获取工点循环列表", description = "分页查询指定工点下的所有循环记录")
     @GetMapping("/projects/{projectId}/cycles")
     public Result<Page<CycleResponse>> getProjectCycles(@PathVariable Long projectId,
                                                         @RequestParam(defaultValue = "1") Integer pageNum,

@@ -44,6 +44,13 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             throw new BusinessException(ResultCode.PROJECT_NOT_FOUND);
         }
 
+        // 业务校验：检查该工点是否已有进行中的循环
+        Cycle existingCycle = getCurrentCycleByProjectId(request.getProjectId());
+        if (existingCycle != null) {
+            log.error("创建循环失败，该工点已有进行中的循环，项目ID: {}, 当前循环ID: {}, 循环号: {}", 
+                    request.getProjectId(), existingCycle.getId(), existingCycle.getCycleNumber());
+            throw new BusinessException(ResultCode.CYCLE_IN_PROGRESS_EXISTS);
+        }
         
         // 获取当前循环次数
         Cycle latestCycle = getLatestCycleByProjectId(request.getProjectId());
@@ -58,7 +65,20 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         cycle.setStartDate(request.getStartDate());
         cycle.setEndDate(request.getEndDate());
         cycle.setEstimatedStartDate(request.getEstimatedStartDate());
-        cycle.setEstimatedEndDate(request.getEstimatedEndDate());
+        
+        // 根据实际开始时间和控制时长标准自动计算预计结束时间
+        if (request.getEstimatedEndDate() != null) {
+            // 如果请求中已提供预计结束时间，使用提供的值
+            cycle.setEstimatedEndDate(request.getEstimatedEndDate());
+        } else if (request.getStartDate() != null && request.getControlDuration() != null) {
+            // 如果没有提供预计结束时间，根据实际开始时间 + 控制时长（分钟）计算
+            cycle.setEstimatedEndDate(request.getStartDate().plusMinutes(request.getControlDuration()));
+            log.debug("自动计算预计结束时间，开始时间: {}, 控制时长: {}分钟, 预计结束时间: {}", 
+                    request.getStartDate(), request.getControlDuration(), cycle.getEstimatedEndDate());
+        } else {
+            // 如果都没有提供，设置为null
+            cycle.setEstimatedEndDate(request.getEstimatedEndDate());
+        }
         if (request.getEstimatedMileage() != null) {
             cycle.setEstimatedMileage(BigDecimal.valueOf(request.getEstimatedMileage()));
         }
@@ -80,6 +100,17 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         if (cycle == null) {
             throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
         }
+        
+        // 业务校验：如果要更新为 IN_PROGRESS 状态，检查该工点是否已有其他进行中的循环
+        if (StringUtils.hasText(request.getStatus()) && "IN_PROGRESS".equals(request.getStatus())) {
+            Cycle existingCycle = getCurrentCycleByProjectId(cycle.getProjectId());
+            if (existingCycle != null && !existingCycle.getId().equals(cycleId)) {
+                log.error("更新循环失败，该工点已有其他进行中的循环，项目ID: {}, 当前循环ID: {}, 循环号: {}", 
+                        cycle.getProjectId(), existingCycle.getId(), existingCycle.getCycleNumber());
+                throw new BusinessException(ResultCode.CYCLE_IN_PROGRESS_EXISTS);
+            }
+        }
+        
         if (request.getControlDuration() != null) {
             cycle.setControlDuration(request.getControlDuration());
         }

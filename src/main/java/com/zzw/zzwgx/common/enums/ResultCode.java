@@ -34,7 +34,8 @@ public enum ResultCode {
     OVERTIME_REASON_REQUIRED(2011, "超时原因必填"),
     TEMPLATE_NOT_FOUND(2012, "工序模板不存在"),
     PROJECT_NOT_FOUND(2013, "项目不存在"),
-    USER_ROLE_MISSING(2014, "默认角色未配置");
+    USER_ROLE_MISSING(2014, "默认角色未配置"),
+    CYCLE_IN_PROGRESS_EXISTS(2015, "该工点已有进行中的循环，请先完成或暂停当前循环");
 
     private final Integer code;
     private final String message;

@@ -72,34 +72,35 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
         // 权限控制：系统管理员查看全部，普通管理员按分配的工点过滤
         List<Long> allowedProjectIds = getAllowedProjectIdsForCurrentUser(pageNum, pageSize);
         Page<Project> page;
+        Page<Project> p = new Page<>(pageNum, pageSize);
+        LambdaQueryWrapper<Project> wrapper = new LambdaQueryWrapper<>();
+        
+        // 只查询工点（SITE类型）
+        wrapper.eq(Project::getNodeType, "SITE");
+        
         if (allowedProjectIds != null) {
             if (allowedProjectIds.isEmpty()) {
                 Page<ProjectListResponse> emptyPage = new Page<>(pageNum, pageSize, 0);
                 emptyPage.setRecords(new ArrayList<>());
                 return emptyPage;
             }
-            Page<Project> p = new Page<>(pageNum, pageSize);
-            LambdaQueryWrapper<Project> wrapper = new LambdaQueryWrapper<>();
-            wrapper.in(Project::getId, allowedProjectIds)
-                    .eq(Project::getNodeType, "SITE");
-            if (StringUtils.hasText(name)) {
-                wrapper.like(Project::getProjectName, name);
-            }
-            if (StringUtils.hasText(status)) {
-                wrapper.eq(Project::getProjectStatus, status);
-            }
-            page = page(p, wrapper);
-        } else {
-            // 系统管理员：先按名称过滤，再在内存中过滤工点和状态
-            page = getProjectPage(pageNum, pageSize, name);
+            // 普通管理员：只查询分配的工点
+            wrapper.in(Project::getId, allowedProjectIds);
         }
+        // 系统管理员：allowedProjectIds == null，不添加ID过滤，查询所有工点
+        
+        if (StringUtils.hasText(name)) {
+            wrapper.like(Project::getProjectName, name);
+        }
+        if (StringUtils.hasText(status)) {
+            wrapper.eq(Project::getProjectStatus, status);
+        }
+        page = page(p, wrapper);
 
         Page<ProjectListResponse> responsePage = new Page<>(pageNum, pageSize, page.getTotal());
 
-        List<Project> siteProjects = page.getRecords().stream()
-                .filter(p -> "SITE".equalsIgnoreCase(p.getNodeType()))
-                .filter(p -> !StringUtils.hasText(status) || status.equalsIgnoreCase(p.getProjectStatus()))
-                .collect(Collectors.toList());
+        // 由于查询时已经过滤了node_type='SITE'和status，这里直接使用查询结果
+        List<Project> siteProjects = page.getRecords();
 
         List<ProjectListResponse> list = siteProjects.stream().map(project -> {
             ProjectListResponse response = new ProjectListResponse();
@@ -112,16 +113,16 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
             ProjectStatus ps = ProjectStatus.fromCode(project.getProjectStatus());
             response.setStatusDesc(ps != null ? ps.getDesc() : "");
 
-            Cycle currentCycle = cycleService.getCurrentCycleByProjectId(project.getId());
-            if (currentCycle == null) {
-                currentCycle = cycleService.getLatestCycleByProjectId(project.getId());
-            }
-            if (currentCycle != null) {
-                response.setCurrentCycleNumber(currentCycle.getCycleNumber());
-                response.setRockLevel(currentCycle.getRockLevel());
-                RockLevel rock = RockLevel.fromCode(currentCycle.getRockLevel());
-                response.setRockLevelDesc(rock != null ? rock.getDesc() : currentCycle.getRockLevel());
+            // 获取最新循环：不管状态，获取循环号最大的循环
+            Cycle latestCycle = cycleService.getLatestCycleByProjectId(project.getId());
+            if (latestCycle != null) {
+                // 有循环，显示最新循环号
+                response.setCurrentCycleNumber(latestCycle.getCycleNumber());
+                response.setRockLevel(latestCycle.getRockLevel());
+                RockLevel rock = RockLevel.fromCode(latestCycle.getRockLevel());
+                response.setRockLevelDesc(rock != null ? rock.getDesc() : latestCycle.getRockLevel());
             } else {
+                // 没有任何循环，显示0
                 response.setCurrentCycleNumber(0);
                 response.setRockLevel("-");
                 response.setRockLevelDesc("-");
@@ -146,7 +147,8 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
         if (cycleNumber != null) {
             currentCycle = cycleService.getCycleByProjectAndNumber(projectId, cycleNumber);
         } else {
-            currentCycle = cycleService.getCurrentCycleByProjectId(projectId);
+            // 未指定循环号时，获取最新循环（不管状态）
+            currentCycle = cycleService.getLatestCycleByProjectId(projectId);
         }
         if (currentCycle == null) {
             throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);

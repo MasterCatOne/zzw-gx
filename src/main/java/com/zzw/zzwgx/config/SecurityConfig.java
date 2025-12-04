@@ -103,8 +103,14 @@ public class SecurityConfig {
                 .and()
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/doc.html", "/webjars/**", "/v3/api-docs/**", "/swagger-ui/**",
-                                        "/swagger-resources/**", "/favicon.ico").permitAll()
+                        // Knife4j 文档相关路径，允许所有人访问
+                        .requestMatchers("/doc.html", "/doc.html/**").permitAll()
+                        .requestMatchers("/webjars/**").permitAll()
+                        .requestMatchers("/v3/api-docs/**").permitAll()
+                        .requestMatchers("/swagger-ui/**").permitAll()
+                        .requestMatchers("/swagger-resources/**").permitAll()
+                        .requestMatchers("/favicon.ico").permitAll()
+                        .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
                         .requestMatchers("/api/worker/**").hasAnyRole("ADMIN", "WORKER")
                         .requestMatchers("/api/statistics/**").hasAnyRole("ADMIN", "WORKER")
