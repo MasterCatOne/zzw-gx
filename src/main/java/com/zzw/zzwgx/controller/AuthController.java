@@ -24,7 +24,7 @@ public class AuthController {
     
     private final AuthService authService;
     
-    @Operation(summary = "用户登录", description = "管理员和施工人员登录接口")
+    @Operation(summary = "用户登录", description = "管理员和施工人员登录接口。登录成功后返回JWT令牌和用户信息（包括用户ID、用户名、真实姓名、角色列表等）。")
     @PostMapping("/login")
     public Result<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         log.info("用户登录请求，用户名: {}", request.getUsername());
@@ -32,7 +32,7 @@ public class AuthController {
         return Result.success(response);
     }
     
-    @Operation(summary = "用户注册", description = "新用户注册接口，默认注册为施工人员角色，注册成功后自动登录")
+    @Operation(summary = "用户注册", description = "新用户注册接口，默认注册为施工人员角色，注册成功后自动登录。需要提供用户名、密码、真实姓名、身份证号、手机号等信息。")
     @PostMapping("/register")
     public Result<LoginResponse> register(@Valid @RequestBody RegisterRequest request) {
         log.info("用户注册请求，用户名: {}, 姓名: {}", request.getUsername(), request.getRealName());
@@ -40,7 +40,7 @@ public class AuthController {
         return Result.success(response);
     }
     
-    @Operation(summary = "退出登录", description = "用户退出登录接口")
+    @Operation(summary = "退出登录", description = "用户退出登录接口。注意：由于使用JWT令牌，实际退出需要前端清除本地存储的令牌。")
     @PostMapping("/logout")
     public Result<?> logout() {
         authService.logout();

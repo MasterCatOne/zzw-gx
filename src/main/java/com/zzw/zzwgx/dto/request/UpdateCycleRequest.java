@@ -11,34 +11,35 @@ import java.time.LocalDateTime;
  * 更新循环请求
  */
 @Data
+@Schema(description = "更新循环信息请求参数")
 public class UpdateCycleRequest {
     
-    @Schema(description = "控制时长（分钟）")
+    @Schema(description = "控制时长（分钟）", example = "480")
     @Min(value = 0, message = "控制时长不能为负数")
     private Integer controlDuration;
     
-    @Schema(description = "开始日期")
+    @Schema(description = "实际开始时间", example = "2024-01-01T08:00:00")
     private LocalDateTime startDate;
     
-    @Schema(description = "结束日期")
+    @Schema(description = "实际结束时间", example = "2024-01-01T16:00:00")
     private LocalDateTime endDate;
     
-    @Schema(description = "预计开始日期")
+    @Schema(description = "预估开始时间", example = "2024-01-01T08:00:00")
     private LocalDateTime estimatedStartDate;
     
-    @Schema(description = "预计结束日期")
+    @Schema(description = "预估结束时间", example = "2024-01-01T16:00:00")
     private LocalDateTime estimatedEndDate;
     
-    @Schema(description = "预计里程（米）")
+    @Schema(description = "预计里程（米）", example = "2.5")
     private BigDecimal estimatedMileage;
     
-    @Schema(description = "实际进尺（米）")
+    @Schema(description = "实际进尺（米）", example = "2.3")
     private BigDecimal advanceLength;
     
-    @Schema(description = "循环状态：IN_PROGRESS/COMPLETED")
+    @Schema(description = "循环状态：IN_PROGRESS/COMPLETED/PAUSED", example = "IN_PROGRESS")
     private String status;
     
-    @Schema(description = "围岩等级")
+    @Schema(description = "围岩等级，如：III、IV、V等", example = "III")
     private String rockLevel;
 }
 

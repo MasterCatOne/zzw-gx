@@ -4,6 +4,7 @@ import com.zzw.zzwgx.common.Result;
 import com.zzw.zzwgx.dto.request.UserProjectAssignRequest;
 import com.zzw.zzwgx.service.UserProjectService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,14 +25,15 @@ public class UserProjectController {
     
     private final UserProjectService userProjectService;
     
-    @Operation(summary = "查询管理员管理的工点", description = "根据管理员用户ID查询其可管理的工点列表")
+    @Operation(summary = "查询管理员管理的工点", description = "根据管理员用户ID查询其可管理的工点列表。返回该管理员被分配的所有工点ID列表。如果管理员被分配到父节点（如标段、隧道），则自动包含其下所有子工点。")
     @GetMapping("/{userId}")
-    public Result<List<Long>> getUserProjects(@PathVariable Long userId) {
+    public Result<List<Long>> getUserProjects(
+            @Parameter(description = "管理员用户ID", required = true, example = "2") @PathVariable Long userId) {
         List<Long> projectIds = userProjectService.getProjectIdsByUser(userId);
         return Result.success(projectIds);
     }
     
-    @Operation(summary = "分配管理员工点", description = "为管理员分配可管理的工点列表，传空表示清空权限")
+    @Operation(summary = "分配管理员工点", description = "为管理员分配可管理的工点列表。可以分配工点ID列表，如果分配父节点（如标段、隧道），则该管理员可以查看该节点下所有子工点。传空列表表示清空该管理员的所有工点权限。")
     @PostMapping("/assign")
     public Result<Void> assignProjects(@Valid @RequestBody UserProjectAssignRequest request) {
         userProjectService.assignProjects(request.getUserId(), request.getProjectIds());

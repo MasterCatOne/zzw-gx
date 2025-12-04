@@ -66,11 +66,13 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
     }
     
     @Override
-    public Page<ProjectListResponse> getProjectList(Integer pageNum, Integer pageSize, String name, String status) {
-        log.info("查询工点列表，页码: {}, 每页大小: {}, 名称关键词: {}, 状态: {}", pageNum, pageSize, name, status);
+    public Page<ProjectListResponse> getProjectList(Integer pageNum, Integer pageSize, String name, String status, Long userId) {
+        log.info("查询工点列表，页码: {}, 每页大小: {}, 名称关键词: {}, 状态: {}, 指定用户ID: {}", pageNum, pageSize, name, status, userId);
 
-        // 权限控制：系统管理员查看全部，普通管理员按分配的工点过滤
-        List<Long> allowedProjectIds = getAllowedProjectIdsForCurrentUser(pageNum, pageSize);
+        // 权限控制：
+        // 1. 如果显式传入 userId（前端联调/测试时使用），则按该用户的工点权限过滤；
+        // 2. 如果未传 userId，则按当前登录用户（从 SecurityContext 中获取）进行权限控制。
+        List<Long> allowedProjectIds = getAllowedProjectIds(userId);
         Page<Project> page;
         Page<Project> p = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<Project> wrapper = new LambdaQueryWrapper<>();
@@ -151,7 +153,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
         if (currentCycle == null) {
             throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
         }
-        
+        //        上一个循环
         Cycle lastCycle = cycleService.getCycleByProjectAndNumber(projectId, currentCycle.getCycleNumber() - 1);
         
         ProgressDetailResponse response = new ProgressDetailResponse();
@@ -184,28 +186,28 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
             response.setCurrentProcess(currentProcess.getProcessName());
         }
         
-        // 上循环结束时间
+        // 上循环结束时间：取上一循环本身的实际结束时间（endDate）
         LocalDateTime lastCycleEnd = null;
-        if (lastCycle != null) {
-            List<Process> lastCycleProcesses = processService.getProcessesByCycleId(lastCycle.getId());
-            Process lastProcess = lastCycleProcesses.stream()
-                    .filter(p -> ProcessStatus.COMPLETED.getCode().equals(p.getProcessStatus()))
-                    .reduce((first, second) -> second)
-                    .orElse(null);
-            if (lastProcess != null && lastProcess.getActualEndTime() != null) {
-                lastCycleEnd = lastProcess.getActualEndTime();
-                response.setLastCycleEndTime(lastCycleEnd);
-            } else if (lastCycle.getEndDate() != null) {
-                // 如果上循环没有工序，使用循环的结束时间
-                lastCycleEnd = lastCycle.getEndDate();
-                response.setLastCycleEndTime(lastCycleEnd);
-            }
+        if (lastCycle != null && lastCycle.getEndDate() != null) {
+            lastCycleEnd = lastCycle.getEndDate();
+            response.setLastCycleEndTime(lastCycleEnd);
         }
         
-        // 计算上循环结束到本循环开始的时间差（余时，单位：分钟）
-        if (lastCycleEnd != null && currentCycle.getStartDate() != null) {
-            long remainingMinutes = Duration.between(lastCycleEnd, currentCycle.getStartDate()).toMinutes();
-            response.setLastCycleEndRemainingMinutes(remainingMinutes);
+        // 计算上循环预计结束时间与实际结束时间的时间差（单位：分钟）
+        // diff > 0 表示超时 diff 分钟；diff < 0 表示节省 |diff| 分钟；diff == 0 表示按时完成
+        if (lastCycle != null && lastCycle.getEstimatedEndDate() != null && lastCycle.getEndDate() != null) {
+            long diffMinutes = Duration.between(lastCycle.getEstimatedEndDate(), lastCycle.getEndDate()).toMinutes();
+            response.setLastCycleEndRemainingMinutes(diffMinutes);
+
+            String text;
+            if (diffMinutes > 0) {
+                text = "超时" + diffMinutes + "分钟";
+            } else if (diffMinutes < 0) {
+                text = "节省" + Math.abs(diffMinutes) + "分钟";
+            } else {
+                text = "按时完成";
+            }
+            response.setLastCycleEndRemainingText(text);
         }
         
         // 本循环开始时间
@@ -217,6 +219,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
             LocalDateTime now = LocalDateTime.now();
             long elapsedHours = Duration.between(currentCycleStart, now).toHours();
             response.setCurrentCycleElapsedHours(elapsedHours);
+            response.setCurrentCycleElapsedText("已进行" + elapsedHours + "小时");
         }
         
         // 工序列表
@@ -390,10 +393,23 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
     }
 
     /**
-     * 获取当前用户允许查看的工点ID列表
-     * SYSTEMADMIN 角色返回 null 表示不过滤；普通管理员返回其分配的工点ID列表；其他角色返回空列表
+     * 获取允许查看的工点ID列表
+     *
+     * @param explicitUserId 显式传入的用户ID（用于前端联调/测试）。如果为 null，则使用当前登录用户。
+     *                       - 显式 userId 不做角色区分，直接按该用户被分配的工点过滤。
+     *                       - 未传 userId 时：SYSTEM_ADMIN 角色返回 null 表示不过滤；普通管理员返回其分配的工点ID列表；其他角色返回空列表。
      */
-    private List<Long> getAllowedProjectIdsForCurrentUser(Integer pageNum, Integer pageSize) {
+    private List<Long> getAllowedProjectIds(Long explicitUserId) {
+        // 场景1：显式传入 userId（当前前端联调阶段推荐用法）
+        if (explicitUserId != null) {
+            List<Long> assignedProjectIds = userProjectService.getProjectIdsByUser(explicitUserId);
+            if (CollectionUtils.isEmpty(assignedProjectIds)) {
+                return new java.util.ArrayList<>();
+            }
+            return expandToSiteProjectIds(assignedProjectIds);
+        }
+
+        // 场景2：未传 userId，走原来的基于当前登录用户的权限控制逻辑
         var currentUser = SecurityUtils.getCurrentUser();
         if (currentUser == null) {
             return new java.util.ArrayList<>();
@@ -401,6 +417,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
         var roles = currentUser.getRoleCodes();
         boolean isSystemAdmin = roles.stream().anyMatch(r -> "SYSTEM_ADMIN".equals(r));
         if (isSystemAdmin) {
+            // 系统管理员查看所有工点，不做ID过滤
             return null;
         }
         Long userId = currentUser.getUserId();

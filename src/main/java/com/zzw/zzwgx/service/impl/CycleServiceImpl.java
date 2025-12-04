@@ -64,7 +64,10 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         cycle.setControlDuration(request.getControlDuration());
         cycle.setStartDate(request.getStartDate());
         cycle.setEndDate(request.getEndDate());
-        cycle.setEstimatedStartDate(request.getEstimatedStartDate());
+        
+        // 预估开始时间与实际开始时间一致
+        cycle.setEstimatedStartDate(request.getStartDate());
+        log.debug("设置预估开始时间，与实际开始时间一致: {}", request.getStartDate());
         
         // 根据实际开始时间和控制时长标准自动计算预计结束时间
         if (request.getEstimatedEndDate() != null) {

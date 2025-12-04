@@ -1,6 +1,7 @@
 package com.zzw.zzwgx.common;
 
 import com.zzw.zzwgx.common.enums.ResultCode;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -9,10 +10,16 @@ import java.io.Serializable;
  * 统一响应结果类
  */
 @Data
+@Schema(description = "统一响应结果")
 public class Result<T> implements Serializable {
     
+    @Schema(description = "响应码，0表示成功", example = "0")
     private Integer code;
+    
+    @Schema(description = "响应消息", example = "")
     private String message;
+    
+    @Schema(description = "响应数据")
     private T data;
     
     public Result() {

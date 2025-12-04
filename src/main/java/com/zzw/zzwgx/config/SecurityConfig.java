@@ -112,8 +112,8 @@ public class SecurityConfig {
                         .requestMatchers("/favicon.ico").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
-                        .requestMatchers("/api/worker/**").hasAnyRole("ADMIN", "WORKER")
-                        .requestMatchers("/api/statistics/**").hasAnyRole("ADMIN", "WORKER")
+                        .requestMatchers("/api/worker/**").hasAnyRole("ADMIN", "WORKER", "SYSTEM_ADMIN")
+                        .requestMatchers("/api/statistics/**").hasAnyRole("ADMIN", "WORKER", "SYSTEM_ADMIN")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptions -> exceptions

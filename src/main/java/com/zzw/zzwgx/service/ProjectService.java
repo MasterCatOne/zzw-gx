@@ -23,7 +23,7 @@ public interface ProjectService extends IService<Project> {
     /**
      * 获取工点列表（返回Response）
      */
-    Page<ProjectListResponse> getProjectList(Integer pageNum, Integer pageSize, String name, String status);
+    Page<ProjectListResponse> getProjectList(Integer pageNum, Integer pageSize, String name, String status, Long userId);
     
     /**
      * 获取项目进度详情
