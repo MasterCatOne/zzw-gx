@@ -104,11 +104,9 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
 
         List<ProjectListResponse> list = siteProjects.stream().map(project -> {
             ProjectListResponse response = new ProjectListResponse();
+            // 只设置前端需要的字段
             response.setId(project.getId());
-            response.setParentId(project.getParentId());
-            response.setNodeType(project.getNodeType());
             response.setProjectName(project.getProjectName());
-            response.setProjectCode(project.getProjectCode());
             response.setProjectStatus(project.getProjectStatus());
             ProjectStatus ps = ProjectStatus.fromCode(project.getProjectStatus());
             response.setStatusDesc(ps != null ? ps.getDesc() : "");
@@ -166,17 +164,18 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
         response.setEstimatedEndDate(currentCycle.getEstimatedEndDate());
         response.setActualStartDate(currentCycle.getStartDate());
         response.setActualEndDate(currentCycle.getEndDate());
-        if (currentCycle.getControlDuration() != null && currentCycle.getControlDuration() > 0) {
-            BigDecimal speed = BigDecimal.ZERO;
-            if (currentCycle.getAdvanceLength() != null) {
-                speed = currentCycle.getAdvanceLength()
-                        .divide(BigDecimal.valueOf(currentCycle.getControlDuration()), 2, java.math.RoundingMode.HALF_UP);
-            }
-            response.setControlSpeedPerHour(speed);
-        }
         
-        // 获取当前工序
+        // 获取当前循环的所有工序
         List<Process> processes = processService.getProcessesByCycleId(currentCycle.getId());
+        
+        // 计算控制总时间：所有工序的控制时间总和（转换为小时）
+        int totalControlTimeMinutes = processes.stream()
+                .filter(p -> p.getControlTime() != null)
+                .mapToInt(Process::getControlTime)
+                .sum();
+        BigDecimal controlTotalTimeHours = BigDecimal.valueOf(totalControlTimeMinutes)
+                .divide(BigDecimal.valueOf(60), 2, java.math.RoundingMode.HALF_UP);
+        response.setControlTotalTimeHours(controlTotalTimeHours);
         Process currentProcess = processes.stream()
                 .filter(p -> ProcessStatus.IN_PROGRESS.getCode().equals(p.getProcessStatus()))
                 .findFirst()
@@ -186,6 +185,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
         }
         
         // 上循环结束时间
+        LocalDateTime lastCycleEnd = null;
         if (lastCycle != null) {
             List<Process> lastCycleProcesses = processService.getProcessesByCycleId(lastCycle.getId());
             Process lastProcess = lastCycleProcesses.stream()
@@ -193,12 +193,31 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
                     .reduce((first, second) -> second)
                     .orElse(null);
             if (lastProcess != null && lastProcess.getActualEndTime() != null) {
-                response.setLastCycleEndTime(lastProcess.getActualEndTime());
+                lastCycleEnd = lastProcess.getActualEndTime();
+                response.setLastCycleEndTime(lastCycleEnd);
+            } else if (lastCycle.getEndDate() != null) {
+                // 如果上循环没有工序，使用循环的结束时间
+                lastCycleEnd = lastCycle.getEndDate();
+                response.setLastCycleEndTime(lastCycleEnd);
             }
         }
         
+        // 计算上循环结束到本循环开始的时间差（余时，单位：分钟）
+        if (lastCycleEnd != null && currentCycle.getStartDate() != null) {
+            long remainingMinutes = Duration.between(lastCycleEnd, currentCycle.getStartDate()).toMinutes();
+            response.setLastCycleEndRemainingMinutes(remainingMinutes);
+        }
+        
         // 本循环开始时间
-        response.setCurrentCycleStartTime(currentCycle.getStartDate());
+        LocalDateTime currentCycleStart = currentCycle.getStartDate();
+        response.setCurrentCycleStartTime(currentCycleStart);
+        
+        // 计算本循环已进行时间（单位：小时）
+        if (currentCycleStart != null) {
+            LocalDateTime now = LocalDateTime.now();
+            long elapsedHours = Duration.between(currentCycleStart, now).toHours();
+            response.setCurrentCycleElapsedHours(elapsedHours);
+        }
         
         // 工序列表
         List<ProgressDetailResponse.ProcessInfo> processInfos = processes.stream().map(process -> {

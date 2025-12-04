@@ -210,6 +210,9 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         return getOne(wrapper);
     }
     
+    /**
+     * 转换Cycle为CycleResponse
+     */
     private CycleResponse convertToResponse(Cycle cycle) {
         if (cycle == null) {
             return null;

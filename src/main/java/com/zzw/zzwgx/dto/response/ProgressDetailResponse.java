@@ -20,12 +20,17 @@ public class ProgressDetailResponse {
     private BigDecimal advanceLength;
     private String currentProcess;
     private LocalDateTime lastCycleEndTime;
+    /** 上循环结束到本循环开始的时间差（分钟），用于显示"余时" */
+    private Long lastCycleEndRemainingMinutes;
     private LocalDateTime currentCycleStartTime;
+    /** 本循环已进行时间（小时），用于显示"已进行X小时" */
+    private Long currentCycleElapsedHours;
     private LocalDateTime estimatedStartDate;
     private LocalDateTime estimatedEndDate;
     private LocalDateTime actualStartDate;
     private LocalDateTime actualEndDate;
-    private BigDecimal controlSpeedPerHour;
+    /** 控制总时间（所有工序的控制时间总和，单位：小时），用于显示"X/h" */
+    private BigDecimal controlTotalTimeHours;
     private List<ProcessInfo> processes;
     
     @Data
