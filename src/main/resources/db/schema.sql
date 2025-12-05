@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS process (
     operator_id BIGINT COMMENT '操作员ID',
     start_order INT COMMENT '开始顺序',
     advance_length DECIMAL(10, 2) DEFAULT 0 COMMENT '进尺长度（米）',
+    template_id BIGINT COMMENT '工序模板ID（记录工序来源模板）',
     deleted TINYINT DEFAULT 0 COMMENT '删除标志：0-未删除，1-已删除',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -137,9 +138,26 @@ CREATE TABLE IF NOT EXISTS process (
     INDEX idx_process_status (process_status),
     INDEX idx_operator_id (operator_id),
     INDEX idx_start_order (start_order),
+    INDEX idx_template_id (template_id),
     FOREIGN KEY (cycle_id) REFERENCES cycle(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    FOREIGN KEY (operator_id) REFERENCES sys_user(id) ON DELETE RESTRICT ON UPDATE CASCADE
+    FOREIGN KEY (operator_id) REFERENCES sys_user(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    FOREIGN KEY (template_id) REFERENCES process_template(id) ON DELETE RESTRICT ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工序表';
+
+-- 工序模板表
+CREATE TABLE IF NOT EXISTS process_template (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    template_name VARCHAR(100) NOT NULL COMMENT '模板名称',
+    process_name VARCHAR(100) NOT NULL COMMENT '工序名称',
+    control_time INT NOT NULL COMMENT '控制时间（分钟）',
+    default_order INT NOT NULL COMMENT '默认顺序',
+    description VARCHAR(500) COMMENT '工序描述',
+    deleted TINYINT DEFAULT 0 COMMENT '删除标志：0-未删除，1-已删除',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_template_name (template_name),
+    INDEX idx_default_order (default_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工序模板表';
 
 -- 任务表
 CREATE TABLE IF NOT EXISTS task (
@@ -320,4 +338,35 @@ INSERT INTO task (process_id, worker_id, task_status, actual_start_time, actual_
 INSERT INTO sys_user_project (user_id, project_id, deleted) VALUES
                                                                (2, 7, 0),  -- admin 管理工点1（上行隧道入口工点）
                                                                (2, 8, 0);  -- admin 管理工点2（上行隧道中间工点）
+
+-- 工序模板数据（标准工序模板）
+INSERT INTO process_template (template_name, process_name, control_time, default_order, description, deleted) VALUES
+('标准模板', '扒渣（平整场地）', 120, 1, '清理工作面，平整施工场地', 0),
+('标准模板', '测量放样', 60, 2, '测量放样定位', 0),
+('标准模板', '炮孔打设', 120, 3, '钻设炮孔', 0),
+('标准模板', '装药爆破', 60, 4, '装药并进行爆破作业', 0),
+('标准模板', '出渣排险', 90, 5, '清理爆破后的渣土和危石', 0),
+('标准模板', '断面扫描（报检）', 30, 6, '进行断面扫描并报检', 0),
+('标准模板', '初喷', 60, 7, '初次喷射混凝土', 0),
+('标准模板', '测量放样', 60, 8, '二次测量放样', 0),
+('标准模板', '拱架安装', 120, 9, '安装钢拱架', 0),
+('标准模板', '锁脚打设', 90, 10, '打设锁脚锚杆', 0),
+('标准模板', '锚杆打设', 90, 11, '打设系统锚杆', 0),
+('标准模板', '超前打设', 120, 12, '打设超前支护', 0),
+('标准模板', '报检', 30, 13, '质量检查报验', 0),
+('标准模板', '喷射混凝土', 120, 14, '最终喷射混凝土', 0),
+('模板2', '扒渣（平整场地）', 100, 1, '清理工作面，平整施工场地', 0),
+('模板2', '测量放样', 50, 2, '测量放样定位', 0),
+('模板2', '炮孔打设', 100, 3, '钻设炮孔', 0),
+('模板2', '装药爆破', 50, 4, '装药并进行爆破作业', 0),
+('模板2', '出渣排险', 80, 5, '清理爆破后的渣土和危石', 0),
+('模板2', '断面扫描（报检）', 30, 6, '进行断面扫描并报检', 0),
+('模板2', '初喷', 50, 7, '初次喷射混凝土', 0),
+('模板2', '测量放样', 50, 8, '二次测量放样', 0),
+('模板2', '拱架安装', 100, 9, '安装钢拱架', 0),
+('模板2', '锁脚打设', 80, 10, '打设锁脚锚杆', 0),
+('模板2', '锚杆打设', 80, 11, '打设系统锚杆', 0),
+('模板2', '超前打设', 100, 12, '打设超前支护', 0),
+('模板2', '报检', 30, 13, '质量检查报验', 0),
+('模板2', '喷射混凝土', 100, 14, '最终喷射混凝土', 0);
 

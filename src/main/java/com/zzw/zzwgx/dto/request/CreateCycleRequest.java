@@ -46,7 +46,7 @@ public class CreateCycleRequest {
     @Schema(description = "循环状态：IN_PROGRESS/COMPLETED/PAUSED", example = "IN_PROGRESS")
     private String status;
     
-    @Schema(description = "工序模板ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
+    @Schema(description = "工序模板ID（传入该模板下任意一个工序模板的ID即可，后端会根据模板名称获取该模板下的所有工序）", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     @NotNull(message = "工序模板ID不能为空")
     private Long templateId;
 }

@@ -17,7 +17,7 @@ public class UpdateProcessRequest {
     @Schema(description = "工序名称", example = "喷锚")
     private String name;
 
-    @Schema(description = "控制时间（分钟）", example = "120")
+    @Schema(description = "控制时间（分钟），仅限管理员调整", example = "120")
     @Min(value = 0, message = "控制时间不能为负数")
     private Integer controlTime;
 

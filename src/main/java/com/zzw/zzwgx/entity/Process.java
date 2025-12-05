@@ -60,6 +60,11 @@ public class Process {
     private BigDecimal advanceLength;
     
     /**
+     * 工序模板ID（记录工序来源模板）
+     */
+    private Long templateId;
+    
+    /**
      * 删除标志：0-未删除，1-已删除
      */
     @TableLogic

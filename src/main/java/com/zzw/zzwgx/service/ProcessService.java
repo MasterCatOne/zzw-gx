@@ -3,6 +3,7 @@ package com.zzw.zzwgx.service;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.zzw.zzwgx.dto.request.CreateProcessRequest;
+import com.zzw.zzwgx.dto.request.UpdateProcessOrderRequest;
 import com.zzw.zzwgx.dto.request.UpdateProcessRequest;
 import com.zzw.zzwgx.dto.response.ProcessDetailResponse;
 import com.zzw.zzwgx.dto.response.ProcessResponse;
@@ -65,5 +66,10 @@ public interface ProcessService extends IService<Process> {
                                                          Integer pageSize,
                                                          String projectName,
                                                          String status);
+    
+    /**
+     * 批量更新工序顺序
+     */
+    void updateProcessOrders(Long cycleId, UpdateProcessOrderRequest request);
 }
 
