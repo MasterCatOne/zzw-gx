@@ -20,11 +20,14 @@ import com.zzw.zzwgx.entity.User;
 import com.zzw.zzwgx.mapper.CycleMapper;
 import com.zzw.zzwgx.mapper.ProcessMapper;
 import com.zzw.zzwgx.mapper.ProjectMapper;
+import com.zzw.zzwgx.service.CycleService;
 import com.zzw.zzwgx.service.ProcessService;
 import com.zzw.zzwgx.service.ProcessTemplateService;
 import com.zzw.zzwgx.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +48,10 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
     private final ProjectMapper projectMapper;
     private final UserService userService;
     private final ProcessTemplateService processTemplateService;
+    
+    @Lazy
+    @Autowired
+    private CycleService cycleService;
     
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -270,6 +277,19 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         if (request.getAdvanceLength() != null) {
             process.setAdvanceLength(request.getAdvanceLength());
         }
+        if (request.getOvertimeReason() != null) {
+            process.setOvertimeReason(request.getOvertimeReason());
+        }
+
+        // 检测是否是"初喷后的测量放样"工序结束，如果是，则更新循环的实际里程并自动计算进尺
+        boolean isMeasurementAfterSpray = isMeasurementAfterSprayProcess(process);
+        boolean isCompleting = request.getStatus() != null && 
+                ProcessStatus.COMPLETED.getCode().equals(request.getStatus());
+        boolean wasCompleted = ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus());
+        
+        if (isMeasurementAfterSpray && (isCompleting || wasCompleted) && request.getActualMileage() != null) {
+            updateCycleMileageAndCalculateAdvanceLength(process.getCycleId(), request.getActualMileage());
+        }
 
         updateById(process);
 
@@ -279,10 +299,97 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         log.info("更新工序成功，工序ID: {}", processId);
         return response;
     }
+    
+    /**
+     * 判断是否是"初喷后的测量放样"工序
+     * 
+     * @param process 工序
+     * @return 是否是初喷后的测量放样工序
+     */
+    private boolean isMeasurementAfterSprayProcess(Process process) {
+        if (process == null || process.getProcessName() == null) {
+            return false;
+        }
+        
+        // 检查当前工序是否是"测量放样"
+        boolean isMeasurement = process.getProcessName().contains("测量放样") || 
+                process.getProcessName().equals("测量放样");
+        
+        if (!isMeasurement) {
+            return false;
+        }
+        
+        // 检查上一个工序是否是"初喷"
+        if (process.getCycleId() != null && process.getStartOrder() != null) {
+            Process previousProcess = getPreviousProcess(process.getCycleId(), process.getStartOrder());
+            if (previousProcess != null && previousProcess.getProcessName() != null) {
+                boolean isSpray = previousProcess.getProcessName().contains("初喷") || 
+                        previousProcess.getProcessName().equals("初喷");
+                if (isSpray) {
+                    log.debug("检测到初喷后的测量放样工序，工序ID: {}, 工序名称: {}", 
+                            process.getId(), process.getProcessName());
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 更新循环的实际里程并自动计算进尺长度
+     * 进尺长度 = 本循环实际里程 - 上一循环实际里程（如果没有上一循环，则为0）
+     * 
+     * @param cycleId 循环ID
+     * @param actualMileage 实际里程
+     */
+    private void updateCycleMileageAndCalculateAdvanceLength(Long cycleId, java.math.BigDecimal actualMileage) {
+        if (cycleId == null || actualMileage == null) {
+            log.warn("无法更新循环里程，循环ID或实际里程为空，循环ID: {}, 实际里程: {}", cycleId, actualMileage);
+            return;
+        }
+        
+        Cycle cycle = cycleMapper.selectById(cycleId);
+        if (cycle == null) {
+            log.warn("无法更新循环里程，循环不存在，循环ID: {}", cycleId);
+            return;
+        }
+        
+        // 更新循环的实际里程
+        cycle.setActualMileage(actualMileage);
+        
+        // 计算进尺长度 = 本循环实际里程 - 上一循环实际里程
+        java.math.BigDecimal baseMileage = java.math.BigDecimal.ZERO;
+        
+        // 获取上一循环
+        if (cycle.getProjectId() != null && cycle.getCycleNumber() != null && cycle.getCycleNumber() > 1) {
+            Cycle previousCycle = cycleService.getCycleByProjectAndNumber(
+                    cycle.getProjectId(), cycle.getCycleNumber() - 1);
+            if (previousCycle != null && previousCycle.getActualMileage() != null) {
+                baseMileage = previousCycle.getActualMileage();
+                log.debug("使用上一循环的实际里程作为基准，上一循环ID: {}, 循环号: {}, 实际里程: {}", 
+                        previousCycle.getId(), previousCycle.getCycleNumber(), baseMileage);
+            }
+        }
+        
+        // 计算进尺长度
+        java.math.BigDecimal advanceLength = actualMileage.subtract(baseMileage);
+        if (advanceLength.compareTo(java.math.BigDecimal.ZERO) < 0) {
+            log.warn("计算出的进尺长度为负数，循环ID: {}, 当前里程: {}, 基准里程: {}, 进尺: {}", 
+                    cycle.getId(), actualMileage, baseMileage, advanceLength);
+            advanceLength = java.math.BigDecimal.ZERO;
+        }
+        
+        cycle.setAdvanceLength(advanceLength);
+        cycleMapper.updateById(cycle);
+        
+        log.info("自动更新循环里程并计算进尺，循环ID: {}, 循环号: {}, 实际里程: {}, 基准里程: {}, 进尺: {} 米", 
+                cycle.getId(), cycle.getCycleNumber(), actualMileage, baseMileage, advanceLength);
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void startWorkerProcess(Long processId, Long workerId, LocalDateTime actualStartTime) {
+    public com.zzw.zzwgx.dto.response.StartProcessResponse startWorkerProcess(Long processId, Long workerId, LocalDateTime actualStartTime) {
         log.info("施工人员开始工序，用户ID: {}, 工序ID: {}, 实际开始时间: {}", workerId, processId, actualStartTime);
         Process process = getById(processId);
         if (process == null) {
@@ -298,12 +405,20 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             throw new BusinessException(ResultCode.PARAM_MISSING);
         }
 
+        // 检查上一工序是否完成，但不阻止开始，只返回提示
         Process previousProcess = null;
+        com.zzw.zzwgx.dto.response.StartProcessResponse response = new com.zzw.zzwgx.dto.response.StartProcessResponse();
+        response.setSuccess(true);
+        
         if (process.getCycleId() != null && process.getStartOrder() != null) {
             previousProcess = getPreviousProcess(process.getCycleId(), process.getStartOrder());
-        }
-        if (previousProcess != null && !ProcessStatus.COMPLETED.getCode().equals(previousProcess.getProcessStatus())) {
-            throw new BusinessException(ResultCode.PREVIOUS_PROCESS_NOT_COMPLETED);
+            if (previousProcess != null && !ProcessStatus.COMPLETED.getCode().equals(previousProcess.getProcessStatus())) {
+                // 上一工序未完成，返回提示信息
+                response.setWarningMessage(String.format("上一工序'%s'尚未完成，请注意", previousProcess.getProcessName()));
+                response.setPreviousProcessName(previousProcess.getProcessName());
+                response.setPreviousProcessStatus(previousProcess.getProcessStatus());
+                log.warn("开始工序时提示：上一工序未完成，工序ID: {}, 上一工序: {}", processId, previousProcess.getProcessName());
+            }
         }
 
         process.setActualStartTime(actualStartTime);
@@ -311,6 +426,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         updateById(process);
 
         log.info("施工人员开始工序成功，工序ID: {}", processId);
+        return response;
     }
 
     private ProcessDetailResponse buildProcessDetail(Process process) {
@@ -346,6 +462,11 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             response.setPreviousProcessStatus(previousProcess.getProcessStatus());
             ProcessStatus prevStatus = ProcessStatus.fromCode(previousProcess.getProcessStatus());
             response.setPreviousProcessStatusDesc(prevStatus != null ? prevStatus.getDesc() : "");
+        } else {
+            // 如果没有上一工序，显示"无"
+            response.setPreviousProcessName("无");
+            response.setPreviousProcessStatus(null);
+            response.setPreviousProcessStatusDesc("无");
         }
 
         Integer processTimeMinutes = null;
@@ -368,6 +489,9 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             processTimeMinutes = process.getControlTime();
         }
         response.setProcessTimeMinutes(processTimeMinutes);
+        
+        // 设置超时原因
+        response.setOvertimeReason(process.getOvertimeReason());
 
         return response;
     }
@@ -432,6 +556,269 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         }
         
         log.info("批量更新工序顺序完成，循环ID: {}, 更新数量: {}", cycleId, request.getProcessOrders().size());
+    }
+
+    @Override
+    public com.zzw.zzwgx.dto.response.CycleProcessTimeResponse calculateCycleProcessTime(Long cycleId) {
+        log.info("计算循环工序总时间，循环ID: {}", cycleId);
+        Cycle cycle = cycleMapper.selectById(cycleId);
+        if (cycle == null) {
+            throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
+        }
+
+        List<Process> processes = getProcessesByCycleId(cycleId);
+        
+        com.zzw.zzwgx.dto.response.CycleProcessTimeResponse response = new com.zzw.zzwgx.dto.response.CycleProcessTimeResponse();
+        response.setCycleId(cycleId);
+        response.setCycleNumber(cycle.getCycleNumber());
+        response.setTotalProcessCount(processes.size());
+
+        // 计算单工序总时间（所有工序实际完成时间的总和，不考虑重叠）
+        long totalIndividualTime = 0;
+        int completedCount = 0;
+        List<com.zzw.zzwgx.dto.response.CycleProcessTimeResponse.ProcessTimeDetail> details = new java.util.ArrayList<>();
+
+        // 收集所有已完成工序的时间段
+        List<TimeInterval> intervals = new java.util.ArrayList<>();
+        
+        for (Process process : processes) {
+            com.zzw.zzwgx.dto.response.CycleProcessTimeResponse.ProcessTimeDetail detail = 
+                new com.zzw.zzwgx.dto.response.CycleProcessTimeResponse.ProcessTimeDetail();
+            detail.setProcessId(process.getId());
+            detail.setProcessName(process.getProcessName());
+            detail.setActualStartTime(process.getActualStartTime());
+            detail.setActualEndTime(process.getActualEndTime());
+
+            if (process.getActualStartTime() != null && process.getActualEndTime() != null) {
+                long minutes = Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
+                detail.setProcessTimeMinutes(minutes);
+                totalIndividualTime += minutes;
+                completedCount++;
+                
+                // 添加到时间段列表用于计算重叠
+                intervals.add(new TimeInterval(process.getActualStartTime(), process.getActualEndTime()));
+            } else {
+                detail.setProcessTimeMinutes(0L);
+            }
+            details.add(detail);
+        }
+
+        response.setCompletedProcessCount(completedCount);
+        response.setTotalIndividualTimeMinutes(totalIndividualTime);
+        response.setProcessDetails(details);
+
+        // 计算整套工序总时间（考虑重叠时间不重复计算）
+        long totalCycleTime = calculateNonOverlappingTime(intervals);
+        response.setTotalCycleTimeMinutes(totalCycleTime);
+        response.setOverlapTimeMinutes(totalIndividualTime - totalCycleTime);
+
+        log.info("计算循环工序总时间完成，循环ID: {}, 单工序总时间: {}分钟, 整套工序总时间: {}分钟, 重叠时间: {}分钟",
+                cycleId, totalIndividualTime, totalCycleTime, totalIndividualTime - totalCycleTime);
+        
+        return response;
+    }
+
+    /**
+     * 计算非重叠的总时间（合并重叠的时间段）
+     */
+    private long calculateNonOverlappingTime(List<TimeInterval> intervals) {
+        if (intervals.isEmpty()) {
+            return 0;
+        }
+
+        // 按开始时间排序
+        intervals.sort((a, b) -> a.start.compareTo(b.start));
+
+        // 合并重叠的时间段
+        List<TimeInterval> merged = new java.util.ArrayList<>();
+        TimeInterval current = intervals.get(0);
+
+        for (int i = 1; i < intervals.size(); i++) {
+            TimeInterval next = intervals.get(i);
+            // 如果当前时间段与下一个时间段重叠或相邻，则合并
+            if (!current.end.isBefore(next.start)) {
+                // 重叠或相邻，合并
+                if (current.end.isBefore(next.end)) {
+                    current.end = next.end;
+                }
+            } else {
+                // 不重叠，保存当前时间段，开始新的时间段
+                merged.add(current);
+                current = next;
+            }
+        }
+        merged.add(current);
+
+        // 计算总时间
+        long totalMinutes = 0;
+        for (TimeInterval interval : merged) {
+            totalMinutes += Duration.between(interval.start, interval.end).toMinutes();
+        }
+
+        return totalMinutes;
+    }
+
+    /**
+     * 时间段内部类
+     */
+    private static class TimeInterval {
+        LocalDateTime start;
+        LocalDateTime end;
+
+        TimeInterval(LocalDateTime start, LocalDateTime end) {
+            this.start = start;
+            this.end = end;
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void submitOvertimeReason(Long processId, Long workerId, String overtimeReason) {
+        log.info("施工人员填报超时原因，用户ID: {}, 工序ID: {}, 超时原因: {}", workerId, processId, overtimeReason);
+        Process process = getById(processId);
+        if (process == null) {
+            throw new BusinessException(ResultCode.PROCESS_NOT_FOUND);
+        }
+        
+        // 验证权限：只有该工序的操作员可以填报
+        if (process.getOperatorId() == null || !process.getOperatorId().equals(workerId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN);
+        }
+        
+        // 验证工序是否已完成
+        if (!ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus())) {
+            throw new BusinessException("只有已完成的工序才能填报超时原因");
+        }
+        
+        // 验证是否超时
+        if (process.getActualStartTime() == null || process.getActualEndTime() == null || process.getControlTime() == null) {
+            throw new BusinessException("工序时间信息不完整，无法判断是否超时");
+        }
+        long actualMinutes = Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
+        if (actualMinutes <= process.getControlTime()) {
+            throw new BusinessException("该工序未超时，无需填报超时原因");
+        }
+        
+        // 验证循环是否已完成（只能在循环完成前填报）
+        Cycle cycle = cycleMapper.selectById(process.getCycleId());
+        if (cycle == null) {
+            throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
+        }
+        if ("COMPLETED".equals(cycle.getStatus())) {
+            throw new BusinessException("循环已完成，无法填报超时原因");
+        }
+        
+        process.setOvertimeReason(overtimeReason);
+        updateById(process);
+        
+        log.info("施工人员填报超时原因成功，工序ID: {}", processId);
+    }
+
+    @Override
+    public Page<com.zzw.zzwgx.dto.response.OvertimeProcessResponse> getOvertimeProcessesWithoutReason(
+            Integer pageNum, Integer pageSize, String projectName) {
+        log.info("查询超时未填报原因的工序列表，页码: {}, 大小: {}, 工点名称: {}", pageNum, pageSize, projectName);
+        
+        // 查询所有已完成的工序，且循环未完成
+        LambdaQueryWrapper<Process> processWrapper = new LambdaQueryWrapper<>();
+        processWrapper.eq(Process::getProcessStatus, ProcessStatus.COMPLETED.getCode())
+                .isNotNull(Process::getActualStartTime)
+                .isNotNull(Process::getActualEndTime)
+                .isNotNull(Process::getControlTime)
+                .and(wrapper -> wrapper
+                        .isNull(Process::getOvertimeReason)
+                        .or()
+                        .eq(Process::getOvertimeReason, ""))
+                .orderByDesc(Process::getActualEndTime);
+        
+        Page<Process> processPage = page(new Page<>(pageNum, pageSize), processWrapper);
+        
+        if (processPage.getRecords().isEmpty()) {
+            return new Page<>(pageNum, pageSize, 0);
+        }
+        
+        // 获取循环信息
+        List<Process> processes = processPage.getRecords();
+        List<Long> cycleIds = processes.stream().map(Process::getCycleId).distinct().toList();
+        List<Cycle> cycles = cycleIds.isEmpty() 
+                ? java.util.Collections.emptyList()
+                : cycleMapper.selectBatchIds(cycleIds);
+        Map<Long, Cycle> cycleMap = cycles.stream()
+                .filter(cycle -> !"COMPLETED".equals(cycle.getStatus())) // 只保留未完成的循环
+                .collect(java.util.stream.Collectors.toMap(Cycle::getId, c -> c));
+        
+        // 获取项目信息
+        List<Long> projectIds = cycles.stream().map(Cycle::getProjectId).distinct().toList();
+        List<Project> projects = projectIds.isEmpty()
+                ? java.util.Collections.emptyList()
+                : projectMapper.selectBatchIds(projectIds);
+        Map<Long, Project> projectMap = projects.stream()
+                .collect(java.util.stream.Collectors.toMap(Project::getId, p -> p));
+        
+        // 获取操作员信息
+        List<Long> operatorIds = processes.stream()
+                .map(Process::getOperatorId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        List<User> operators = operatorIds.isEmpty()
+                ? java.util.Collections.emptyList()
+                : userService.listByIds(operatorIds);
+        Map<Long, User> operatorMap = operators.stream()
+                .collect(java.util.stream.Collectors.toMap(User::getId, u -> u));
+        
+        // 构建响应列表
+        List<com.zzw.zzwgx.dto.response.OvertimeProcessResponse> result = new java.util.ArrayList<>();
+        for (Process process : processes) {
+            Cycle cycle = cycleMap.get(process.getCycleId());
+            if (cycle == null) {
+                continue; // 跳过已完成的循环
+            }
+            
+            // 检查是否超时
+            long actualMinutes = Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
+            if (actualMinutes <= process.getControlTime()) {
+                continue; // 跳过未超时的工序
+            }
+            
+            Project project = projectMap.get(cycle.getProjectId());
+            if (project == null) {
+                continue;
+            }
+            
+            // 工点名称过滤
+            if (projectName != null && !projectName.isEmpty()) {
+                if (project.getProjectName() == null || !project.getProjectName().contains(projectName)) {
+                    continue;
+                }
+            }
+            
+            com.zzw.zzwgx.dto.response.OvertimeProcessResponse response = new com.zzw.zzwgx.dto.response.OvertimeProcessResponse();
+            response.setProcessId(process.getId());
+            response.setProcessName(process.getProcessName());
+            response.setProjectName(project.getProjectName());
+            response.setCycleNumber(cycle.getCycleNumber());
+            response.setControlTime(process.getControlTime());
+            response.setActualStartTime(process.getActualStartTime());
+            response.setActualEndTime(process.getActualEndTime());
+            response.setActualTimeMinutes(actualMinutes);
+            response.setOvertimeMinutes(actualMinutes - process.getControlTime());
+            
+            if (process.getOperatorId() != null) {
+                User operator = operatorMap.get(process.getOperatorId());
+                if (operator != null) {
+                    response.setOperatorName(operator.getRealName());
+                }
+            }
+            
+            result.add(response);
+        }
+        
+        Page<com.zzw.zzwgx.dto.response.OvertimeProcessResponse> resultPage = new Page<>(pageNum, pageSize, result.size());
+        resultPage.setRecords(result);
+        
+        log.info("查询超时未填报原因的工序列表完成，找到 {} 条记录", result.size());
+        return resultPage;
     }
 }
 

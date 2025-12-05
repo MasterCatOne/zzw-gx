@@ -33,6 +33,9 @@ public class UpdateCycleRequest {
     @Schema(description = "预计里程（米）", example = "2.5")
     private BigDecimal estimatedMileage;
     
+    @Schema(description = "实际里程（米），初喷后的测量放样结束后填报", example = "2.8")
+    private BigDecimal actualMileage;
+    
     @Schema(description = "实际进尺（米）", example = "2.3")
     private BigDecimal advanceLength;
     

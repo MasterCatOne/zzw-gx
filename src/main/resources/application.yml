@@ -1,33 +1,17 @@
-server:
-  port: 8080
-
 spring:
   application:
     name: zzw-gx
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/zzw_gx?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: root
-    password: 123456
+  profiles:
+    active: dev  # 默认使用开发环境，可以通过启动参数覆盖：--spring.profiles.active=prod
   jackson:
     time-zone: Asia/Shanghai
     date-format: yyyy-MM-dd HH:mm:ss
 
-# 日志配置
+# 日志配置（通用配置，具体级别在profile文件中配置）
 logging:
   config: classpath:logback-spring.xml
-  level:
-    root: INFO
-    com.zzw.zzwgx: DEBUG
-    com.zzw.zzwgx.mapper: DEBUG
-    com.zzw.zzwgx.controller: INFO
-    com.zzw.zzwgx.service: INFO
-    com.zzw.zzwgx.security: DEBUG
-    org.springframework.security: INFO
-    org.springframework.web: INFO
-    org.mybatis: DEBUG
 
-# MyBatis-Plus配置
+# MyBatis-Plus配置（通用配置）
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
@@ -41,23 +25,8 @@ mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
   type-aliases-package: com.zzw.zzwgx.entity
 
-# JWT配置
+# JWT配置（通用配置）
 jwt:
   secret: zzw-gx-tunnel-construction-management-system-secret-key-2024-this-is-a-very-long-secret-key-for-hs512-algorithm-which-requires-at-least-512-bits
   expiration: 604800000 # 7天，单位：毫秒
-
-# Knife4j配置
-knife4j:
-  enable: true
-  openapi:
-    title: 隧道施工管理系统API文档
-    description: 隧道施工管理系统后端API接口文档
-    version: 1.0.0
-    contact:
-      name: zzw
-    license: Apache 2.0
-    license-url: https://www.apache.org/licenses/LICENSE-2.0.html
-    servers:
-      - url: http://localhost:8080
-        description: 本地环境
 

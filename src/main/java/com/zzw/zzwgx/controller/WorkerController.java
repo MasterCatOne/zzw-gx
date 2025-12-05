@@ -2,8 +2,10 @@ package com.zzw.zzwgx.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zzw.zzwgx.common.Result;
+import com.zzw.zzwgx.dto.request.SubmitOvertimeReasonRequest;
 import com.zzw.zzwgx.dto.request.WorkerStartProcessRequest;
 import com.zzw.zzwgx.dto.response.ProcessDetailResponse;
+import com.zzw.zzwgx.dto.response.StartProcessResponse;
 import com.zzw.zzwgx.dto.response.UserProfileResponse;
 import com.zzw.zzwgx.dto.response.WorkerProcessListResponse;
 import com.zzw.zzwgx.security.SecurityUtils;
@@ -62,15 +64,26 @@ public class WorkerController {
         return Result.success(response);
     }
 
-    @Operation(summary = "开始工序", description = "施工人员立即开始工序任务，需要选择实际开始时间。接口将工序状态更新为进行中。")
+    @Operation(summary = "开始工序", description = "施工人员立即开始工序任务，需要选择实际开始时间。接口将工序状态更新为进行中。如果上一工序未完成，会返回提示信息，但不阻止开始。")
     @PostMapping("/processes/{processId}/start")
-    public Result<Void> startMyProcess(
+    public Result<StartProcessResponse> startMyProcess(
             @Parameter(description = "工序ID", required = true, example = "1001") @PathVariable Long processId,
             @Valid @RequestBody WorkerStartProcessRequest request) {
         Long userId = SecurityUtils.getCurrentUserId();
         log.info("施工人员开始工序，用户ID: {}, 工序ID: {}", userId, processId);
-        processService.startWorkerProcess(processId, userId, request.getActualStartTime());
-        return Result.success("工序开始", null);
+        StartProcessResponse response = processService.startWorkerProcess(processId, userId, request.getActualStartTime());
+        return Result.success(response);
+    }
+
+    @Operation(summary = "填报超时原因", description = "施工人员填报工序超时原因。仅限已完成的超时工序，且只能在循环完成前填报。")
+    @PostMapping("/processes/{processId}/overtime-reason")
+    public Result<Void> submitOvertimeReason(
+            @Parameter(description = "工序ID", required = true, example = "1001") @PathVariable Long processId,
+            @Valid @RequestBody SubmitOvertimeReasonRequest request) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        log.info("施工人员填报超时原因，用户ID: {}, 工序ID: {}", userId, processId);
+        processService.submitOvertimeReason(processId, userId, request.getOvertimeReason());
+        return Result.success("超时原因填报成功", null);
     }
 }
 

@@ -44,6 +44,12 @@ public class UpdateProcessRequest {
 
     @Schema(description = "进尺长度（米）", example = "0.8")
     private BigDecimal advanceLength;
+
+    @Schema(description = "实际里程（米），初喷后的测量放样结束后填报，用于更新循环的实际里程并自动计算进尺", example = "101.2")
+    private BigDecimal actualMileage;
+
+    @Schema(description = "超时原因（工序超时完成时需要填写，可在循环完成前填报）", example = "设备故障导致延误")
+    private String overtimeReason;
 }
 
 

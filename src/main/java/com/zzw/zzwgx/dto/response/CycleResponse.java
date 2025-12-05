@@ -40,6 +40,9 @@ public class CycleResponse {
     @Schema(description = "预估里程（米）", example = "1.5")
     private BigDecimal estimatedMileage;
     
+    @Schema(description = "实际里程（米），初喷后的测量放样结束后填报", example = "1.8")
+    private BigDecimal actualMileage;
+    
     @Schema(description = "循环状态", example = "IN_PROGRESS")
     private String status;
     

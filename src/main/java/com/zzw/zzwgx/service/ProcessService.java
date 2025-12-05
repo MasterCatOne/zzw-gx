@@ -43,9 +43,14 @@ public interface ProcessService extends IService<Process> {
     ProcessDetailResponse getWorkerProcessDetail(Long processId, Long workerId);
 
     /**
-     * 施工人员开始工序
+     * 施工人员开始工序（返回提示信息，不阻止开始）
      */
-    void startWorkerProcess(Long processId, Long workerId, java.time.LocalDateTime actualStartTime);
+    com.zzw.zzwgx.dto.response.StartProcessResponse startWorkerProcess(Long processId, Long workerId, java.time.LocalDateTime actualStartTime);
+    
+    /**
+     * 计算循环的总工序时间（考虑重叠时间不重复计算）
+     */
+    com.zzw.zzwgx.dto.response.CycleProcessTimeResponse calculateCycleProcessTime(Long cycleId);
 
     /**
      * 更新工序
@@ -71,5 +76,16 @@ public interface ProcessService extends IService<Process> {
      * 批量更新工序顺序
      */
     void updateProcessOrders(Long cycleId, UpdateProcessOrderRequest request);
+    
+    /**
+     * 施工人员填报超时原因（可在循环完成前填报）
+     */
+    void submitOvertimeReason(Long processId, Long workerId, String overtimeReason);
+    
+    /**
+     * 查询超时未填报原因的工序列表（管理员查看，仅返回循环未完成的工序）
+     */
+    Page<com.zzw.zzwgx.dto.response.OvertimeProcessResponse> getOvertimeProcessesWithoutReason(
+            Integer pageNum, Integer pageSize, String projectName);
 }
 

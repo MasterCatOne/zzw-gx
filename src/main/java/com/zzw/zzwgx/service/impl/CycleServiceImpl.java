@@ -158,6 +158,9 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         if (request.getEstimatedMileage() != null) {
             cycle.setEstimatedMileage(request.getEstimatedMileage());
         }
+        if (request.getActualMileage() != null) {
+            cycle.setActualMileage(request.getActualMileage());
+        }
         if (request.getAdvanceLength() != null) {
             cycle.setAdvanceLength(request.getAdvanceLength());
         }

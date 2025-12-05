@@ -1,7 +1,9 @@
 package com.zzw.zzwgx.controller;
 
 import com.zzw.zzwgx.common.Result;
+import com.zzw.zzwgx.dto.response.MonthlyStatisticsResponse;
 import com.zzw.zzwgx.dto.response.StatisticsResponse;
+import com.zzw.zzwgx.dto.response.WeeklyOvertimeSummaryResponse;
 import com.zzw.zzwgx.service.StatisticsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -51,6 +53,23 @@ public class StatisticsController {
         log.info("查询本周超耗总时间统计，项目ID: {}", projectId);
         StatisticsResponse.OvertimeStat stat = statisticsService.getOvertimeStatistics(projectId);
         return Result.success(stat);
+    }
+    
+    @Operation(summary = "获取月度统计", description = "按月统计各工点的工序时间总和和进尺长度。返回该月份所有工点的统计数据，包括工序总时长、超耗时间、进尺长度和超耗详情。前端使用2025-06格式选择日期。")
+    @GetMapping("/monthly")
+    public Result<MonthlyStatisticsResponse> getMonthlyStatistics(
+            @Parameter(description = "月份，格式：2025-06", required = true, example = "2025-06") @RequestParam String month) {
+        log.info("查询月度统计，月份: {}", month);
+        MonthlyStatisticsResponse response = statisticsService.getMonthlyStatistics(month);
+        return Result.success(response);
+    }
+    
+    @Operation(summary = "获取每周超耗时间汇总和排名", description = "自动汇总各工点本周的超耗时间总和和节约时间，并根据超耗时间和节约时间进行排名。系统管理员查看全部工点，普通管理员只能查看自己管理的工点。")
+    @GetMapping("/weekly-overtime-summary")
+    public Result<WeeklyOvertimeSummaryResponse> getWeeklyOvertimeSummary() {
+        log.info("查询每周超耗时间汇总和排名");
+        WeeklyOvertimeSummaryResponse response = statisticsService.getWeeklyOvertimeSummary();
+        return Result.success(response);
     }
 
 }

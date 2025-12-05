@@ -1,6 +1,8 @@
 package com.zzw.zzwgx.service;
 
+import com.zzw.zzwgx.dto.response.MonthlyStatisticsResponse;
 import com.zzw.zzwgx.dto.response.StatisticsResponse;
+import com.zzw.zzwgx.dto.response.WeeklyOvertimeSummaryResponse;
 
 /**
  * 统计服务接口
@@ -21,6 +23,20 @@ public interface StatisticsService {
      * 获取本周超耗总时间统计
      */
     StatisticsResponse.OvertimeStat getOvertimeStatistics(Long projectId);
+    
+    /**
+     * 获取月度统计（各工点的工序时间总和和进尺长度）
+     * @param month 月份，格式：2025-06
+     * @return 月度统计数据
+     */
+    MonthlyStatisticsResponse getMonthlyStatistics(String month);
+    
+    /**
+     * 获取每周超耗时间汇总和排名
+     * 自动汇总各工点的超耗时间总和，并根据节约时间和超时时间进行排名
+     * @return 每周超耗统计汇总数据
+     */
+    WeeklyOvertimeSummaryResponse getWeeklyOvertimeSummary();
 
 }
 

@@ -48,6 +48,9 @@ public class Cycle {
     /** 预估里程（米） */
     private BigDecimal estimatedMileage;
     
+    /** 实际里程（米），初喷后的测量放样结束后填报 */
+    private BigDecimal actualMileage;
+    
     /** 循环状态：IN_PROGRESS/COMPLETED */
     @TableField("cycle_status")
     private String status;

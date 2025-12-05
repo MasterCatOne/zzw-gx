@@ -65,6 +65,11 @@ public class Process {
     private Long templateId;
     
     /**
+     * 超时原因
+     */
+    private String overtimeReason;
+    
+    /**
      * 删除标志：0-未删除，1-已删除
      */
     @TableLogic

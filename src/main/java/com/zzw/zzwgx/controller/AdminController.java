@@ -10,6 +10,7 @@ import com.zzw.zzwgx.dto.request.UpdateProcessRequest;
 import com.zzw.zzwgx.dto.request.UpdateProcessTemplateRequest;
 import com.zzw.zzwgx.dto.request.UpdateCycleRequest;
 import com.zzw.zzwgx.dto.response.CycleResponse;
+import com.zzw.zzwgx.dto.response.OvertimeProcessResponse;
 import com.zzw.zzwgx.dto.response.ProcessTemplateOptionResponse;
 import com.zzw.zzwgx.dto.response.ProcessTemplateResponse;
 import com.zzw.zzwgx.dto.response.ProcessDetailResponse;
@@ -136,6 +137,26 @@ public class AdminController {
         log.info("批量更新工序顺序，循环ID: {}", cycleId);
         processService.updateProcessOrders(cycleId, request);
         return Result.success();
+    }
+    
+    @Operation(summary = "计算循环工序总时间", description = "计算指定循环的工序总时间统计。返回单工序总时间（所有工序实际完成时间的总和）和整套工序总时间（考虑重叠时间不重复计算）。单工序时间依旧按照实际完成时间进行统计。", tags = {"管理员管理-工序管理"})
+    @GetMapping("/cycles/{cycleId}/process-time")
+    public Result<com.zzw.zzwgx.dto.response.CycleProcessTimeResponse> calculateCycleProcessTime(
+            @Parameter(description = "循环ID", required = true, example = "1") @PathVariable Long cycleId) {
+        log.info("计算循环工序总时间，循环ID: {}", cycleId);
+        com.zzw.zzwgx.dto.response.CycleProcessTimeResponse response = processService.calculateCycleProcessTime(cycleId);
+        return Result.success(response);
+    }
+    
+    @Operation(summary = "查询超时未填报原因的工序列表", description = "查询所有超时但未填报超时原因的工序列表，仅返回循环未完成的工序。用于管理员督促施工人员填报超时原因。返回信息包括工点名称、工序信息、超时时间等。", tags = {"管理员管理-工序管理"})
+    @GetMapping("/processes/overtime-without-reason")
+    public Result<Page<OvertimeProcessResponse>> getOvertimeProcessesWithoutReason(
+            @Parameter(description = "页码，从1开始", example = "1") @RequestParam(defaultValue = "1") Integer pageNum,
+            @Parameter(description = "每页记录数", example = "10") @RequestParam(defaultValue = "10") Integer pageSize,
+            @Parameter(description = "工点名称关键词，支持模糊搜索", example = "工点1") @RequestParam(required = false) String projectName) {
+        log.info("查询超时未填报原因的工序列表，页码: {}, 大小: {}, 工点名称: {}", pageNum, pageSize, projectName);
+        Page<OvertimeProcessResponse> page = processService.getOvertimeProcessesWithoutReason(pageNum, pageSize, projectName);
+        return Result.success(page);
     }
     
     @Operation(summary = "获取所有模板名称列表", description = "获取系统中所有工序模板的名称列表（去重）。", tags = {"管理员管理-工序模板管理"})
