@@ -65,6 +65,11 @@ public class Process {
     private Long templateId;
     
     /**
+     * 工序字典ID（引用process_catalog表，用于统一管理工序）
+     */
+    private Long processCatalogId;
+    
+    /**
      * 超时原因
      */
     private String overtimeReason;

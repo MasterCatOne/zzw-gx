@@ -14,15 +14,15 @@ import com.zzw.zzwgx.dto.response.ProcessResponse;
 import com.zzw.zzwgx.dto.response.WorkerProcessListResponse;
 import com.zzw.zzwgx.entity.Cycle;
 import com.zzw.zzwgx.entity.Process;
-import com.zzw.zzwgx.entity.ProcessTemplate;
+import com.zzw.zzwgx.entity.ProcessCatalog;
 import com.zzw.zzwgx.entity.Project;
 import com.zzw.zzwgx.entity.User;
 import com.zzw.zzwgx.mapper.CycleMapper;
 import com.zzw.zzwgx.mapper.ProcessMapper;
 import com.zzw.zzwgx.mapper.ProjectMapper;
 import com.zzw.zzwgx.service.CycleService;
+import com.zzw.zzwgx.service.ProcessCatalogService;
 import com.zzw.zzwgx.service.ProcessService;
-import com.zzw.zzwgx.service.ProcessTemplateService;
 import com.zzw.zzwgx.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,7 +47,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
     private final CycleMapper cycleMapper;
     private final ProjectMapper projectMapper;
     private final UserService userService;
-    private final ProcessTemplateService processTemplateService;
+    private final ProcessCatalogService processCatalogService;
     
     @Lazy
     @Autowired
@@ -56,7 +56,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ProcessResponse createProcess(CreateProcessRequest request) {
-        log.info("开始创建工序，循环ID: {}, 工序名称: {}, 施工人员ID: {}", request.getCycleId(), request.getWorkerId());
+        log.info("开始创建工序，循环ID: {}, 施工人员ID: {}", request.getCycleId(), request.getWorkerId());
         
         // 验证循环是否存在 - 直接使用Mapper避免循环依赖
         Cycle cycle = cycleMapper.selectById(request.getCycleId());
@@ -73,29 +73,29 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         process.setStartOrder(request.getStartOrder());
         process.setAdvanceLength(java.math.BigDecimal.ZERO);
         
-        // 如果指定了模板ID，则从模板中获取工序名称，但控制时长由用户输入
-        if (request.getTemplateId() != null) {
-            ProcessTemplate template = processTemplateService.getById(request.getTemplateId());
-            if (template == null) {
-                log.error("创建工序失败，模板不存在，模板ID: {}", request.getTemplateId());
-                throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
-            }
-            // 从模板中获取工序名称，控制时长由用户输入
-            process.setProcessName(template.getProcessName());
-            if (request.getControlTime() == null) {
-                throw new BusinessException("控制时长不能为空");
-            }
-            process.setControlTime(request.getControlTime());
-            process.setTemplateId(request.getTemplateId());
-            log.debug("根据模板创建工序，模板ID: {}, 工序名称: {}, 控制时长: {}", 
-                    request.getTemplateId(), template.getProcessName(), request.getControlTime());
-        } else {
-            if (request.getControlTime() == null) {
-                throw new BusinessException("控制时长不能为空");
-            }
-            process.setControlTime(request.getControlTime());
-            log.debug("手动创建工序， 控制时长: {}", request.getControlTime());
+        // 根据工序字典ID获取工序信息
+        if (request.getProcessCatalogId() == null) {
+            throw new BusinessException("工序字典ID不能为空");
         }
+        
+        ProcessCatalog catalog = processCatalogService.getById(request.getProcessCatalogId());
+        if (catalog == null) {
+            log.error("创建工序失败，工序字典不存在，工序字典ID: {}", request.getProcessCatalogId());
+            throw new BusinessException("工序字典不存在，工序字典ID: " + request.getProcessCatalogId());
+        }
+        
+        // 设置工序名称和字典ID
+        process.setProcessName(catalog.getProcessName());
+        process.setProcessCatalogId(request.getProcessCatalogId());
+        
+        // 控制时长由用户输入
+        if (request.getControlTime() == null) {
+            throw new BusinessException("控制时长不能为空");
+        }
+        process.setControlTime(request.getControlTime());
+        
+        log.debug("根据工序字典创建工序，工序字典ID: {}, 工序名称: {}, 控制时长: {}", 
+                request.getProcessCatalogId(), catalog.getProcessName(), request.getControlTime());
         
         save(process);
         log.info("工序创建成功，工序ID: {}, 工序名称: {}", process.getId(), process.getProcessName());

@@ -6,8 +6,10 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zzw.zzwgx.dto.response.ProcessTemplateOptionResponse;
 import com.zzw.zzwgx.dto.response.ProcessTemplateResponse;
 import com.zzw.zzwgx.dto.response.TemplateListResponse;
+import com.zzw.zzwgx.entity.ProcessCatalog;
 import com.zzw.zzwgx.entity.ProcessTemplate;
 import com.zzw.zzwgx.mapper.ProcessTemplateMapper;
+import com.zzw.zzwgx.service.ProcessCatalogService;
 import com.zzw.zzwgx.service.ProcessTemplateService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMapper, ProcessTemplate> implements ProcessTemplateService {
+    
+    private final ProcessCatalogService processCatalogService;
     
     @Override
     public List<ProcessTemplate> getTemplatesByName(String templateName) {
@@ -66,20 +70,44 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
     
     @Override
     public List<ProcessTemplateOptionResponse> getAllProcessTemplateOptions() {
-        log.debug("查询所有工序模板选项列表");
-        List<ProcessTemplate> templates = list(new LambdaQueryWrapper<ProcessTemplate>()
-                .orderByAsc(ProcessTemplate::getTemplateName)
-                .orderByAsc(ProcessTemplate::getDefaultOrder));
-        List<ProcessTemplateOptionResponse> options = templates.stream()
-                .map(template -> {
+        log.debug("查询所有工序选项列表（从工序字典表获取，按显示顺序排序）");
+        
+        // 从工序字典表获取所有工序（已去重，按显示顺序排序）
+        List<ProcessCatalog> catalogs = processCatalogService.list(new LambdaQueryWrapper<ProcessCatalog>()
+                .eq(ProcessCatalog::getDeleted, 0)
+                .eq(ProcessCatalog::getStatus, 1)
+                .orderByAsc(ProcessCatalog::getDisplayOrder)
+                .orderByAsc(ProcessCatalog::getId));
+        
+        // 转换为响应DTO
+        // 为了兼容前端，需要返回templateId，这里返回该工序在第一个模板中的templateId（如果存在）
+        List<ProcessTemplateOptionResponse> options = catalogs.stream()
+                .map(catalog -> {
                     ProcessTemplateOptionResponse option = new ProcessTemplateOptionResponse();
-                    option.setTemplateId(template.getId());
-                    option.setProcessName(template.getProcessName());
-                    option.setTemplateName(template.getTemplateName());
+                    
+                    // 查找该工序在第一个模板中的templateId（用于兼容前端）
+                    ProcessTemplate firstTemplate = getOne(new LambdaQueryWrapper<ProcessTemplate>()
+                            .eq(ProcessTemplate::getProcessCatalogId, catalog.getId())
+                            .eq(ProcessTemplate::getDeleted, 0)
+                            .orderByAsc(ProcessTemplate::getTemplateName)
+                            .orderByAsc(ProcessTemplate::getDefaultOrder)
+                            .last("LIMIT 1"));
+                    
+                    if (firstTemplate != null) {
+                        option.setTemplateId(firstTemplate.getId());
+                        option.setTemplateName(firstTemplate.getTemplateName());
+                    } else {
+                        // 如果该工序不在任何模板中，设置templateId为null或0
+                        option.setTemplateId(null);
+                        option.setTemplateName(null);
+                    }
+                    
+                    option.setProcessName(catalog.getProcessName());
                     return option;
                 })
                 .collect(Collectors.toList());
-        log.debug("查询到工序模板选项数量: {}", options.size());
+        
+        log.debug("查询到工序选项数量: {}", options.size());
         return options;
     }
 

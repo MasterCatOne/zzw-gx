@@ -46,5 +46,13 @@ public interface CycleService extends IService<Cycle> {
      * 根据项目ID和循环号获取循环
      */
     Cycle getCycleByProjectAndNumber(Long projectId, Integer cycleNumber);
+
+    /**
+     * 导出循环报表（基于Excel模板填充）
+     *
+     * @param cycleId  循环ID
+     * @param response HTTP响应流（写出Excel）
+     */
+    void exportCycleReport(Long cycleId, jakarta.servlet.http.HttpServletResponse response);
 }
 

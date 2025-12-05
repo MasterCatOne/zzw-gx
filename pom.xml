@@ -85,6 +85,13 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
         
+        <!-- EasyExcel（模板填充导出） -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>easyexcel</artifactId>
+            <version>3.3.4</version>
+        </dependency>
+        
         <!-- 测试 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

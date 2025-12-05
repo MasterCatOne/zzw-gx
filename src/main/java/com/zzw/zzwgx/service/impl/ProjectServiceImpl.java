@@ -12,6 +12,7 @@ import com.zzw.zzwgx.dto.request.ProjectRequest;
 import com.zzw.zzwgx.dto.response.ProjectListResponse;
 import com.zzw.zzwgx.dto.response.ProgressDetailResponse;
 import com.zzw.zzwgx.dto.response.ProjectTreeNodeResponse;
+import com.zzw.zzwgx.dto.response.SiteConstructionStatusResponse;
 import com.zzw.zzwgx.entity.Cycle;
 import com.zzw.zzwgx.entity.Process;
 import com.zzw.zzwgx.entity.Project;
@@ -21,6 +22,7 @@ import com.zzw.zzwgx.security.SecurityUtils;
 import com.zzw.zzwgx.service.ProcessService;
 import com.zzw.zzwgx.service.ProjectService;
 import com.zzw.zzwgx.service.UserProjectService;
+import com.zzw.zzwgx.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -50,6 +52,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
     private final CycleService cycleService;
     private final ProcessService processService;
     private final UserProjectService userProjectService;
+    private final UserService userService;
     
     @Override
     public Page<Project> getProjectPage(Integer pageNum, Integer pageSize, String name) {
@@ -453,6 +456,222 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
             }
         }
         return result;
+    }
+    
+    @Override
+    public SiteConstructionStatusResponse getSiteConstructionStatus(Long projectId) {
+        log.info("查询工点施工状态，项目ID: {}", projectId);
+        
+        // 获取工点信息
+        Project project = getById(projectId);
+        if (project == null) {
+            throw new BusinessException(ResultCode.PROJECT_NOT_FOUND);
+        }
+        
+        // 验证是否为工点（SITE类型）
+        if (!"SITE".equalsIgnoreCase(project.getNodeType())) {
+            log.warn("查询施工状态失败，节点不是工点类型，项目ID: {}, 节点类型: {}", projectId, project.getNodeType());
+            throw new BusinessException(ResultCode.PROJECT_NOT_FOUND);
+        }
+        
+        SiteConstructionStatusResponse response = new SiteConstructionStatusResponse();
+        response.setProjectId(project.getId());
+        response.setProjectName(project.getProjectName());
+        response.setProjectStatus(project.getProjectStatus());
+        
+        // 获取当前循环（最新循环）
+        Cycle currentCycle = cycleService.getLatestCycleByProjectId(projectId);
+        if (currentCycle == null) {
+            log.info("工点暂无循环数据，项目ID: {}", projectId);
+            return response;
+        }
+        
+        // 设置循环信息
+        response.setCycleId(currentCycle.getId());
+        response.setCycleNumber(currentCycle.getCycleNumber());
+        response.setCycleStatus(currentCycle.getStatus());
+        
+        // 设置循环状态描述
+        String cycleStatusDesc = "进行中";
+        if ("COMPLETED".equals(currentCycle.getStatus())) {
+            cycleStatusDesc = "已完成";
+        } else if ("IN_PROGRESS".equals(currentCycle.getStatus())) {
+            cycleStatusDesc = "进行中";
+        }
+        response.setCycleStatusDesc(cycleStatusDesc);
+        
+        // 计算循环已进行时长
+        LocalDateTime cycleStartTime = currentCycle.getStartDate();
+        response.setCycleStartTime(cycleStartTime);
+        if (cycleStartTime != null) {
+            LocalDateTime now = LocalDateTime.now();
+            long elapsedMinutes = Duration.between(cycleStartTime, now).toMinutes();
+            response.setCycleElapsedMinutes(elapsedMinutes);
+            
+            long hours = elapsedMinutes / 60;
+            long minutes = elapsedMinutes % 60;
+            if (hours > 0) {
+                response.setCycleElapsedText(String.format("已进行%d小时%d分钟", hours, minutes));
+            } else {
+                response.setCycleElapsedText(String.format("已进行%d分钟", minutes));
+            }
+        }
+        
+        // 获取当前循环的所有工序
+        List<Process> processes = processService.getProcessesByCycleId(currentCycle.getId());
+        if (CollectionUtils.isEmpty(processes)) {
+            log.info("当前循环暂无工序数据，循环ID: {}", currentCycle.getId());
+            return response;
+        }
+        
+        // 按开始顺序排序
+        processes.sort((p1, p2) -> {
+            int order1 = p1.getStartOrder() != null ? p1.getStartOrder() : 0;
+            int order2 = p2.getStartOrder() != null ? p2.getStartOrder() : 0;
+            return Integer.compare(order1, order2);
+        });
+        
+        // 查找当前正在进行的工序
+        Process currentProcess = processes.stream()
+                .filter(p -> ProcessStatus.IN_PROGRESS.getCode().equals(p.getProcessStatus()))
+                .findFirst()
+                .orElse(null);
+        
+        if (currentProcess != null) {
+            SiteConstructionStatusResponse.CurrentProcessInfo currentInfo = 
+                    new SiteConstructionStatusResponse.CurrentProcessInfo();
+            currentInfo.setProcessId(currentProcess.getId());
+            currentInfo.setProcessName(currentProcess.getProcessName());
+            currentInfo.setStartTime(currentProcess.getActualStartTime());
+            currentInfo.setControlTime(currentProcess.getControlTime());
+            
+            // 计算持续时长
+            if (currentProcess.getActualStartTime() != null) {
+                LocalDateTime now = LocalDateTime.now();
+                long durationMinutes = Duration.between(currentProcess.getActualStartTime(), now).toMinutes();
+                currentInfo.setDurationMinutes(durationMinutes);
+                
+                long hours = durationMinutes / 60;
+                long minutes = durationMinutes % 60;
+                if (hours > 0) {
+                    currentInfo.setDurationText(String.format("已进行%d小时%d分钟", hours, minutes));
+                } else {
+                    currentInfo.setDurationText(String.format("已进行%d分钟", minutes));
+                }
+                
+                // 判断是否超时
+                if (currentProcess.getControlTime() != null) {
+                    boolean isOvertime = durationMinutes > currentProcess.getControlTime();
+                    currentInfo.setIsOvertime(isOvertime);
+                    
+                    long remainingMinutes = currentProcess.getControlTime() - durationMinutes;
+                    if (remainingMinutes > 0) {
+                        long remainingHours = remainingMinutes / 60;
+                        long remainingMins = remainingMinutes % 60;
+                        if (remainingHours > 0) {
+                            currentInfo.setTimeStatusText(String.format("已进行%d小时%d分钟，剩余%d小时%d分钟", 
+                                    hours, minutes, remainingHours, remainingMins));
+                        } else {
+                            currentInfo.setTimeStatusText(String.format("已进行%d分钟，剩余%d分钟", 
+                                    minutes, remainingMins));
+                        }
+                    } else {
+                        long overtimeMinutes = -remainingMinutes;
+                        long overtimeHours = overtimeMinutes / 60;
+                        long overtimeMins = overtimeMinutes % 60;
+                        if (overtimeHours > 0) {
+                            currentInfo.setTimeStatusText(String.format("已进行%d小时%d分钟，超时%d小时%d分钟", 
+                                    hours, minutes, overtimeHours, overtimeMins));
+                        } else {
+                            currentInfo.setTimeStatusText(String.format("已进行%d分钟，超时%d分钟", 
+                                    minutes, overtimeMins));
+                        }
+                    }
+                }
+            }
+            
+            // 获取操作员姓名
+            if (currentProcess.getOperatorId() != null) {
+                com.zzw.zzwgx.entity.User operator = userService.getById(currentProcess.getOperatorId());
+                if (operator != null) {
+                    currentInfo.setOperatorName(operator.getRealName());
+                }
+            }
+            
+            response.setCurrentProcess(currentInfo);
+        }
+        
+        // 获取已完成的工序列表（上几道工序）
+        List<Process> completedProcesses = processes.stream()
+                .filter(p -> ProcessStatus.COMPLETED.getCode().equals(p.getProcessStatus()))
+                .collect(Collectors.toList());
+        
+        List<SiteConstructionStatusResponse.CompletedProcessInfo> completedInfos = 
+                completedProcesses.stream().map(process -> {
+                    SiteConstructionStatusResponse.CompletedProcessInfo info = 
+                            new SiteConstructionStatusResponse.CompletedProcessInfo();
+                    info.setProcessId(process.getId());
+                    info.setProcessName(process.getProcessName());
+                    info.setStartTime(process.getActualStartTime());
+                    info.setEndTime(process.getActualEndTime());
+                    info.setControlTime(process.getControlTime());
+                    info.setOvertimeReason(process.getOvertimeReason());
+                    
+                    // 计算实际耗时和节超情况
+                    if (process.getActualStartTime() != null && process.getActualEndTime() != null) {
+                        long actualMinutes = Duration.between(
+                                process.getActualStartTime(), 
+                                process.getActualEndTime()).toMinutes();
+                        info.setActualTime((int) actualMinutes);
+                        
+                        if (process.getControlTime() != null) {
+                            int timeDifference = (int) (actualMinutes - process.getControlTime());
+                            info.setTimeDifference(timeDifference);
+                            info.setIsOvertime(timeDifference > 0);
+                            
+                            if (timeDifference > 0) {
+                                long overtimeHours = timeDifference / 60;
+                                long overtimeMins = timeDifference % 60;
+                                if (overtimeHours > 0) {
+                                    info.setTimeStatusText(String.format("超时%d小时%d分钟", 
+                                            overtimeHours, overtimeMins));
+                                } else {
+                                    info.setTimeStatusText(String.format("超时%d分钟", overtimeMins));
+                                }
+                            } else if (timeDifference < 0) {
+                                long savedHours = (-timeDifference) / 60;
+                                long savedMins = (-timeDifference) % 60;
+                                if (savedHours > 0) {
+                                    info.setTimeStatusText(String.format("节省%d小时%d分钟", 
+                                            savedHours, savedMins));
+                                } else {
+                                    info.setTimeStatusText(String.format("节省%d分钟", savedMins));
+                                }
+                            } else {
+                                info.setTimeStatusText("按时完成");
+                            }
+                        }
+                    }
+                    
+                    // 获取操作员姓名
+                    if (process.getOperatorId() != null) {
+                        com.zzw.zzwgx.entity.User operator = userService.getById(process.getOperatorId());
+                        if (operator != null) {
+                            info.setOperatorName(operator.getRealName());
+                        }
+                    }
+                    
+                    return info;
+                }).collect(Collectors.toList());
+        
+        response.setCompletedProcesses(completedInfos);
+        
+        log.info("查询工点施工状态成功，项目ID: {}, 当前工序: {}, 已完成工序数: {}", 
+                projectId, 
+                currentProcess != null ? currentProcess.getProcessName() : "无",
+                completedInfos.size());
+        
+        return response;
     }
 }
 

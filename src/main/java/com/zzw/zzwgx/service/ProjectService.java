@@ -6,6 +6,7 @@ import com.zzw.zzwgx.dto.request.ProjectRequest;
 import com.zzw.zzwgx.dto.response.ProjectListResponse;
 import com.zzw.zzwgx.dto.response.ProgressDetailResponse;
 import com.zzw.zzwgx.dto.response.ProjectTreeNodeResponse;
+import com.zzw.zzwgx.dto.response.SiteConstructionStatusResponse;
 import com.zzw.zzwgx.entity.Project;
 
 import java.util.List;
@@ -49,5 +50,10 @@ public interface ProjectService extends IService<Project> {
      * 删除项目节点
      */
     void deleteProject(Long projectId);
+    
+    /**
+     * 获取工点施工状态（管理员查看）
+     */
+    SiteConstructionStatusResponse getSiteConstructionStatus(Long projectId);
 }
 

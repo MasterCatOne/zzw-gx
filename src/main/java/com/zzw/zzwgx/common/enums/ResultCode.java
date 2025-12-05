@@ -35,7 +35,10 @@ public enum ResultCode {
     TEMPLATE_NOT_FOUND(2012, "工序模板不存在"),
     PROJECT_NOT_FOUND(2013, "项目不存在"),
     USER_ROLE_MISSING(2014, "默认角色未配置"),
-    CYCLE_IN_PROGRESS_EXISTS(2015, "该工点已有进行中的循环，请先完成或暂停当前循环");
+    CYCLE_IN_PROGRESS_EXISTS(2015, "该工点已有进行中的循环，请先完成或暂停当前循环"),
+    PROCESS_CATALOG_NOT_FOUND(2016, "工序字典不存在"),
+    PROCESS_NAME_ALREADY_EXISTS(2017, "工序名称已存在"),
+    PROCESS_CODE_ALREADY_EXISTS(2018, "工序编码已存在");
 
     private final Integer code;
     private final String message;

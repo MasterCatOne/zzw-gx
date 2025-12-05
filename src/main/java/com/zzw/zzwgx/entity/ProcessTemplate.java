@@ -23,7 +23,12 @@ public class ProcessTemplate {
     private String templateName;
     
     /**
-     * 工序名称
+     * 工序字典ID（引用process_catalog表）
+     */
+    private Long processCatalogId;
+    
+    /**
+     * 工序名称（保留字段，用于向后兼容，实际应从process_catalog表关联获取）
      */
     private String processName;
     

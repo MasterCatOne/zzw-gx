@@ -2,7 +2,6 @@ package com.zzw.zzwgx.controller;
 
 import com.zzw.zzwgx.common.Result;
 import com.zzw.zzwgx.dto.request.LoginRequest;
-import com.zzw.zzwgx.dto.request.RegisterRequest;
 import com.zzw.zzwgx.dto.response.LoginResponse;
 import com.zzw.zzwgx.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,14 +28,6 @@ public class AuthController {
     public Result<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         log.info("用户登录请求，用户名: {}", request.getUsername());
         LoginResponse response = authService.login(request);
-        return Result.success(response);
-    }
-    
-    @Operation(summary = "用户注册", description = "新用户注册接口，默认注册为施工人员角色，注册成功后自动登录。需要提供用户名、密码、真实姓名、身份证号、手机号等信息。")
-    @PostMapping("/register")
-    public Result<LoginResponse> register(@Valid @RequestBody RegisterRequest request) {
-        log.info("用户注册请求，用户名: {}, 姓名: {}", request.getUsername(), request.getRealName());
-        LoginResponse response = authService.registerAndLogin(request);
         return Result.success(response);
     }
     

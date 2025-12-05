@@ -32,7 +32,8 @@ public class CreateProcessRequest {
     @NotNull(message = "开始顺序不能为空")
     private Integer startOrder;
     
-    @Schema(description = "工序模板ID（可选，如果指定则记录工序来源模板）", example = "1")
-    private Long templateId;
+    @Schema(description = "工序字典ID（必填，从工序字典表中选择工序）", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
+    @NotNull(message = "工序字典ID不能为空")
+    private Long processCatalogId;
 }
 

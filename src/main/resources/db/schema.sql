@@ -131,6 +131,7 @@ CREATE TABLE IF NOT EXISTS process (
     start_order INT COMMENT '开始顺序',
     advance_length DECIMAL(10, 2) DEFAULT 0 COMMENT '进尺长度（米）',
     template_id BIGINT COMMENT '工序模板ID（记录工序来源模板）',
+    process_catalog_id BIGINT COMMENT '工序字典ID（引用process_catalog表，用于统一管理工序）',
     deleted TINYINT DEFAULT 0 COMMENT '删除标志：0-未删除，1-已删除',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -139,25 +140,46 @@ CREATE TABLE IF NOT EXISTS process (
     INDEX idx_operator_id (operator_id),
     INDEX idx_start_order (start_order),
     INDEX idx_template_id (template_id),
+    INDEX idx_process_catalog_id (process_catalog_id),
     FOREIGN KEY (cycle_id) REFERENCES cycle(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     FOREIGN KEY (operator_id) REFERENCES sys_user(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    FOREIGN KEY (template_id) REFERENCES process_template(id) ON DELETE RESTRICT ON UPDATE CASCADE
+    FOREIGN KEY (template_id) REFERENCES process_template(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    FOREIGN KEY (process_catalog_id) REFERENCES process_catalog(id) ON DELETE RESTRICT ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工序表';
 
--- 工序模板表
+-- 工序字典表（统一管理所有工序，支持顺序调整）
+CREATE TABLE IF NOT EXISTS process_catalog (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    process_name VARCHAR(100) NOT NULL UNIQUE COMMENT '工序名称（唯一）',
+    process_code VARCHAR(50) UNIQUE COMMENT '工序编码（可选，用于程序识别）',
+    description VARCHAR(500) COMMENT '工序描述',
+    display_order INT NOT NULL DEFAULT 0 COMMENT '显示顺序（用于调整工序顺序）',
+    status TINYINT DEFAULT 1 COMMENT '状态：0-禁用，1-启用',
+    deleted TINYINT DEFAULT 0 COMMENT '删除标志：0-未删除，1-已删除',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_process_name (process_name),
+    INDEX idx_display_order (display_order),
+    INDEX idx_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工序字典表（统一管理所有工序）';
+
+-- 工序模板表（模板与工序的关联表，设置每个模板中工序的控制时间）
 CREATE TABLE IF NOT EXISTS process_template (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     template_name VARCHAR(100) NOT NULL COMMENT '模板名称',
-    process_name VARCHAR(100) NOT NULL COMMENT '工序名称',
+    process_catalog_id BIGINT NOT NULL COMMENT '工序字典ID（引用process_catalog表）',
     control_time INT NOT NULL COMMENT '控制时间（分钟）',
-    default_order INT NOT NULL COMMENT '默认顺序',
-    description VARCHAR(500) COMMENT '工序描述',
+    default_order INT NOT NULL COMMENT '默认顺序（在该模板中的顺序）',
+    description VARCHAR(500) COMMENT '工序描述（可选，如果为空则使用工序字典中的描述）',
     deleted TINYINT DEFAULT 0 COMMENT '删除标志：0-未删除，1-已删除',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     INDEX idx_template_name (template_name),
-    INDEX idx_default_order (default_order)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工序模板表';
+    INDEX idx_process_catalog_id (process_catalog_id),
+    INDEX idx_default_order (default_order),
+    UNIQUE KEY uk_template_process (template_name, process_catalog_id),
+    FOREIGN KEY (process_catalog_id) REFERENCES process_catalog(id) ON DELETE RESTRICT ON UPDATE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工序模板表（模板与工序的关联表）';
 
 -- 任务表
 CREATE TABLE IF NOT EXISTS task (
@@ -339,34 +361,54 @@ INSERT INTO sys_user_project (user_id, project_id, deleted) VALUES
                                                                (2, 7, 0),  -- admin 管理工点1（上行隧道入口工点）
                                                                (2, 8, 0);  -- admin 管理工点2（上行隧道中间工点）
 
--- 工序模板数据（标准工序模板）
-INSERT INTO process_template (template_name, process_name, control_time, default_order, description, deleted) VALUES
-('标准模板', '扒渣（平整场地）', 120, 1, '清理工作面，平整施工场地', 0),
-('标准模板', '测量放样', 60, 2, '测量放样定位', 0),
-('标准模板', '炮孔打设', 120, 3, '钻设炮孔', 0),
-('标准模板', '装药爆破', 60, 4, '装药并进行爆破作业', 0),
-('标准模板', '出渣排险', 90, 5, '清理爆破后的渣土和危石', 0),
-('标准模板', '断面扫描（报检）', 30, 6, '进行断面扫描并报检', 0),
-('标准模板', '初喷', 60, 7, '初次喷射混凝土', 0),
-('标准模板', '测量放样', 60, 8, '二次测量放样', 0),
-('标准模板', '拱架安装', 120, 9, '安装钢拱架', 0),
-('标准模板', '锁脚打设', 90, 10, '打设锁脚锚杆', 0),
-('标准模板', '锚杆打设', 90, 11, '打设系统锚杆', 0),
-('标准模板', '超前打设', 120, 12, '打设超前支护', 0),
-('标准模板', '报检', 30, 13, '质量检查报验', 0),
-('标准模板', '喷射混凝土', 120, 14, '最终喷射混凝土', 0),
-('模板2', '扒渣（平整场地）', 100, 1, '清理工作面，平整施工场地', 0),
-('模板2', '测量放样', 50, 2, '测量放样定位', 0),
-('模板2', '炮孔打设', 100, 3, '钻设炮孔', 0),
-('模板2', '装药爆破', 50, 4, '装药并进行爆破作业', 0),
-('模板2', '出渣排险', 80, 5, '清理爆破后的渣土和危石', 0),
-('模板2', '断面扫描（报检）', 30, 6, '进行断面扫描并报检', 0),
-('模板2', '初喷', 50, 7, '初次喷射混凝土', 0),
-('模板2', '测量放样', 50, 8, '二次测量放样', 0),
-('模板2', '拱架安装', 100, 9, '安装钢拱架', 0),
-('模板2', '锁脚打设', 80, 10, '打设锁脚锚杆', 0),
-('模板2', '锚杆打设', 80, 11, '打设系统锚杆', 0),
-('模板2', '超前打设', 100, 12, '打设超前支护', 0),
-('模板2', '报检', 30, 13, '质量检查报验', 0),
-('模板2', '喷射混凝土', 100, 14, '最终喷射混凝土', 0);
+-- 工序字典数据（统一管理所有工序）
+INSERT INTO process_catalog (process_name, process_code, description, display_order, status, deleted) VALUES
+('扒渣（平整场地）', 'PROCESS_001', '清理工作面，平整施工场地', 1, 1, 0),
+('测量放样', 'PROCESS_002', '测量放样定位', 2, 1, 0),
+('炮孔打设', 'PROCESS_003', '钻设炮孔', 3, 1, 0),
+('装药爆破', 'PROCESS_004', '装药并进行爆破作业', 4, 1, 0),
+('出渣排险', 'PROCESS_005', '清理爆破后的渣土和危石', 5, 1, 0),
+('断面扫描（报检）', 'PROCESS_006', '进行断面扫描并报检', 6, 1, 0),
+('初喷', 'PROCESS_007', '初次喷射混凝土', 7, 1, 0),
+('拱架安装', 'PROCESS_008', '安装钢拱架', 8, 1, 0),
+('锁脚打设', 'PROCESS_009', '打设锁脚锚杆', 9, 1, 0),
+('锚杆打设', 'PROCESS_010', '打设系统锚杆', 10, 1, 0),
+('超前打设', 'PROCESS_011', '打设超前支护', 11, 1, 0),
+('报检', 'PROCESS_012', '质量检查报验', 12, 1, 0),
+('喷射混凝土', 'PROCESS_013', '最终喷射混凝土', 13, 1, 0);
+
+-- 工序模板数据（模板与工序的关联，设置每个模板中工序的控制时间）
+-- 标准模板（使用process_catalog_id引用工序字典）
+INSERT INTO process_template (template_name, process_catalog_id, control_time, default_order, description, deleted) VALUES
+('标准模板', 1, 120, 1, NULL, 0),  -- 扒渣（平整场地）
+('标准模板', 2, 60, 2, NULL, 0),   -- 测量放样
+('标准模板', 3, 120, 3, NULL, 0),  -- 炮孔打设
+('标准模板', 4, 60, 4, NULL, 0),   -- 装药爆破
+('标准模板', 5, 90, 5, NULL, 0),   -- 出渣排险
+('标准模板', 6, 30, 6, NULL, 0),   -- 断面扫描（报检）
+('标准模板', 7, 60, 7, NULL, 0),   -- 初喷
+('标准模板', 2, 60, 8, '二次测量放样', 0),  -- 测量放样（第二次，同一个工序字典ID）
+('标准模板', 8, 120, 9, NULL, 0),  -- 拱架安装
+('标准模板', 9, 90, 10, NULL, 0),  -- 锁脚打设
+('标准模板', 10, 90, 11, NULL, 0), -- 锚杆打设
+('标准模板', 11, 120, 12, NULL, 0), -- 超前打设
+('标准模板', 12, 30, 13, NULL, 0), -- 报检
+('标准模板', 13, 120, 14, NULL, 0); -- 喷射混凝土
+
+-- 模板2
+INSERT INTO process_template (template_name, process_catalog_id, control_time, default_order, description, deleted) VALUES
+('模板2', 1, 100, 1, NULL, 0),  -- 扒渣（平整场地）
+('模板2', 2, 50, 2, NULL, 0),   -- 测量放样
+('模板2', 3, 100, 3, NULL, 0),  -- 炮孔打设
+('模板2', 4, 50, 4, NULL, 0),   -- 装药爆破
+('模板2', 5, 80, 5, NULL, 0),   -- 出渣排险
+('模板2', 6, 30, 6, NULL, 0),   -- 断面扫描（报检）
+('模板2', 7, 50, 7, NULL, 0),   -- 初喷
+('模板2', 2, 50, 8, '二次测量放样', 0),  -- 测量放样（第二次）
+('模板2', 8, 100, 9, NULL, 0),  -- 拱架安装
+('模板2', 9, 80, 10, NULL, 0),  -- 锁脚打设
+('模板2', 10, 80, 11, NULL, 0), -- 锚杆打设
+('模板2', 11, 100, 12, NULL, 0), -- 超前打设
+('模板2', 12, 30, 13, NULL, 0), -- 报检
+('模板2', 13, 100, 14, NULL, 0); -- 喷射混凝土
 

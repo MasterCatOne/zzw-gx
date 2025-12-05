@@ -1,11 +1,15 @@
 package com.zzw.zzwgx.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zzw.zzwgx.common.enums.ResultCode;
 import com.zzw.zzwgx.common.enums.UserRole;
 import com.zzw.zzwgx.common.exception.BusinessException;
+import com.zzw.zzwgx.dto.request.CreateUserRequest;
 import com.zzw.zzwgx.dto.request.RegisterRequest;
+import com.zzw.zzwgx.dto.request.UpdateUserRequest;
+import com.zzw.zzwgx.dto.response.UserListResponse;
 import com.zzw.zzwgx.dto.response.UserProfileResponse;
 import com.zzw.zzwgx.entity.Role;
 import com.zzw.zzwgx.entity.User;
@@ -19,9 +23,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 用户服务实现类
@@ -111,6 +117,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         userRoleRelationMapper.insert(relation);
     }
     
+    /**
+     * 获取用户角色代码列表（供Service内部和外部调用）
+     */
     public List<String> getUserRoleCodes(Long userId) {
         List<UserRoleRelation> relations = userRoleRelationMapper.selectList(
                 new LambdaQueryWrapper<UserRoleRelation>()
@@ -125,6 +134,136 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .filter(role -> role.getRoleStatus() != null && role.getRoleStatus() == 1)
                 .map(Role::getRoleCode)
                 .toList();
+    }
+    
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public User createUser(CreateUserRequest request) {
+        log.info("管理员创建用户账号，用户名: {}, 姓名: {}", request.getUsername(), request.getRealName());
+        
+        // 检查用户名是否已存在
+        User existingUser = getByUsername(request.getUsername());
+        if (existingUser != null) {
+            log.warn("创建用户失败，用户名已存在: {}", request.getUsername());
+            throw new BusinessException(ResultCode.USERNAME_ALREADY_EXISTS);
+        }
+        
+        // 创建新用户
+        User user = new User();
+        user.setUsername(request.getUsername());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setRealName(request.getRealName());
+        user.setIdCard(request.getIdCard());
+        user.setPhone(request.getPhone());
+        user.setStatus(request.getStatus() != null ? request.getStatus() : 1); // 默认启用
+        
+        save(user);
+        
+        // 绑定角色
+        String roleCode = StringUtils.hasText(request.getRoleCode()) ? request.getRoleCode() : UserRole.WORKER.getCode();
+        bindUserRole(user.getId(), roleCode);
+        
+        log.info("管理员创建用户成功，用户ID: {}, 用户名: {}, 角色: {}", user.getId(), user.getUsername(), roleCode);
+        return user;
+    }
+    
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public User updateUser(Long userId, UpdateUserRequest request) {
+        log.info("管理员更新用户账号，用户ID: {}", userId);
+        
+        User user = getById(userId);
+        if (user == null) {
+            log.warn("更新用户失败，用户不存在，用户ID: {}", userId);
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        
+        // 更新用户信息
+        if (StringUtils.hasText(request.getRealName())) {
+            user.setRealName(request.getRealName());
+        }
+        if (StringUtils.hasText(request.getIdCard())) {
+            user.setIdCard(request.getIdCard());
+        }
+        if (StringUtils.hasText(request.getPhone())) {
+            user.setPhone(request.getPhone());
+        }
+        if (StringUtils.hasText(request.getPassword())) {
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+        }
+        if (request.getStatus() != null) {
+            user.setStatus(request.getStatus());
+        }
+        
+        updateById(user);
+        
+        // 更新角色（如果提供了角色代码）
+        if (StringUtils.hasText(request.getRoleCode())) {
+            // 先删除原有角色关联
+            userRoleRelationMapper.delete(new LambdaQueryWrapper<UserRoleRelation>()
+                    .eq(UserRoleRelation::getUserId, userId)
+                    .eq(UserRoleRelation::getDeleted, 0));
+            // 绑定新角色
+            bindUserRole(userId, request.getRoleCode());
+            log.debug("更新用户角色，用户ID: {}, 新角色: {}", userId, request.getRoleCode());
+        }
+        
+        log.info("管理员更新用户成功，用户ID: {}", userId);
+        return user;
+    }
+    
+    @Override
+    public Page<UserListResponse> getUserList(Integer pageNum, Integer pageSize, String username, String realName, String roleCode) {
+        log.info("管理员查询用户列表，页码: {}, 每页大小: {}, 用户名: {}, 姓名: {}, 角色: {}", 
+                pageNum, pageSize, username, realName, roleCode);
+        
+        Page<User> page = new Page<>(pageNum, pageSize);
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        
+        // 构建查询条件
+        if (StringUtils.hasText(username)) {
+            wrapper.like(User::getUsername, username);
+        }
+        if (StringUtils.hasText(realName)) {
+            wrapper.like(User::getRealName, realName);
+        }
+        
+        wrapper.eq(User::getDeleted, 0);
+        wrapper.orderByDesc(User::getCreateTime);
+        
+        Page<User> userPage = page(page, wrapper);
+        
+        // 如果有角色过滤条件，需要进一步过滤
+        List<User> users = userPage.getRecords();
+        if (StringUtils.hasText(roleCode)) {
+            users = users.stream()
+                    .filter(u -> {
+                        List<String> roles = getUserRoleCodes(u.getId());
+                        return roles.contains(roleCode);
+                    })
+                    .collect(Collectors.toList());
+        }
+        
+        // 转换为响应DTO
+        Page<UserListResponse> responsePage = new Page<>(pageNum, pageSize, userPage.getTotal());
+        List<UserListResponse> responseList = users.stream().map(user -> {
+            UserListResponse response = new UserListResponse();
+            response.setId(user.getId());
+            response.setUsername(user.getUsername());
+            response.setRealName(user.getRealName());
+            response.setIdCard(user.getIdCard());
+            response.setPhone(user.getPhone());
+            response.setStatus(user.getStatus());
+            response.setRoles(getUserRoleCodes(user.getId()));
+            response.setCreateTime(user.getCreateTime());
+            response.setUpdateTime(user.getUpdateTime());
+            return response;
+        }).collect(Collectors.toList());
+        
+        responsePage.setRecords(responseList);
+        
+        log.info("管理员查询用户列表成功，总数: {}", responsePage.getTotal());
+        return responsePage;
     }
 }
 
