@@ -1,0 +1,40 @@
+# 开发环境配置（端口8080，给前端访问）
+server:
+  port: 8080
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 开发环境数据库配置（可根据实际情况修改）
+    url: jdbc:mysql://localhost:3306/zzw_gx?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+
+# 日志配置（开发环境更详细的日志）
+logging:
+  level:
+    root: INFO
+    com.zzw.zzwgx: DEBUG
+    com.zzw.zzwgx.mapper: DEBUG
+    com.zzw.zzwgx.controller: INFO
+    com.zzw.zzwgx.service: INFO
+    com.zzw.zzwgx.security: DEBUG
+    org.springframework.security: INFO
+    org.springframework.web: INFO
+    org.mybatis: DEBUG
+
+# Knife4j配置（开发环境）
+knife4j:
+  enable: true
+  openapi:
+    title: 隧道施工管理系统API文档（开发环境）
+    description: 隧道施工管理系统后端API接口文档 - 开发环境（端口8080，给前端访问）
+    version: 1.0.0
+    contact:
+      name: zzw
+    license: Apache 2.0
+    license-url: https://www.apache.org/licenses/LICENSE-2.0.html
+    servers:
+      - url: http://localhost:8080
+        description: 本地开发环境（前端访问）
+

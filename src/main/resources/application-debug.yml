@@ -1,0 +1,40 @@
+# 调试环境配置（端口8081，用于本地调试）
+server:
+  port: 8081
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 调试环境数据库配置（使用同一个数据库）
+    url: jdbc:mysql://localhost:3306/zzw_gx?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+
+# 日志配置（调试环境更详细的日志）
+logging:
+  level:
+    root: INFO
+    com.zzw.zzwgx: DEBUG
+    com.zzw.zzwgx.mapper: DEBUG
+    com.zzw.zzwgx.controller: INFO
+    com.zzw.zzwgx.service: INFO
+    com.zzw.zzwgx.security: DEBUG
+    org.springframework.security: INFO
+    org.springframework.web: INFO
+    org.mybatis: DEBUG
+
+# Knife4j配置（调试环境）
+knife4j:
+  enable: true
+  openapi:
+    title: 隧道施工管理系统API文档（调试环境）
+    description: 隧道施工管理系统后端API接口文档 - 调试环境（端口8081，用于本地调试）
+    version: 1.0.0
+    contact:
+      name: zzw
+    license: Apache 2.0
+    license-url: https://www.apache.org/licenses/LICENSE-2.0.html
+    servers:
+      - url: http://localhost:8081
+        description: 本地调试环境（开发者访问）
+
