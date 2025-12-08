@@ -22,7 +22,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 统计服务实现类
@@ -91,6 +93,25 @@ public class StatisticsServiceImpl implements StatisticsService {
         
         return stat;
     }
+
+    @Override
+    public List<StatisticsResponse.ProcessTimeStat> getProcessTimeStatisticsForCurrentUser(Integer year, Integer month) {
+        log.info("计算当前管理员可访问工点的工序总时间统计列表，年份: {}, 月份: {}", year, month);
+        List<Project> sites = getAccessibleSites();
+        if (CollectionUtils.isEmpty(sites)) {
+            log.warn("当前用户无可访问的工点，返回空列表");
+            return new ArrayList<>();
+        }
+        List<StatisticsResponse.ProcessTimeStat> result = new ArrayList<>();
+        for (Project site : sites) {
+            StatisticsResponse.ProcessTimeStat stat = getProcessTimeStatistics(site.getId(), year, month);
+            if (stat != null) {
+                result.add(stat);
+            }
+        }
+        log.info("工序总时间统计列表计算完成，可访问工点数: {}, 统计结果数: {}", sites.size(), result.size());
+        return result;
+    }
     
     @Override
     public StatisticsResponse.AdvanceLengthStat getAdvanceLengthStatistics(Long projectId, Integer year, Integer month) {
@@ -128,6 +149,25 @@ public class StatisticsServiceImpl implements StatisticsService {
                 projectId, cycleCount, totalAdvanceLength);
         
         return stat;
+    }
+
+    @Override
+    public List<StatisticsResponse.AdvanceLengthStat> getAdvanceLengthStatisticsForCurrentUser(Integer year, Integer month) {
+        log.info("计算当前管理员可访问工点的进尺长度统计列表，年份: {}, 月份: {}", year, month);
+        List<Project> sites = getAccessibleSites();
+        if (CollectionUtils.isEmpty(sites)) {
+            log.warn("当前用户无可访问的工点，返回空列表");
+            return new ArrayList<>();
+        }
+        List<StatisticsResponse.AdvanceLengthStat> result = new ArrayList<>();
+        for (Project site : sites) {
+            StatisticsResponse.AdvanceLengthStat stat = getAdvanceLengthStatistics(site.getId(), year, month);
+            if (stat != null) {
+                result.add(stat);
+            }
+        }
+        log.info("进尺长度统计列表计算完成，可访问工点数: {}, 统计结果数: {}", sites.size(), result.size());
+        return result;
     }
     
     @Override
@@ -178,6 +218,83 @@ public class StatisticsServiceImpl implements StatisticsService {
                 projectId, totalOvertime, totalSavedTime);
         
         return stat;
+    }
+
+    @Override
+    public List<StatisticsResponse.OvertimeStat> getOvertimeStatisticsForCurrentUser() {
+        log.info("计算当前管理员可访问工点的本周超耗统计列表");
+        List<Project> sites = getAccessibleSites();
+        if (CollectionUtils.isEmpty(sites)) {
+            log.warn("当前用户无可访问的工点，返回空列表");
+            return new ArrayList<>();
+        }
+        List<StatisticsResponse.OvertimeStat> result = new ArrayList<>();
+        for (Project site : sites) {
+            StatisticsResponse.OvertimeStat stat = getOvertimeStatistics(site.getId());
+            if (stat != null) {
+                result.add(stat);
+            }
+        }
+        log.info("本周超耗统计列表计算完成，可访问工点数: {}, 统计结果数: {}", sites.size(), result.size());
+        return result;
+    }
+    
+    @Override
+    public List<StatisticsResponse.OvertimeStat> getWorkerOvertimeStatistics(Long workerId) {
+        log.info("计算施工人员本周所在工点的超耗统计列表，workerId: {}", workerId);
+        if (workerId == null) {
+            log.warn("未提供施工人员ID，返回空列表");
+            return new ArrayList<>();
+        }
+        
+        LocalDate now = LocalDate.now();
+        LocalDate weekStart = now.minusDays(now.getDayOfWeek().getValue() - 1);
+        LocalDate weekEnd = weekStart.plusDays(6);
+        LocalDateTime weekStartDateTime = weekStart.atStartOfDay();
+        LocalDateTime weekEndDateTime = weekEnd.atTime(23, 59, 59);
+        
+        List<Process> processes = processService.list(new LambdaQueryWrapper<Process>()
+                .eq(Process::getOperatorId, workerId)
+                .eq(Process::getProcessStatus, ProcessStatus.COMPLETED.getCode())
+                .between(Process::getActualStartTime, weekStartDateTime, weekEndDateTime));
+        log.debug("查询到该施工人员本周完成的工序数量: {}", processes.size());
+        
+        Map<Long, StatisticsResponse.OvertimeStat> statsMap = new HashMap<>();
+        
+        for (Process process : processes) {
+            if (process.getActualStartTime() == null || process.getActualEndTime() == null || process.getControlTime() == null) {
+                continue;
+            }
+            Cycle cycle = cycleService.getById(process.getCycleId());
+            if (cycle == null) {
+                continue;
+            }
+            Project project = projectService.getById(cycle.getProjectId());
+            if (project == null) {
+                continue;
+            }
+            
+            long actualMinutes = Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
+            double diffHours = (actualMinutes - process.getControlTime()) / 60.0;
+            
+            StatisticsResponse.OvertimeStat stat = statsMap.computeIfAbsent(project.getId(), id -> {
+                StatisticsResponse.OvertimeStat s = new StatisticsResponse.OvertimeStat();
+                s.setProjectName(project.getProjectName());
+                s.setOvertime(0.0);
+                s.setSavedTime(0.0);
+                return s;
+            });
+            
+            if (diffHours > 0) {
+                stat.setOvertime(stat.getOvertime() + diffHours);
+            } else {
+                stat.setSavedTime(stat.getSavedTime() + Math.abs(diffHours));
+            }
+        }
+        
+        List<StatisticsResponse.OvertimeStat> result = new ArrayList<>(statsMap.values());
+        log.info("施工人员本周超耗统计计算完成，工点数: {}, 结果数: {}", statsMap.size(), result.size());
+        return result;
     }
     
     @Override

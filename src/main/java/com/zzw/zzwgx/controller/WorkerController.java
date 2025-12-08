@@ -2,13 +2,10 @@ package com.zzw.zzwgx.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zzw.zzwgx.common.Result;
-import com.zzw.zzwgx.dto.request.SubmitOvertimeReasonRequest;
 import com.zzw.zzwgx.dto.request.WorkerStartProcessRequest;
-import com.zzw.zzwgx.dto.response.ProcessDetailResponse;
-import com.zzw.zzwgx.dto.response.StartProcessResponse;
-import com.zzw.zzwgx.dto.response.UserProfileResponse;
-import com.zzw.zzwgx.dto.response.WorkerProcessListResponse;
+import com.zzw.zzwgx.dto.response.*;
 import com.zzw.zzwgx.security.SecurityUtils;
+import com.zzw.zzwgx.service.StatisticsService;
 import com.zzw.zzwgx.service.ProcessService;
 import com.zzw.zzwgx.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +15,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 施工人员控制器
@@ -31,6 +30,7 @@ public class WorkerController {
 
     private final UserService userService;
     private final ProcessService processService;
+    private final StatisticsService statisticsService;
     @Operation(summary = "获取个人信息", description = "获取当前登录用户的个人信息，包括用户ID、用户名、真实姓名、角色列表、身份证号、手机号等。")
     @GetMapping("/profile")
     public Result<UserProfileResponse> getProfile() {
@@ -111,6 +111,16 @@ public class WorkerController {
 
         // 未超时或已补充原因，视为可进入下一循环（此处仅返回提示，不创建新循环）
         return Result.success("已完成，可进入下一循环", detail);
+    }
+    
+    @Operation(summary = "我的工点本周超耗统计", description = "按工点汇总当前施工人员本周完成工序的超时/节时总计（单位：小时）。")
+    @GetMapping("/statistics/overtime-week")
+    public Result<List<com.zzw.zzwgx.dto.response.StatisticsResponse.OvertimeStat>> getMyOvertimeStatistics() {
+        Long userId = SecurityUtils.getCurrentUserId();
+        log.info("施工人员查询本周超耗统计，用户ID: {}", userId);
+        List<StatisticsResponse.OvertimeStat> stats =
+                statisticsService.getWorkerOvertimeStatistics(userId);
+        return Result.success(stats);
     }
 
 //    @Operation(summary = "填报超时原因", description = "施工人员填报工序超时原因。仅限已完成的超时工序，且只能在循环完成前填报。")
