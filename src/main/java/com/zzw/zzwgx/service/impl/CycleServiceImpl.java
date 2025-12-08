@@ -67,8 +67,6 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
     private final ProcessService processService;
     private final ResourceLoader resourceLoader;
     
-    private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-    
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CycleResponse createCycle(CreateCycleRequest request) {
@@ -712,6 +710,34 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         }
         
         /**
+         * 为单元格样式设置边框（提取公共方法，避免重复代码）
+         */
+        private void setBorders(org.apache.poi.ss.usermodel.CellStyle style) {
+            org.apache.poi.ss.usermodel.IndexedColors borderColor = org.apache.poi.ss.usermodel.IndexedColors.BLACK;
+            style.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+            style.setTopBorderColor(borderColor.getIndex());
+            style.setBorderBottom(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+            style.setBottomBorderColor(borderColor.getIndex());
+            style.setBorderLeft(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+            style.setLeftBorderColor(borderColor.getIndex());
+            style.setBorderRight(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+            style.setRightBorderColor(borderColor.getIndex());
+        }
+        
+        /**
+         * 创建并应用单元格样式（从模板复制样式并设置边框）
+         */
+        private org.apache.poi.ss.usermodel.CellStyle createCellStyleWithBorders(
+                org.apache.poi.ss.usermodel.Workbook workbook, Cell templateCell) {
+            org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
+            if (templateCell != null && templateCell.getCellStyle() != null) {
+                style.cloneStyleFrom(templateCell.getCellStyle());
+            }
+            setBorders(style);
+            return style;
+        }
+        
+        /**
          * 设置单元格值并应用格式（如果模板行存在）
          */
         private void setCellValueWithFormat(Row row, int colIndex, Object value, Row templateRow, int templateColIndex) {
@@ -731,39 +757,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             if (templateRow != null) {
                 Cell templateCell = templateRow.getCell(templateColIndex);
                 org.apache.poi.ss.usermodel.Workbook workbook = row.getSheet().getWorkbook();
-                
-                if (templateCell != null && templateCell.getCellStyle() != null) {
-                    // 创建新样式并复制模板样式的所有属性
-                    org.apache.poi.ss.usermodel.CellStyle newStyle = workbook.createCellStyle();
-                    newStyle.cloneStyleFrom(templateCell.getCellStyle());
-                    
-                    // 确保边框被设置（无论模板是否有边框，都强制设置边框）
-                    org.apache.poi.ss.usermodel.IndexedColors borderColor = org.apache.poi.ss.usermodel.IndexedColors.BLACK;
-                    newStyle.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                    newStyle.setTopBorderColor(borderColor.getIndex());
-                    newStyle.setBorderBottom(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                    newStyle.setBottomBorderColor(borderColor.getIndex());
-                    newStyle.setBorderLeft(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                    newStyle.setLeftBorderColor(borderColor.getIndex());
-                    newStyle.setBorderRight(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                    newStyle.setRightBorderColor(borderColor.getIndex());
-                    
-                    cell.setCellStyle(newStyle);
-                } else {
-                    // 如果模板单元格没有样式，创建一个带边框的默认样式
-                    org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
-                    org.apache.poi.ss.usermodel.IndexedColors borderColor = org.apache.poi.ss.usermodel.IndexedColors.BLACK;
-                    // 设置边框和边框颜色
-                    style.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                    style.setTopBorderColor(borderColor.getIndex());
-                    style.setBorderBottom(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                    style.setBottomBorderColor(borderColor.getIndex());
-                    style.setBorderLeft(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                    style.setLeftBorderColor(borderColor.getIndex());
-                    style.setBorderRight(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                    style.setRightBorderColor(borderColor.getIndex());
-                    cell.setCellStyle(style);
-                }
+                cell.setCellStyle(createCellStyleWithBorders(workbook, templateCell));
             }
         }
         
@@ -780,39 +774,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             }
             Cell templateCell = templateRow.getCell(templateColIndex);
             org.apache.poi.ss.usermodel.Workbook workbook = row.getSheet().getWorkbook();
-            
-            if (templateCell != null && templateCell.getCellStyle() != null) {
-                // 创建新样式并复制模板样式的所有属性
-                org.apache.poi.ss.usermodel.CellStyle newStyle = workbook.createCellStyle();
-                newStyle.cloneStyleFrom(templateCell.getCellStyle());
-                
-                // 确保边框被设置（无论模板是否有边框，都强制设置边框）
-                org.apache.poi.ss.usermodel.IndexedColors borderColor = org.apache.poi.ss.usermodel.IndexedColors.BLACK;
-                newStyle.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                newStyle.setTopBorderColor(borderColor.getIndex());
-                newStyle.setBorderBottom(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                newStyle.setBottomBorderColor(borderColor.getIndex());
-                newStyle.setBorderLeft(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                newStyle.setLeftBorderColor(borderColor.getIndex());
-                newStyle.setBorderRight(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                newStyle.setRightBorderColor(borderColor.getIndex());
-                
-                cell.setCellStyle(newStyle);
-            } else {
-                // 如果模板单元格没有样式，创建一个带边框的默认样式
-                org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
-                org.apache.poi.ss.usermodel.IndexedColors borderColor = org.apache.poi.ss.usermodel.IndexedColors.BLACK;
-                // 设置边框和边框颜色
-                style.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                style.setTopBorderColor(borderColor.getIndex());
-                style.setBorderBottom(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                style.setBottomBorderColor(borderColor.getIndex());
-                style.setBorderLeft(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                style.setLeftBorderColor(borderColor.getIndex());
-                style.setBorderRight(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                style.setRightBorderColor(borderColor.getIndex());
-                cell.setCellStyle(style);
-            }
+            cell.setCellStyle(createCellStyleWithBorders(workbook, templateCell));
         }
         
         /**
@@ -856,13 +818,13 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                 return;
             }
             
+            org.apache.poi.ss.usermodel.Workbook workbook = row.getSheet().getWorkbook();
+            org.apache.poi.ss.usermodel.CellStyle defaultStyle = workbook.createCellStyle();
+            
             // 遍历行的所有单元格，清除样式
             int firstCellNum = row.getFirstCellNum();
             int lastCellNum = row.getLastCellNum();
             if (firstCellNum >= 0 && lastCellNum >= firstCellNum) {
-                org.apache.poi.ss.usermodel.Workbook workbook = row.getSheet().getWorkbook();
-                org.apache.poi.ss.usermodel.CellStyle defaultStyle = workbook.createCellStyle();
-                
                 for (int i = firstCellNum; i <= lastCellNum; i++) {
                     Cell cell = row.getCell(i);
                     if (cell != null) {
@@ -873,9 +835,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             }
             
             // 清除行样式
-            org.apache.poi.ss.usermodel.Workbook workbook = row.getSheet().getWorkbook();
-            org.apache.poi.ss.usermodel.CellStyle defaultRowStyle = workbook.createCellStyle();
-            row.setRowStyle(defaultRowStyle);
+            row.setRowStyle(defaultStyle);
             
             // 重置行高为默认值
             row.setHeight((short) -1);
@@ -924,30 +884,6 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                     targetCell.setCellStyle(sourceCell.getCellStyle());
                 }
             }
-        }
-        
-        private void setCellValue(Row row, int colIndex, Object value) {
-            Cell cell = row.getCell(colIndex);
-            if (cell == null) {
-                cell = row.createCell(colIndex);
-            }
-            if (value instanceof String) {
-                cell.setCellValue((String) value);
-            } else if (value instanceof Number) {
-                cell.setCellValue(((Number) value).doubleValue());
-            }
-        }
-        
-        private void setCellDateValue(Row row, int colIndex, LocalDateTime dateTime) {
-            if (dateTime == null) {
-                return;
-            }
-            Cell cell = row.getCell(colIndex);
-            if (cell == null) {
-                cell = row.createCell(colIndex);
-            }
-            java.util.Date date = java.util.Date.from(dateTime.atZone(ZoneId.systemDefault()).toInstant());
-            cell.setCellValue(date);
         }
         
         private String getStatusDesc(String status) {
@@ -1019,46 +955,6 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             java.util.Date date = java.util.Date.from(v.atZone(ZoneId.systemDefault()).toInstant());
             return new TemplateCellValue(Type.DATE, null, null, date);
         }
-    }
-    
-    private LocalDateTime parseDateTime(String text) {
-        if (!StringUtils.hasText(text)) {
-            return null;
-        }
-        try {
-            return LocalDateTime.parse(text, DATETIME_FORMATTER);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-    
-    private String formatMileage(Cycle cycle) {
-        if (cycle == null) {
-            return "";
-        }
-        if (cycle.getActualMileage() != null) {
-            return cycle.getActualMileage().toPlainString();
-        }
-        if (cycle.getEstimatedMileage() != null) {
-            return cycle.getEstimatedMileage().toPlainString();
-        }
-        return "";
-    }
-    
-    private String formatDuration(Integer minutes) {
-        if (minutes == null) {
-            return "";
-        }
-        return formatDuration(minutes.longValue());
-    }
-    
-    private String formatDuration(long minutes) {
-        if (minutes < 0) {
-            return "";
-        }
-        long hours = minutes / 60;
-        long mins = minutes % 60;
-        return hours + "小时" + mins + "分钟";
     }
     
     /**
