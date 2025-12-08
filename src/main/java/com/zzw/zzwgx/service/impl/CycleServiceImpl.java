@@ -33,15 +33,15 @@ import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.util.CellReference;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -51,7 +51,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -66,6 +65,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
     private final ProcessTemplateService processTemplateService;
     private final ProcessCatalogService processCatalogService;
     private final ProcessService processService;
+    private final ResourceLoader resourceLoader;
     
     private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     
@@ -323,89 +323,93 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         LocalDateTime start = cycle.getStartDate();
         LocalDateTime end = cycle.getEndDate();
         Integer controlMinutes = cycle.getControlDuration();
-        String controlDurationStr = formatDuration(controlMinutes);
         Double controlHours = controlMinutes != null ? controlMinutes / 60.0 : null;
         
-        long elapsedMinutes = 0;
-        if (start != null) {
-            LocalDateTime endPoint = end != null ? end : LocalDateTime.now();
-            elapsedMinutes = Duration.between(start, endPoint).toMinutes();
-        }
-        String elapsedStr = formatDuration((int) elapsedMinutes);
+        // 获取上循环信息
+        Cycle lastCycle = getCycleByProjectAndNumber(cycle.getProjectId(), cycle.getCycleNumber() - 1);
+        LocalDateTime lastCycleEnd = lastCycle != null ? lastCycle.getEndDate() : null;
+        Integer lastControlMinutes = lastCycle != null ? lastCycle.getControlDuration() : null;
         
-        String remainingStr = "";
-        if (controlMinutes != null) {
-            long remain = controlMinutes - elapsedMinutes;
-            remainingStr = formatDuration((int) remain);
-        }
-        
-        String predictedNextByControl = "";
+        // 计算预测时间
+        LocalDateTime predictedNextByControl = null; // 本循环开始时间+控制标准=预测下循环响炮时间
         if (start != null && controlMinutes != null) {
-            predictedNextByControl = start.plusMinutes(controlMinutes).format(DATETIME_FORMATTER);
+            predictedNextByControl = start.plusMinutes(controlMinutes);
         }
-        String predictedNextByInterval = "";
+        
+        LocalDateTime predictedNextByInterval = null; // 本循环结束时间+控制标准=下循环响炮时间（按间隔）
         if (end != null && controlMinutes != null) {
-            predictedNextByInterval = end.plusMinutes(controlMinutes).format(DATETIME_FORMATTER);
+            predictedNextByInterval = end.plusMinutes(controlMinutes);
         }
         
-        // 当前施工状态：取进行中的工序名称
+        // 本循环理论响炮时间 = 上循环响炮时间 + 上循环控制标准
+        LocalDateTime theoreticalBlastTime = null;
+        if (lastCycleEnd != null && lastControlMinutes != null) {
+            theoreticalBlastTime = lastCycleEnd.plusMinutes(lastControlMinutes);
+        }
+        
+        // 响炮超时 = 本循环开始时间 - 本循环理论响炮时间（分钟）
+        Long blastOvertimeMinutes = null;
+        if (start != null && theoreticalBlastTime != null) {
+            blastOvertimeMinutes = Duration.between(theoreticalBlastTime, start).toMinutes();
+        }
+        
+        // 两循环响炮时间差 = 本循环开始时间 - 上循环开始时间（分钟）
+        Long cycleBlastDiffMinutes = null;
+        Double cycleBlastDiffHours = null;
+        if (start != null && lastCycle != null && lastCycle.getStartDate() != null) {
+            cycleBlastDiffMinutes = Duration.between(lastCycle.getStartDate(), start).toMinutes();
+            cycleBlastDiffHours = cycleBlastDiffMinutes / 60.0;
+        }
+        
+        // 获取工序列表
         List<Process> processes = processService.getProcessesByCycleId(cycleId);
-        String currentStatus = processes.stream()
-                .filter(p -> ProcessStatus.IN_PROGRESS.getCode().equals(p.getProcessStatus()))
-                .map(Process::getProcessName)
-                .sorted()
-                .collect(Collectors.joining("、"));
-        if (!StringUtils.hasText(currentStatus)) {
-            // 如果没有进行中的，取默认顺序最前的工序名称作提示
-            Optional<Process> latest = processes.stream()
-                    .sorted(Comparator.comparing(Process::getStartOrder, Comparator.nullsLast(Integer::compareTo)))
-                    .findFirst();
-            currentStatus = latest.map(Process::getProcessName).orElse("");
-        }
         
-        // 模板路径：优先读取 xlxs 目录下的第一个 xlsx
-        Path templatePath = findTemplatePath();
-        if (templatePath == null) {
-            throw new BusinessException("未找到报表模板文件（xlxs目录下的xlsx）");
+        // 模板路径：从 static 目录读取模板文件
+        File templateFile = findTemplateFile();
+        if (templateFile == null || !templateFile.exists()) {
+            throw new BusinessException("未找到报表模板文件（static目录下的xlsx）");
         }
         
         try {
             Map<String, TemplateCellValue> cellValues = new HashMap<>();
-            // 顶部概要
-            cellValues.put("D2", TemplateCellValue.string(projectName + "循环时间通报" + (start != null ? "(" + start.toLocalDate() + ")" : "")));
-            cellValues.put("C2", TemplateCellValue.date(start, false));
-            cellValues.put("F2", TemplateCellValue.date(end, false));
-            cellValues.put("I2", TemplateCellValue.string(elapsedStr));
-            cellValues.put("K2", TemplateCellValue.number(controlMinutes));
-            cellValues.put("L2", TemplateCellValue.number(controlHours));
-            cellValues.put("O2", TemplateCellValue.number(cycle.getCycleNumber()));
             
-            // 里程、围岩、进尺、控制标准
-            cellValues.put("F5", TemplateCellValue.string(formatMileage(cycle)));
-            cellValues.put("D4", TemplateCellValue.string(cycle.getRockLevel()));
-            cellValues.put("K3", TemplateCellValue.string(cycle.getAdvanceLength() != null ? cycle.getAdvanceLength().toPlainString() : ""));
-            cellValues.put("O3", TemplateCellValue.string(controlDurationStr));
-            cellValues.put("F3", TemplateCellValue.string(controlDurationStr));
+            // 第2行
+            cellValues.put("C2", TemplateCellValue.date(start, false)); // 循环开始时间
+            cellValues.put("F2", TemplateCellValue.date(end, false)); // 循环结束时间（F2,G2,H2合并）
+            cellValues.put("K2", TemplateCellValue.number(controlMinutes)); // 控制时长（分钟）
+            cellValues.put("L2", TemplateCellValue.number(controlHours)); // 控制时长（小时）
+            cellValues.put("O2", TemplateCellValue.number(cycle.getCycleNumber())); // 本月循环数（O2,P2合并）
             
-            // 时间节点
-            cellValues.put("K5", TemplateCellValue.date(parseDateTime(predictedNextByControl), true));
-            cellValues.put("L3", TemplateCellValue.string(remainingStr));
-            cellValues.put("I5", TemplateCellValue.date(parseDateTime(predictedNextByInterval), true));
+            // 第3行
+            cellValues.put("C3", TemplateCellValue.string("100.5")); // 掌子面里程（默认值）
+            cellValues.put("F3", TemplateCellValue.string(cycle.getRockLevel())); // 围岩等级（F3,G3,H3合并）
+            cellValues.put("K3", TemplateCellValue.string(cycle.getAdvanceLength() != null ? cycle.getAdvanceLength().toPlainString() : "")); // 进尺（K3,L3合并）
+            cellValues.put("O3", TemplateCellValue.string("台阶法")); // 开发方式（O3,P3合并，固定值）
             
-            // 当前施工状态
-            cellValues.put("C7", TemplateCellValue.string(currentStatus));
+            // 第4行
+            cellValues.put("C4", TemplateCellValue.date(lastCycleEnd, false)); // 上循环响炮时间
+            cellValues.put("F4", TemplateCellValue.date(theoreticalBlastTime, false)); // 本循环理论响炮时间（F4,G4,H4合并）
+            cellValues.put("K4", TemplateCellValue.number(blastOvertimeMinutes != null ? blastOvertimeMinutes.doubleValue() : null)); // 响炮超时（分钟）
+            cellValues.put("L4", TemplateCellValue.number(blastOvertimeMinutes != null ? blastOvertimeMinutes / 60.0 : null)); // 响炮超时（小时）
+            cellValues.put("N4", TemplateCellValue.number(cycleBlastDiffMinutes != null ? cycleBlastDiffMinutes.doubleValue() : null)); // 两循环响炮时间差（分钟）
+            cellValues.put("O4", TemplateCellValue.number(cycleBlastDiffHours)); // 两循环响炮时间差（小时，O4,P4合并）
+            
+            // 第5行
+            cellValues.put("C5", TemplateCellValue.date(start, true)); // 循环开始时间（年月+时分）
+            cellValues.put("F5", TemplateCellValue.date(predictedNextByControl, false)); // 预测下循环响炮时间（按控制标准，F5,G5,H5合并）
+            cellValues.put("K5", TemplateCellValue.date(predictedNextByInterval, false)); // 下循环响炮时间（按间隔，K5到P5合并）
             
             String fileName = projectName + "-循环报表.xlsx";
             response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
             response.setHeader("Content-Disposition", "attachment; filename=\"" + java.net.URLEncoder.encode(fileName, java.nio.charset.StandardCharsets.UTF_8) + "\"");
             
-            // 先写入内存，确保文件完整，再输出到响应流，避免被中途截断导致“文件损坏”
+            // 先写入内存，确保文件完整，再输出到响应流，避免被中途截断导致"文件损坏"
             try (java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
                  ExcelWriter writer = EasyExcel.write(bos)
-                         .withTemplate(templatePath.toFile())
+                         .withTemplate(templateFile)
                          .inMemory(true) // 使用内存模式，避免 SXSSF 对已存在行的限制
                          .autoCloseStream(false)
-                         .registerWriteHandler(new TemplateCellWriteHandler(cellValues))
+                         .registerWriteHandler(new TemplateCellWriteHandler(cellValues, processes))
                          .build()) {
                 WriteSheet sheet = EasyExcel.writerSheet(0).build();
                 // 写入空数据以触发模板和处理器
@@ -427,19 +431,61 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         }
     }
     
-    private Path findTemplatePath() {
+    /**
+     * 从 static 目录查找模板文件
+     * 优先查找 classpath:static/模版.xlsx，如果不存在则查找第一个 .xlsx 文件
+     */
+    private File findTemplateFile() {
         try {
-            Path dir = Paths.get("xlxs");
-            if (!Files.exists(dir)) {
-                return null;
+            // 优先查找 "模版.xlsx"
+            Resource resource = resourceLoader.getResource("classpath:static/模版.xlsx");
+            if (resource.exists()) {
+                try {
+                    return resource.getFile();
+                } catch (IOException e) {
+                    // 如果资源在 jar 包中，无法直接获取 File，需要复制到临时文件
+                    log.debug("模板文件在jar包中，复制到临时文件: {}", e.getMessage());
+                    return copyResourceToTempFile(resource);
+                }
             }
-            return Files.list(dir)
-                    .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".xlsx"))
-                    .findFirst()
-                    .orElse(null);
-        } catch (IOException e) {
-            log.warn("查找报表模板文件失败: {}", e.getMessage());
+            
+            // 如果 "模版.xlsx" 不存在，查找 static 目录下的第一个 .xlsx 文件
+            Resource staticDir = resourceLoader.getResource("classpath:static/");
+            if (staticDir.exists()) {
+                try {
+                    File staticDirFile = staticDir.getFile();
+                    if (staticDirFile.isDirectory()) {
+                        File[] files = staticDirFile.listFiles((dir, name) -> 
+                            name.toLowerCase().endsWith(".xlsx"));
+                        if (files != null && files.length > 0) {
+                            return files[0];
+                        }
+                    }
+                } catch (IOException e) {
+                    log.debug("无法直接访问static目录，尝试其他方式: {}", e.getMessage());
+                }
+            }
+            
+            log.warn("未找到报表模板文件（static目录下的xlsx）");
             return null;
+        } catch (Exception e) {
+            log.error("查找报表模板文件失败", e);
+            return null;
+        }
+    }
+    
+    /**
+     * 将资源复制到临时文件（用于处理jar包中的资源）
+     */
+    private File copyResourceToTempFile(Resource resource) throws IOException {
+        try (java.io.InputStream inputStream = resource.getInputStream()) {
+            File tempFile = File.createTempFile("excel_template_", ".xlsx");
+            tempFile.deleteOnExit();
+            try (java.io.FileOutputStream outputStream = new java.io.FileOutputStream(tempFile)) {
+                inputStream.transferTo(outputStream);
+            }
+            log.debug("模板文件已复制到临时文件: {}", tempFile.getAbsolutePath());
+            return tempFile;
         }
     }
     
@@ -449,9 +495,11 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
     private static class TemplateCellWriteHandler implements SheetWriteHandler {
         
         private final Map<String, TemplateCellValue> cellValues;
+        private final List<Process> processes;
         
-        TemplateCellWriteHandler(Map<String, TemplateCellValue> cellValues) {
+        TemplateCellWriteHandler(Map<String, TemplateCellValue> cellValues, List<Process> processes) {
             this.cellValues = cellValues;
+            this.processes = processes;
         }
         
         @Override
@@ -462,10 +510,456 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         @Override
         public void afterSheetCreate(WriteWorkbookHolder writeWorkbookHolder, WriteSheetHolder writeSheetHolder) {
             Sheet sheet = writeSheetHolder.getSheet();
-            if (sheet == null || cellValues == null || cellValues.isEmpty()) {
+            if (sheet == null) {
                 return;
             }
-            cellValues.forEach((ref, val) -> applyValue(sheet, ref, val));
+            
+            // 填充单个单元格数据
+            if (cellValues != null && !cellValues.isEmpty()) {
+                cellValues.forEach((ref, val) -> applyValue(sheet, ref, val));
+            }
+            
+            // 填充工序列表（从第10行开始，索引为9）
+            if (processes != null && !processes.isEmpty()) {
+                fillProcessList(sheet, processes);
+            }
+        }
+        
+        /**
+         * 填充工序列表到Excel表格中
+         * 从第8行开始（索引7），列结构：
+         * A=工序名称（如"1.扒渣"），C=开始年月，D=开始时分，E=结束年月，F=结束时分，
+         * G=耗时（分钟），H=耗时（小时），I=控制标准（分钟），J=控制标准（小时），
+         * K=控制标准和实际损耗差值（小时，-超时，+节时），N=情况说明，O=工序状态
+         * 填充完所有工序后，将模板第12行（索引11）的内容复制到工序列表的下一行
+         */
+        private void fillProcessList(Sheet sheet, List<Process> processes) {
+            int startRowIndex = 7; // 第8行（从0开始计数）
+            int templateRowIndex = 11; // 模板第12行（从0开始计数）
+            int templateProcessRowCount = 4; // 模板中工序行的数量（第8-11行，共4行）
+            
+            // 按开始顺序排序
+            List<Process> sortedProcesses = processes.stream()
+                    .sorted(Comparator.comparing(Process::getStartOrder, Comparator.nullsLast(Integer::compareTo)))
+                    .collect(Collectors.toList());
+            
+            // 先保存模版第12行（"一个循环合计"）的内容和格式，因为填充工序数据时可能会覆盖它
+            Row templateRow12 = sheet.getRow(templateRowIndex);
+            Row savedTemplateRow12 = null;
+            Map<Integer, Integer> savedColumnWidths = null; // 保存列宽信息
+            if (templateRow12 != null) {
+                // 创建一个临时sheet来保存模版第12行
+                org.apache.poi.ss.usermodel.Workbook workbook = sheet.getWorkbook();
+                Sheet tempSheet = workbook.createSheet("_temp_save_row12_");
+                savedTemplateRow12 = tempSheet.createRow(0);
+                copyRowContent(templateRow12, savedTemplateRow12);
+                
+                // 保存模版第12行相关列的列宽
+                savedColumnWidths = new HashMap<>();
+                int firstCellNum = templateRow12.getFirstCellNum();
+                int lastCellNum = templateRow12.getLastCellNum();
+                if (firstCellNum >= 0 && lastCellNum >= firstCellNum) {
+                    for (int i = firstCellNum; i <= lastCellNum; i++) {
+                        int columnWidth = sheet.getColumnWidth(i);
+                        savedColumnWidths.put(i, columnWidth);
+                    }
+                }
+            }
+            
+            // 获取模板中第一行工序的格式作为参考（第8行，索引7）
+            Row templateFormatRow = sheet.getRow(startRowIndex);
+            
+            // 填充工序数据
+            for (int i = 0; i < sortedProcesses.size(); i++) {
+                Process process = sortedProcesses.get(i);
+                int rowIndex = startRowIndex + i;
+                Row row = sheet.getRow(rowIndex);
+                if (row == null) {
+                    row = sheet.createRow(rowIndex);
+                }
+                
+                // 如果填充到模版第12行（索引11），需要先清除该行的原有格式（灰色背景等）
+                if (rowIndex == templateRowIndex) {
+                    clearRowFormat(row);
+                }
+                
+                // 如果超过模板中的行数，需要复制格式
+                if (i >= templateProcessRowCount && templateFormatRow != null) {
+                    copyRowFormat(templateFormatRow, row);
+                }
+                
+                // 先为整行应用模板格式（确保所有单元格都有格式，包括空单元格）
+                if (templateFormatRow != null) {
+                    applyRowFormatFromTemplate(row, templateFormatRow);
+                }
+                
+                // A列：工序名称（如"1.扒渣"）
+                String processNameWithNumber = (i + 1) + "." + process.getProcessName();
+                setCellValueWithFormat(row, 0, processNameWithNumber, templateFormatRow, 0);
+                
+                // C列：当前工序开始的年月
+                LocalDateTime startTime = process.getActualStartTime() != null ? 
+                        process.getActualStartTime() : process.getEstimatedStartTime();
+                if (startTime != null) {
+                    setCellValueWithFormat(row, 2, startTime.format(DateTimeFormatter.ofPattern("yyyy-MM")), templateFormatRow, 2);
+                } else {
+                    // 即使值为空，也应用格式
+                    applyCellFormat(row, 2, templateFormatRow, 2);
+                }
+                
+                // D列：当前工序开始的小时和分钟
+                if (startTime != null) {
+                    setCellValueWithFormat(row, 3, startTime.format(DateTimeFormatter.ofPattern("HH:mm")), templateFormatRow, 3);
+                } else {
+                    applyCellFormat(row, 3, templateFormatRow, 3);
+                }
+                
+                // E列：当前工序结束的年月
+                LocalDateTime endTime = process.getActualEndTime() != null ? 
+                        process.getActualEndTime() : process.getEstimatedEndTime();
+                if (endTime != null) {
+                    setCellValueWithFormat(row, 4, endTime.format(DateTimeFormatter.ofPattern("yyyy-MM")), templateFormatRow, 4);
+                } else {
+                    applyCellFormat(row, 4, templateFormatRow, 4);
+                }
+                
+                // F列：工序结束的小时和分钟
+                if (endTime != null) {
+                    setCellValueWithFormat(row, 5, endTime.format(DateTimeFormatter.ofPattern("HH:mm")), templateFormatRow, 5);
+                } else {
+                    applyCellFormat(row, 5, templateFormatRow, 5);
+                }
+                
+                // G列：当前工序的耗时（分钟）
+                Integer actualMinutes = null;
+                if (process.getActualStartTime() != null && process.getActualEndTime() != null) {
+                    actualMinutes = (int) Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
+                } else if (process.getActualStartTime() != null) {
+                    // 进行中的工序，计算已进行时间
+                    actualMinutes = (int) Duration.between(process.getActualStartTime(), LocalDateTime.now()).toMinutes();
+                }
+                if (actualMinutes != null) {
+                    setCellValueWithFormat(row, 6, actualMinutes, templateFormatRow, 6);
+                } else {
+                    applyCellFormat(row, 6, templateFormatRow, 6);
+                }
+                
+                // H列：当前工序耗时（小时）
+                if (actualMinutes != null) {
+                    setCellValueWithFormat(row, 7, actualMinutes / 60.0, templateFormatRow, 7);
+                } else {
+                    applyCellFormat(row, 7, templateFormatRow, 7);
+                }
+                
+                // I列：工序的控制标准（分钟）
+                if (process.getControlTime() != null) {
+                    setCellValueWithFormat(row, 8, process.getControlTime(), templateFormatRow, 8);
+                } else {
+                    applyCellFormat(row, 8, templateFormatRow, 8);
+                }
+                
+                // J列：工序的控制标准（小时）
+                if (process.getControlTime() != null) {
+                    setCellValueWithFormat(row, 9, process.getControlTime() / 60.0, templateFormatRow, 9);
+                } else {
+                    applyCellFormat(row, 9, templateFormatRow, 9);
+                }
+                
+                // K列：当前工序控制标准和实际损耗的差值（小时），-是超时，+是节时
+                if (process.getControlTime() != null && actualMinutes != null) {
+                    double diffHours = (actualMinutes - process.getControlTime()) / 60.0;
+                    setCellValueWithFormat(row, 10, diffHours, templateFormatRow, 10);
+                } else {
+                    applyCellFormat(row, 10, templateFormatRow, 10);
+                }
+                
+                // N列：情况说明（即使为空也应用格式）
+                applyCellFormat(row, 13, templateFormatRow, 13);
+                
+                // O列：工序状态
+                String statusDesc = getStatusDesc(process.getProcessStatus());
+                setCellValueWithFormat(row, 14, statusDesc, templateFormatRow, 14);
+            }
+            
+            // 填充完所有工序后，将模版第12行（"一个循环合计"）复制到导出文件的最后一行，并保留原始格式
+            if (savedTemplateRow12 != null) {
+                // 计算导出文件的最后一行位置（工序列表之后的第一行）
+                int exportLastRowIndex = startRowIndex + sortedProcesses.size();
+                
+                // 复制保存的模版第12行的内容和格式到导出文件的最后一行
+                Row exportLastRow = sheet.getRow(exportLastRowIndex);
+                if (exportLastRow == null) {
+                    exportLastRow = sheet.createRow(exportLastRowIndex);
+                }
+                // 复制模版第12行的所有单元格内容、格式和样式（保留原来格式，包括灰色背景等）
+                copyRowContent(savedTemplateRow12, exportLastRow);
+                
+                // 恢复列宽
+                if (savedColumnWidths != null) {
+                    for (Map.Entry<Integer, Integer> entry : savedColumnWidths.entrySet()) {
+                        int columnIndex = entry.getKey();
+                        int columnWidth = entry.getValue();
+                        sheet.setColumnWidth(columnIndex, columnWidth);
+                    }
+                }
+                
+                // 删除临时sheet
+                int tempSheetIndex = sheet.getWorkbook().getSheetIndex("_temp_save_row12_");
+                if (tempSheetIndex >= 0) {
+                    sheet.getWorkbook().removeSheetAt(tempSheetIndex);
+                }
+            }
+        }
+        
+        /**
+         * 设置单元格值并应用格式（如果模板行存在）
+         */
+        private void setCellValueWithFormat(Row row, int colIndex, Object value, Row templateRow, int templateColIndex) {
+            Cell cell = row.getCell(colIndex);
+            if (cell == null) {
+                cell = row.createCell(colIndex);
+            }
+            
+            // 设置值
+            if (value instanceof String) {
+                cell.setCellValue((String) value);
+            } else if (value instanceof Number) {
+                cell.setCellValue(((Number) value).doubleValue());
+            }
+            
+            // 如果模板行存在，复制对应列的格式（包括边框）
+            if (templateRow != null) {
+                Cell templateCell = templateRow.getCell(templateColIndex);
+                org.apache.poi.ss.usermodel.Workbook workbook = row.getSheet().getWorkbook();
+                
+                if (templateCell != null && templateCell.getCellStyle() != null) {
+                    // 创建新样式并复制模板样式的所有属性
+                    org.apache.poi.ss.usermodel.CellStyle newStyle = workbook.createCellStyle();
+                    newStyle.cloneStyleFrom(templateCell.getCellStyle());
+                    
+                    // 确保边框被设置（无论模板是否有边框，都强制设置边框）
+                    org.apache.poi.ss.usermodel.IndexedColors borderColor = org.apache.poi.ss.usermodel.IndexedColors.BLACK;
+                    newStyle.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                    newStyle.setTopBorderColor(borderColor.getIndex());
+                    newStyle.setBorderBottom(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                    newStyle.setBottomBorderColor(borderColor.getIndex());
+                    newStyle.setBorderLeft(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                    newStyle.setLeftBorderColor(borderColor.getIndex());
+                    newStyle.setBorderRight(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                    newStyle.setRightBorderColor(borderColor.getIndex());
+                    
+                    cell.setCellStyle(newStyle);
+                } else {
+                    // 如果模板单元格没有样式，创建一个带边框的默认样式
+                    org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
+                    org.apache.poi.ss.usermodel.IndexedColors borderColor = org.apache.poi.ss.usermodel.IndexedColors.BLACK;
+                    // 设置边框和边框颜色
+                    style.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                    style.setTopBorderColor(borderColor.getIndex());
+                    style.setBorderBottom(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                    style.setBottomBorderColor(borderColor.getIndex());
+                    style.setBorderLeft(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                    style.setLeftBorderColor(borderColor.getIndex());
+                    style.setBorderRight(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                    style.setRightBorderColor(borderColor.getIndex());
+                    cell.setCellStyle(style);
+                }
+            }
+        }
+        
+        /**
+         * 为单个单元格应用格式（即使值为空）
+         */
+        private void applyCellFormat(Row row, int colIndex, Row templateRow, int templateColIndex) {
+            if (templateRow == null) {
+                return;
+            }
+            Cell cell = row.getCell(colIndex);
+            if (cell == null) {
+                cell = row.createCell(colIndex);
+            }
+            Cell templateCell = templateRow.getCell(templateColIndex);
+            org.apache.poi.ss.usermodel.Workbook workbook = row.getSheet().getWorkbook();
+            
+            if (templateCell != null && templateCell.getCellStyle() != null) {
+                // 创建新样式并复制模板样式的所有属性
+                org.apache.poi.ss.usermodel.CellStyle newStyle = workbook.createCellStyle();
+                newStyle.cloneStyleFrom(templateCell.getCellStyle());
+                
+                // 确保边框被设置（无论模板是否有边框，都强制设置边框）
+                org.apache.poi.ss.usermodel.IndexedColors borderColor = org.apache.poi.ss.usermodel.IndexedColors.BLACK;
+                newStyle.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                newStyle.setTopBorderColor(borderColor.getIndex());
+                newStyle.setBorderBottom(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                newStyle.setBottomBorderColor(borderColor.getIndex());
+                newStyle.setBorderLeft(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                newStyle.setLeftBorderColor(borderColor.getIndex());
+                newStyle.setBorderRight(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                newStyle.setRightBorderColor(borderColor.getIndex());
+                
+                cell.setCellStyle(newStyle);
+            } else {
+                // 如果模板单元格没有样式，创建一个带边框的默认样式
+                org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
+                org.apache.poi.ss.usermodel.IndexedColors borderColor = org.apache.poi.ss.usermodel.IndexedColors.BLACK;
+                // 设置边框和边框颜色
+                style.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                style.setTopBorderColor(borderColor.getIndex());
+                style.setBorderBottom(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                style.setBottomBorderColor(borderColor.getIndex());
+                style.setBorderLeft(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                style.setLeftBorderColor(borderColor.getIndex());
+                style.setBorderRight(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                style.setRightBorderColor(borderColor.getIndex());
+                cell.setCellStyle(style);
+            }
+        }
+        
+        /**
+         * 为整行应用模板格式（确保所有需要的列都有格式）
+         */
+        private void applyRowFormatFromTemplate(Row row, Row templateRow) {
+            if (templateRow == null) {
+                return;
+            }
+            // 需要应用格式的列索引：A(0), B(1), C(2), D(3), E(4), F(5), G(6), H(7), I(8), J(9), K(10), L(11), N(13), O(14), P(15)
+            int[] columnsToFormat = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+            for (int colIndex : columnsToFormat) {
+                applyCellFormat(row, colIndex, templateRow, colIndex);
+            }
+        }
+        
+        /**
+         * 复制行的格式（行高、单元格样式等）
+         */
+        private void copyRowFormat(Row sourceRow, Row targetRow) {
+            if (sourceRow == null || targetRow == null) {
+                return;
+            }
+            
+            // 复制行高
+            if (sourceRow.getHeight() > 0) {
+                targetRow.setHeight(sourceRow.getHeight());
+            }
+            
+            // 复制行样式（如果存在）
+            if (sourceRow.getRowStyle() != null) {
+                targetRow.setRowStyle(sourceRow.getRowStyle());
+            }
+        }
+        
+        /**
+         * 清除行的格式（保留内容，清除样式）
+         */
+        private void clearRowFormat(Row row) {
+            if (row == null) {
+                return;
+            }
+            
+            // 遍历行的所有单元格，清除样式
+            int firstCellNum = row.getFirstCellNum();
+            int lastCellNum = row.getLastCellNum();
+            if (firstCellNum >= 0 && lastCellNum >= firstCellNum) {
+                org.apache.poi.ss.usermodel.Workbook workbook = row.getSheet().getWorkbook();
+                org.apache.poi.ss.usermodel.CellStyle defaultStyle = workbook.createCellStyle();
+                
+                for (int i = firstCellNum; i <= lastCellNum; i++) {
+                    Cell cell = row.getCell(i);
+                    if (cell != null) {
+                        // 设置默认样式（无格式）
+                        cell.setCellStyle(defaultStyle);
+                    }
+                }
+            }
+            
+            // 清除行样式
+            org.apache.poi.ss.usermodel.Workbook workbook = row.getSheet().getWorkbook();
+            org.apache.poi.ss.usermodel.CellStyle defaultRowStyle = workbook.createCellStyle();
+            row.setRowStyle(defaultRowStyle);
+            
+            // 重置行高为默认值
+            row.setHeight((short) -1);
+        }
+        
+        /**
+         * 复制源行的所有单元格内容到目标行
+         */
+        private void copyRowContent(Row sourceRow, Row targetRow) {
+            if (sourceRow == null || targetRow == null) {
+                return;
+            }
+            
+            // 遍历源行的所有单元格
+            for (int i = sourceRow.getFirstCellNum(); i <= sourceRow.getLastCellNum(); i++) {
+                Cell sourceCell = sourceRow.getCell(i);
+                if (sourceCell == null) {
+                    continue;
+                }
+                
+                Cell targetCell = targetRow.getCell(i);
+                if (targetCell == null) {
+                    targetCell = targetRow.createCell(i);
+                }
+                
+                // 复制单元格值
+                switch (sourceCell.getCellType()) {
+                    case STRING -> targetCell.setCellValue(sourceCell.getStringCellValue());
+                    case NUMERIC -> {
+                        if (org.apache.poi.ss.usermodel.DateUtil.isCellDateFormatted(sourceCell)) {
+                            targetCell.setCellValue(sourceCell.getDateCellValue());
+                        } else {
+                            targetCell.setCellValue(sourceCell.getNumericCellValue());
+                        }
+                    }
+                    case BOOLEAN -> targetCell.setCellValue(sourceCell.getBooleanCellValue());
+                    case FORMULA -> targetCell.setCellFormula(sourceCell.getCellFormula());
+                    case BLANK -> targetCell.setBlank();
+                    default -> {
+                        // 其他类型保持空白
+                    }
+                }
+                
+                // 复制单元格样式（如果存在）
+                if (sourceCell.getCellStyle() != null) {
+                    targetCell.setCellStyle(sourceCell.getCellStyle());
+                }
+            }
+        }
+        
+        private void setCellValue(Row row, int colIndex, Object value) {
+            Cell cell = row.getCell(colIndex);
+            if (cell == null) {
+                cell = row.createCell(colIndex);
+            }
+            if (value instanceof String) {
+                cell.setCellValue((String) value);
+            } else if (value instanceof Number) {
+                cell.setCellValue(((Number) value).doubleValue());
+            }
+        }
+        
+        private void setCellDateValue(Row row, int colIndex, LocalDateTime dateTime) {
+            if (dateTime == null) {
+                return;
+            }
+            Cell cell = row.getCell(colIndex);
+            if (cell == null) {
+                cell = row.createCell(colIndex);
+            }
+            java.util.Date date = java.util.Date.from(dateTime.atZone(ZoneId.systemDefault()).toInstant());
+            cell.setCellValue(date);
+        }
+        
+        private String getStatusDesc(String status) {
+            if (status == null) {
+                return "";
+            }
+            return switch (status) {
+                case "NOT_STARTED" -> "未开始";
+                case "IN_PROGRESS" -> "进行中";
+                case "COMPLETED" -> "已完成";
+                default -> status;
+            };
         }
         
         private void applyValue(Sheet sheet, String cellRef, TemplateCellValue value) {
