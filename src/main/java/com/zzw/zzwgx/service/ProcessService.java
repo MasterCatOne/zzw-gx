@@ -87,5 +87,10 @@ public interface ProcessService extends IService<Process> {
      */
     Page<com.zzw.zzwgx.dto.response.OvertimeProcessResponse> getOvertimeProcessesWithoutReason(
             Integer pageNum, Integer pageSize, String projectName);
+
+    /**
+     * 施工人员完成工序（自动填充实际结束时间为当前时间并标记完成）
+     */
+    ProcessResponse completeWorkerProcess(Long processId, Long workerId);
 }
 

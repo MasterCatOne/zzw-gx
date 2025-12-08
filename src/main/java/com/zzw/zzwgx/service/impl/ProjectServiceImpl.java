@@ -173,14 +173,12 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
         // 获取当前循环的所有工序
         List<Process> processes = processService.getProcessesByCycleId(currentCycle.getId());
         
-        // 计算控制总时间：所有工序的控制时间总和（转换为小时）
-        int totalControlTimeMinutes = processes.stream()
-                .filter(p -> p.getControlTime() != null)
-                .mapToInt(Process::getControlTime)
-                .sum();
-        BigDecimal controlTotalTimeHours = BigDecimal.valueOf(totalControlTimeMinutes)
-                .divide(BigDecimal.valueOf(60), 2, java.math.RoundingMode.HALF_UP);
-        response.setControlTotalTimeHours(controlTotalTimeHours);
+        // 计算控制总时间：循环的控制时长（controlDuration，单位：分钟）转换为小时
+        if (currentCycle.getControlDuration() != null) {
+            BigDecimal controlTotalTimeHours = BigDecimal.valueOf(currentCycle.getControlDuration())
+                    .divide(BigDecimal.valueOf(60), 2, java.math.RoundingMode.HALF_UP);
+            response.setControlTotalTimeHours(controlTotalTimeHours);
+        }
         Process currentProcess = processes.stream()
                 .filter(p -> ProcessStatus.IN_PROGRESS.getCode().equals(p.getProcessStatus()))
                 .findFirst()
@@ -206,7 +204,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
             if (diffMinutes > 0) {
                 text = "超时" + diffMinutes + "分钟";
             } else if (diffMinutes < 0) {
-                text = "节省" + Math.abs(diffMinutes) + "分钟";
+                text = "余时" + Math.abs(diffMinutes) + "分钟";
             } else {
                 text = "按时完成";
             }
@@ -217,12 +215,59 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
         LocalDateTime currentCycleStart = currentCycle.getStartDate();
         response.setCurrentCycleStartTime(currentCycleStart);
         
-        // 计算本循环已进行时间（单位：小时）
+        // 计算本循环已进行时间或超时/余时时间
         if (currentCycleStart != null) {
-            LocalDateTime now = LocalDateTime.now();
-            long elapsedHours = Duration.between(currentCycleStart, now).toHours();
-            response.setCurrentCycleElapsedHours(elapsedHours);
-            response.setCurrentCycleElapsedText("已进行" + elapsedHours + "小时");
+            // 如果循环已完成，计算超时/余时时间（实际结束时间 vs 预计结束时间）
+            if ("COMPLETED".equals(currentCycle.getStatus()) && currentCycle.getEndDate() != null) {
+                LocalDateTime currentCycleEnd = currentCycle.getEndDate();
+                LocalDateTime estimatedEndDate = currentCycle.getEstimatedEndDate();
+                
+                if (estimatedEndDate != null) {
+                    // 计算实际结束时间与预计结束时间的差值（分钟）
+                    long diffMinutes = Duration.between(estimatedEndDate, currentCycleEnd).toMinutes();
+                    long diffHours = Math.abs(diffMinutes) / 60;
+                    long diffRemainingMinutes = Math.abs(diffMinutes) % 60;
+                    
+                    if (diffMinutes > 0) {
+                        // 超时：实际结束时间晚于预计结束时间
+                        response.setCurrentCycleElapsedHours(diffHours);
+                        if (diffRemainingMinutes > 0) {
+                            response.setCurrentCycleElapsedText("超时" + diffHours + "小时" + diffRemainingMinutes + "分钟");
+                        } else {
+                            response.setCurrentCycleElapsedText("超时" + diffHours + "小时");
+                        }
+                    } else if (diffMinutes < 0) {
+                        // 余时：实际结束时间早于预计结束时间
+                        response.setCurrentCycleElapsedHours(diffHours);
+                        if (diffRemainingMinutes > 0) {
+                            response.setCurrentCycleElapsedText("余时" + diffHours + "小时" + diffRemainingMinutes + "分钟");
+                        } else {
+                            response.setCurrentCycleElapsedText("余时" + diffHours + "小时");
+                        }
+                    } else {
+                        // 按时完成
+                        response.setCurrentCycleElapsedHours(0L);
+                        response.setCurrentCycleElapsedText("按时完成");
+                    }
+                } else {
+                    // 没有预计结束时间，显示总耗时
+                    long actualTotalMinutes = Duration.between(currentCycleStart, currentCycleEnd).toMinutes();
+                    long totalHours = actualTotalMinutes / 60;
+                    long totalRemainingMinutes = actualTotalMinutes % 60;
+                    response.setCurrentCycleElapsedHours(totalHours);
+                    if (totalRemainingMinutes > 0) {
+                        response.setCurrentCycleElapsedText("总耗时" + totalHours + "小时" + totalRemainingMinutes + "分钟");
+                    } else {
+                        response.setCurrentCycleElapsedText("总耗时" + totalHours + "小时");
+                    }
+                }
+            } else {
+                // 循环未完成，显示已进行时间
+                LocalDateTime now = LocalDateTime.now();
+                long elapsedHours = Duration.between(currentCycleStart, now).toHours();
+                response.setCurrentCycleElapsedHours(elapsedHours);
+                response.setCurrentCycleElapsedText("已进行" + elapsedHours + "小时");
+            }
         }
         
         // 工序列表
@@ -239,18 +284,53 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
             info.setEstimatedStartTime(process.getEstimatedStartTime());
             info.setEstimatedEndTime(process.getEstimatedEndTime());
             
-            // 计算实际时间
+            // 计算实际时间和节时/超时时间
             if (process.getActualStartTime() != null && process.getActualEndTime() != null) {
-                long minutes = Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
-                info.setActualTime((int) minutes);
-                info.setElapsedMinutes((int) minutes);
-                if (process.getEstimatedEndTime() != null) {
-                    long diff = Duration.between(process.getEstimatedEndTime(), process.getActualEndTime()).toMinutes();
-                    info.setTimeDifferenceMinutes((int) diff);
+                // 工序已完成：计算实际时间与控制时间的差值，显示超时或节时
+                long actualMinutes = Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
+                info.setActualTime((int) actualMinutes);
+                info.setElapsedMinutes((int) actualMinutes);
+                
+                // 计算与控制时间的差值
+                if (process.getControlTime() != null) {
+                    long diffMinutes = actualMinutes - process.getControlTime();
+                    info.setTimeDifferenceMinutes((int) diffMinutes);
+                    
+                    // 生成文本描述
+                    if (diffMinutes > 0) {
+                        info.setTimeDifferenceText("超时" + diffMinutes + "分钟");
+                    } else if (diffMinutes < 0) {
+                        info.setTimeDifferenceText("节时" + Math.abs(diffMinutes) + "分钟");
+                    } else {
+                        info.setTimeDifferenceText("按时完成");
+                    }
+                } else {
+                    // 没有控制时间，使用预计结束时间计算
+                    if (process.getEstimatedEndTime() != null) {
+                        long diff = Duration.between(process.getEstimatedEndTime(), process.getActualEndTime()).toMinutes();
+                        info.setTimeDifferenceMinutes((int) diff);
+                        if (diff > 0) {
+                            info.setTimeDifferenceText("超时" + diff + "分钟");
+                        } else if (diff < 0) {
+                            info.setTimeDifferenceText("节时" + Math.abs(diff) + "分钟");
+                        } else {
+                            info.setTimeDifferenceText("按时完成");
+                        }
+                    }
                 }
             } else if (process.getActualStartTime() != null) {
-                long minutes = Duration.between(process.getActualStartTime(), LocalDateTime.now()).toMinutes();
-                info.setElapsedMinutes((int) minutes);
+                // 工序正在进行中：显示已进行时长（>=60分钟转小时+分钟）
+                long elapsedMinutes = Duration.between(process.getActualStartTime(), LocalDateTime.now()).toMinutes();
+                info.setElapsedMinutes((int) elapsedMinutes);
+                if (elapsedMinutes >= 60) {
+                    long hoursPart = elapsedMinutes / 60;
+                    long minutesPart = elapsedMinutes % 60;
+                    info.setTimeDifferenceText(minutesPart > 0
+                            ? "已进行" + hoursPart + "小时" + minutesPart + "分钟"
+                            : "已进行" + hoursPart + "小时");
+                } else {
+                    info.setTimeDifferenceText("已进行" + elapsedMinutes + "分钟");
+                }
             }
             if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus())) {
                 info.setEndProcess(true);

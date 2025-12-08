@@ -43,9 +43,9 @@ public class ProcessResponse {
     @Schema(description = "进尺长度（米）", example = "0.5")
     private BigDecimal advanceLength;
     
-    @Schema(description = "工序模板ID（记录工序来源模板）", example = "1")
-    private Long templateId;
-
+    @Schema(description = "工序字典ID", example = "1")
+    private Long processCatalogId;
+    
     @Schema(description = "预计开始时间", example = "2025-11-05T08:00:00")
     private LocalDateTime estimatedStartTime;
 

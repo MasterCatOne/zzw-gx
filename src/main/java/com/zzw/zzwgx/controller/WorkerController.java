@@ -75,15 +75,53 @@ public class WorkerController {
         return Result.success(response);
     }
 
-    @Operation(summary = "填报超时原因", description = "施工人员填报工序超时原因。仅限已完成的超时工序，且只能在循环完成前填报。")
-    @PostMapping("/processes/{processId}/overtime-reason")
-    public Result<Void> submitOvertimeReason(
-            @Parameter(description = "工序ID", required = true, example = "1001") @PathVariable Long processId,
-            @Valid @RequestBody SubmitOvertimeReasonRequest request) {
+    @Operation(summary = "完成工序", description = "施工人员点击完成工序，自动将实际结束时间置为当前时间并更新为已完成状态，同时计算节时/超时。")
+    @PostMapping("/processes/{processId}/finish")
+    public Result<ProcessDetailResponse> finishMyProcess(
+            @Parameter(description = "工序ID", required = true, example = "1001") @PathVariable Long processId) {
         Long userId = SecurityUtils.getCurrentUserId();
-        log.info("施工人员填报超时原因，用户ID: {}, 工序ID: {}", userId, processId);
-        processService.submitOvertimeReason(processId, userId, request.getOvertimeReason());
-        return Result.success("超时原因填报成功", null);
+        log.info("施工人员完成工序，用户ID: {}, 工序ID: {}", userId, processId);
+        processService.completeWorkerProcess(processId, userId);
+        ProcessDetailResponse response = processService.getWorkerProcessDetail(processId, userId);
+        return Result.success("工序已完成", response);
     }
+
+    @Operation(summary = "完成并进入下一循环", description = "用于已点过完成的工序，再提交超时原因后进入下一循环；若未超时则可直接提交。")
+    @PostMapping("/processes/{processId}/finish-and-next")
+    public Result<ProcessDetailResponse> finishAndNext(
+            @Parameter(description = "工序ID", required = true, example = "1001") @PathVariable Long processId,
+            @Parameter(description = "超时原因（仅超时必填）") @RequestParam(required = false) String overtimeReason) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        log.info("施工人员完成并进入下一循环，用户ID: {}, 工序ID: {}", userId, processId);
+
+        // 已经完成过的工序，这里主要用于提交超时原因；如果还未完成则补一次完成。
+        processService.completeWorkerProcess(processId, userId);
+        ProcessDetailResponse detail = processService.getWorkerProcessDetail(processId, userId);
+
+        boolean isOvertime = detail.getTimeDifferenceText() != null && detail.getTimeDifferenceText().startsWith("超时");
+
+        // 超时必须填写原因
+        if (isOvertime && (overtimeReason == null || overtimeReason.isBlank())) {
+            return Result.fail("超时工序需填写超时原因后才能进入下一循环");
+        }
+        if (isOvertime) {
+            processService.submitOvertimeReason(processId, userId, overtimeReason);
+            detail = processService.getWorkerProcessDetail(processId, userId);
+        }
+
+        // 未超时或已补充原因，视为可进入下一循环（此处仅返回提示，不创建新循环）
+        return Result.success("已完成，可进入下一循环", detail);
+    }
+
+//    @Operation(summary = "填报超时原因", description = "施工人员填报工序超时原因。仅限已完成的超时工序，且只能在循环完成前填报。")
+//    @PostMapping("/processes/{processId}/overtime-reason")
+//    public Result<Void> submitOvertimeReason(
+//            @Parameter(description = "工序ID", required = true, example = "1001") @PathVariable Long processId,
+//            @Valid @RequestBody SubmitOvertimeReasonRequest request) {
+//        Long userId = SecurityUtils.getCurrentUserId();
+//        log.info("施工人员填报超时原因，用户ID: {}, 工序ID: {}", userId, processId);
+//        processService.submitOvertimeReason(processId, userId, request.getOvertimeReason());
+//        return Result.success("超时原因填报成功", null);
+//    }
 }
 

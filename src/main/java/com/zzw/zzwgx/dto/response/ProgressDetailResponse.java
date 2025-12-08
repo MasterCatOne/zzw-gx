@@ -110,6 +110,9 @@ public class ProgressDetailResponse {
         @Schema(description = "时间差（分钟），正数表示超时，负数表示节时", example = "-20")
         private Integer timeDifferenceMinutes;
         
+        @Schema(description = "时间差文本描述，例如：\"超时20分钟\"、\"节时15分钟\"、\"已进行30分钟\"", example = "节时20分钟")
+        private String timeDifferenceText;
+        
         @Schema(description = "是否结束工序", example = "false")
         private boolean endProcess;
     }

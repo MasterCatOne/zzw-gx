@@ -87,12 +87,24 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         // 设置工序名称和字典ID
         process.setProcessName(catalog.getProcessName());
         process.setProcessCatalogId(request.getProcessCatalogId());
+        // 通过工序字典创建的工序不需要模板ID
+        process.setTemplateId(null);
         
         // 控制时长由用户输入
         if (request.getControlTime() == null) {
             throw new BusinessException("控制时长不能为空");
         }
         process.setControlTime(request.getControlTime());
+        
+        // 根据实际开始时间和控制时长标准自动计算预计结束时间
+        if (request.getActualStartTime() != null && request.getControlTime() != null) {
+            // 预计开始时间与实际开始时间一致
+            process.setEstimatedStartTime(request.getActualStartTime());
+            // 预计结束时间 = 实际开始时间 + 控制时长（分钟）
+            process.setEstimatedEndTime(request.getActualStartTime().plusMinutes(request.getControlTime()));
+            log.debug("自动计算预计结束时间，实际开始时间: {}, 控制时长: {}分钟, 预计结束时间: {}", 
+                    request.getActualStartTime(), request.getControlTime(), process.getEstimatedEndTime());
+        }
         
         log.debug("根据工序字典创建工序，工序字典ID: {}, 工序名称: {}, 控制时长: {}", 
                 request.getProcessCatalogId(), catalog.getProcessName(), request.getControlTime());
@@ -429,6 +441,63 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         return response;
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ProcessResponse completeWorkerProcess(Long processId, Long workerId) {
+        log.info("施工人员完成工序，用户ID: {}, 工序ID: {}", workerId, processId);
+        Process process = getById(processId);
+        if (process == null) {
+            throw new BusinessException(ResultCode.PROCESS_NOT_FOUND);
+        }
+        if (process.getOperatorId() == null || !process.getOperatorId().equals(workerId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN);
+        }
+        if (process.getActualStartTime() == null) {
+            throw new BusinessException("当前工序未开始，无法完成");
+        }
+        if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus())) {
+            return buildProcessResponse(process);
+        }
+
+        // 使用当前时间作为实际结束时间
+        LocalDateTime now = LocalDateTime.now();
+        process.setActualEndTime(now);
+        process.setProcessStatus(ProcessStatus.COMPLETED.getCode());
+        updateById(process);
+
+        // 如果本循环所有工序都已完成，则将循环状态置为已完成并记录结束时间
+        tryCompleteCycle(process);
+
+        return buildProcessResponse(process);
+    }
+
+    /**
+     * 当所在循环的所有工序都完成时，更新循环状态为已完成并填充结束时间
+     */
+    private void tryCompleteCycle(Process process) {
+        if (process == null || process.getCycleId() == null) {
+            return;
+        }
+        Long cycleId = process.getCycleId();
+
+        // 判断是否还有未完成的工序
+        Long unfinished = lambdaQuery()
+                .eq(Process::getCycleId, cycleId)
+                .ne(Process::getProcessStatus, ProcessStatus.COMPLETED.getCode())
+                .count();
+        if (unfinished != null && unfinished == 0) {
+            Cycle cycle = cycleMapper.selectById(cycleId);
+            if (cycle != null && !"COMPLETED".equals(cycle.getStatus())) {
+                cycle.setStatus("COMPLETED");
+                if (cycle.getEndDate() == null) {
+                    cycle.setEndDate(LocalDateTime.now());
+                }
+                cycleMapper.updateById(cycle);
+                log.info("循环所有工序完成，自动将循环置为已完成，循环ID: {}", cycleId);
+            }
+        }
+    }
+
     private ProcessDetailResponse buildProcessDetail(Process process) {
         ProcessDetailResponse response = new ProcessDetailResponse();
         response.setId(process.getId());
@@ -469,26 +538,52 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             response.setPreviousProcessStatusDesc("无");
         }
 
-        Integer processTimeMinutes = null;
+        // 处理时间相关字段
         if (process.getActualStartTime() != null && process.getActualEndTime() != null) {
+            // 工序已完成：计算总耗时、超时/节时
             long minutes = Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
-            processTimeMinutes = (int) minutes;
-            response.setFinalTime(processTimeMinutes);
+            int totalMinutes = (int) minutes;
+            response.setProcessTimeMinutes(totalMinutes);
 
+            // 计算超时或节时
             if (process.getControlTime() != null) {
-                if (minutes < process.getControlTime()) {
-                    response.setSavedTime(process.getControlTime() - (int) minutes);
-                } else if (minutes > process.getControlTime()) {
-                    response.setOvertime((int) minutes - process.getControlTime());
+                if (totalMinutes < process.getControlTime()) {
+                    // 节时
+                    int savedMinutes = process.getControlTime() - totalMinutes;
+                    response.setTimeDifferenceText("节时" + savedMinutes + "分钟");
+                } else if (totalMinutes > process.getControlTime()) {
+                    // 超时
+                    int overtimeMinutes = totalMinutes - process.getControlTime();
+                    response.setTimeDifferenceText("超时" + overtimeMinutes + "分钟");
+                } else {
+                    // 正好等于控制时间
+                    response.setTimeDifferenceText("按时完成");
                 }
+            } else {
+                // 没有控制时间，无法计算超时/节时
+                response.setTimeDifferenceText(null);
             }
         } else if (process.getActualStartTime() != null) {
+            // 工序进行中：计算已进行时间（从实际开始时间到现在）
             long minutes = Duration.between(process.getActualStartTime(), LocalDateTime.now()).toMinutes();
-            processTimeMinutes = (int) minutes;
-        } else if (process.getControlTime() != null) {
-            processTimeMinutes = process.getControlTime();
+            int elapsedMinutes = (int) minutes;
+            response.setProcessTimeMinutes(elapsedMinutes);
+            // 进行中的工序不设置 finalTime、savedTime、overtime
+            // 设置已进行时间文本（>=60 分钟转换为小时+分钟展示）
+            if (elapsedMinutes >= 60) {
+                long hoursPart = elapsedMinutes / 60;
+                long minutesPart = elapsedMinutes % 60;
+                response.setTimeDifferenceText(minutesPart > 0
+                        ? "已进行" + hoursPart + "小时" + minutesPart + "分钟"
+                        : "已进行" + hoursPart + "小时");
+            } else {
+                response.setTimeDifferenceText("已进行" + elapsedMinutes + "分钟");
+            }
+        } else {
+            // 工序未开始：processTimeMinutes 和 timeDifferenceText 都为 null
+            response.setProcessTimeMinutes(null);
+            response.setTimeDifferenceText(null);
         }
-        response.setProcessTimeMinutes(processTimeMinutes);
         
         // 设置超时原因
         response.setOvertimeReason(process.getOvertimeReason());
@@ -508,7 +603,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         response.setOperatorId(process.getOperatorId());
         response.setStartOrder(process.getStartOrder());
         response.setAdvanceLength(process.getAdvanceLength());
-        response.setTemplateId(process.getTemplateId());
+        response.setProcessCatalogId(process.getProcessCatalogId());
         response.setEstimatedStartTime(process.getEstimatedStartTime());
         response.setEstimatedEndTime(process.getEstimatedEndTime());
         response.setActualStartTime(process.getActualStartTime());

@@ -45,17 +45,11 @@ public class ProcessDetailResponse {
     @Schema(description = "实际结束时间", example = "2025-11-05T09:40:00")
     private LocalDateTime actualEndTime;
     
-    @Schema(description = "最终用时（分钟）", example = "100")
-    private Integer finalTime;
-    
     @Schema(description = "超时原因", example = "")
     private String overtimeReason;
-    
-    @Schema(description = "节省时间（分钟）", example = "20")
-    private Integer savedTime;
-    
-    @Schema(description = "超时时间（分钟）", example = "0")
-    private Integer overtime;
+
+    @Schema(description = "时间差文本描述，例如：\"超时20分钟\"、\"节时15分钟\"、\"已进行30分钟\"", example = "节时20分钟")
+    private String timeDifferenceText;
 
     @Schema(description = "上一工序名称", example = "钻爆")
     private String previousProcessName;
