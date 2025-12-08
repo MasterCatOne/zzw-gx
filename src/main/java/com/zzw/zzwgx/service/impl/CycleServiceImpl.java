@@ -67,6 +67,8 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
     private final ProcessService processService;
     private final ResourceLoader resourceLoader;
     
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CycleResponse createCycle(CreateCycleRequest request) {
@@ -370,6 +372,8 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         
         try {
             Map<String, TemplateCellValue> cellValues = new HashMap<>();
+            // 标题行（A1-P1 合并单元格）：工点名称
+            cellValues.put("A1", TemplateCellValue.string(projectName+"循环时间通报"));
             
             // 第2行
             cellValues.put("C2", TemplateCellValue.date(start, false)); // 循环开始时间
@@ -385,8 +389,9 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             cellValues.put("O3", TemplateCellValue.string("台阶法")); // 开发方式（O3,P3合并，固定值）
             
             // 第4行
-            cellValues.put("C4", TemplateCellValue.date(lastCycleEnd, false)); // 上循环响炮时间
-            cellValues.put("F4", TemplateCellValue.date(theoreticalBlastTime, false)); // 本循环理论响炮时间（F4,G4,H4合并）
+            // 精确到秒，直接填充字符串
+            cellValues.put("C4", TemplateCellValue.string(formatDateTime(lastCycleEnd))); // 上循环响炮时间
+            cellValues.put("F4", TemplateCellValue.string(formatDateTime(theoreticalBlastTime))); // 本循环理论响炮时间（F4,G4,H4合并）
             cellValues.put("K4", TemplateCellValue.number(blastOvertimeMinutes != null ? blastOvertimeMinutes.doubleValue() : null)); // 响炮超时（分钟）
             cellValues.put("L4", TemplateCellValue.number(blastOvertimeMinutes != null ? blastOvertimeMinutes / 60.0 : null)); // 响炮超时（小时）
             cellValues.put("N4", TemplateCellValue.number(cycleBlastDiffMinutes != null ? cycleBlastDiffMinutes.doubleValue() : null)); // 两循环响炮时间差（分钟）
@@ -394,8 +399,9 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             
             // 第5行
             cellValues.put("C5", TemplateCellValue.date(start, true)); // 循环开始时间（年月+时分）
-            cellValues.put("F5", TemplateCellValue.date(predictedNextByControl, false)); // 预测下循环响炮时间（按控制标准，F5,G5,H5合并）
-            cellValues.put("K5", TemplateCellValue.date(predictedNextByInterval, false)); // 下循环响炮时间（按间隔，K5到P5合并）
+            // 需要精确到秒，直接填充为字符串
+            cellValues.put("F5", TemplateCellValue.string(formatDateTime(predictedNextByControl))); // 预测下循环响炮时间（按控制标准，F5,G5,H5合并）
+            cellValues.put("K5", TemplateCellValue.string(formatDateTime(predictedNextByInterval))); // 下循环响炮时间（按间隔，K5到P5合并）
             
             String fileName = projectName + "-循环报表.xlsx";
             response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
@@ -541,6 +547,11 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                     .sorted(Comparator.comparing(Process::getStartOrder, Comparator.nullsLast(Integer::compareTo)))
                     .collect(Collectors.toList());
             
+            int totalActualMinutes = 0;
+            int totalControlMinutes = 0;
+            boolean hasActual = false;
+            boolean hasControl = false;
+            
             // 先保存模版第12行（"一个循环合计"）的内容和格式，因为填充工序数据时可能会覆盖它
             Row templateRow12 = sheet.getRow(templateRowIndex);
             Row savedTemplateRow12 = null;
@@ -637,14 +648,18 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                     actualMinutes = (int) Duration.between(process.getActualStartTime(), LocalDateTime.now()).toMinutes();
                 }
                 if (actualMinutes != null) {
+                    totalActualMinutes += actualMinutes;
+                    hasActual = true;
+                }
+                if (actualMinutes != null) {
                     setCellValueWithFormat(row, 6, actualMinutes, templateFormatRow, 6);
                 } else {
                     applyCellFormat(row, 6, templateFormatRow, 6);
                 }
                 
-                // H列：当前工序耗时（小时）
+                // H列：当前工序耗时（转成“X小时Y分钟”）
                 if (actualMinutes != null) {
-                    setCellValueWithFormat(row, 7, actualMinutes / 60.0, templateFormatRow, 7);
+                    setCellValueWithFormat(row, 7, formatMinutes(actualMinutes), templateFormatRow, 7);
                 } else {
                     applyCellFormat(row, 7, templateFormatRow, 7);
                 }
@@ -652,21 +667,23 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                 // I列：工序的控制标准（分钟）
                 if (process.getControlTime() != null) {
                     setCellValueWithFormat(row, 8, process.getControlTime(), templateFormatRow, 8);
+                    totalControlMinutes += process.getControlTime();
+                    hasControl = true;
                 } else {
                     applyCellFormat(row, 8, templateFormatRow, 8);
                 }
                 
                 // J列：工序的控制标准（小时）
                 if (process.getControlTime() != null) {
-                    setCellValueWithFormat(row, 9, process.getControlTime() / 60.0, templateFormatRow, 9);
+                    setCellValueWithFormat(row, 9, formatMinutesHourMinute(process.getControlTime()), templateFormatRow, 9);
                 } else {
                     applyCellFormat(row, 9, templateFormatRow, 9);
                 }
                 
-                // K列：当前工序控制标准和实际损耗的差值（小时），-是超时，+是节时
+                // K列：当前工序控制标准和实际损耗的差值（显示为“X小时Y分钟”，负数表示节时）
                 if (process.getControlTime() != null && actualMinutes != null) {
-                    double diffHours = (actualMinutes - process.getControlTime()) / 60.0;
-                    setCellValueWithFormat(row, 10, diffHours, templateFormatRow, 10);
+                    int diffMinutes = actualMinutes - process.getControlTime();
+                    setCellValueWithFormat(row, 10, formatMinutesWithSign(diffMinutes), templateFormatRow, 10);
                 } else {
                     applyCellFormat(row, 10, templateFormatRow, 10);
                 }
@@ -700,6 +717,15 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                         sheet.setColumnWidth(columnIndex, columnWidth);
                     }
                 }
+                
+                // 填写“一个循环合计”行的汇总（G、H、I、J、K列）
+                int totalDiffMinutes = totalActualMinutes - totalControlMinutes;
+                
+                setNumericIfPresent(exportLastRow, 6, hasActual ? totalActualMinutes : null);
+                setStringIfPresent(exportLastRow, 7, hasActual ? formatMinutes(totalActualMinutes) : "");
+                setNumericIfPresent(exportLastRow, 8, hasControl ? totalControlMinutes : null);
+                setStringIfPresent(exportLastRow, 9, hasControl ? formatMinutesHourMinute(totalControlMinutes) : "");
+                setStringIfPresent(exportLastRow, 10, (hasActual || hasControl) ? formatMinutesWithSign(totalDiffMinutes) : "");
                 
                 // 删除临时sheet
                 int tempSheetIndex = sheet.getWorkbook().getSheetIndex("_temp_save_row12_");
@@ -923,6 +949,65 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                 }
             }
         }
+        
+        private String formatMinutes(Integer minutes) {
+            if (minutes == null) {
+                return "";
+            }
+            int hrs = minutes / 60;
+            int mins = minutes % 60;
+            StringBuilder sb = new StringBuilder();
+            if (hrs != 0) {
+                sb.append(hrs).append("小时");
+            }
+            if (mins != 0) {
+                sb.append(mins).append("分钟");
+            }
+            if (sb.length() == 0) {
+                sb.append("0分钟");
+            }
+            return sb.toString();
+        }
+        
+        private String formatMinutesWithSign(Integer minutes) {
+            if (minutes == null) {
+                return "";
+            }
+            boolean negative = minutes < 0;
+            String base = formatMinutes(Math.abs(minutes));
+            return negative ? "-" + base : base;
+        }
+        
+        private String formatMinutesHourMinute(Integer minutes) {
+            if (minutes == null) {
+                return "";
+            }
+            int hrs = minutes / 60;
+            int mins = Math.abs(minutes % 60);
+            return hrs + "小时" + mins + "分钟";
+        }
+        
+        private void setNumericIfPresent(Row row, int colIndex, Integer value) {
+            if (value == null) {
+                return;
+            }
+            Cell cell = row.getCell(colIndex);
+            if (cell == null) {
+                cell = row.createCell(colIndex);
+            }
+            cell.setCellValue(value);
+        }
+        
+        private void setStringIfPresent(Row row, int colIndex, String value) {
+            if (value == null) {
+                return;
+            }
+            Cell cell = row.getCell(colIndex);
+            if (cell == null) {
+                cell = row.createCell(colIndex);
+            }
+            cell.setCellValue(value);
+        }
     }
     
     private static class TemplateCellValue {
@@ -955,6 +1040,10 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             java.util.Date date = java.util.Date.from(v.atZone(ZoneId.systemDefault()).toInstant());
             return new TemplateCellValue(Type.DATE, null, null, date);
         }
+    }
+    
+    private static String formatDateTime(LocalDateTime dateTime) {
+        return dateTime == null ? "" : dateTime.format(DATE_TIME_FORMATTER);
     }
     
     /**
