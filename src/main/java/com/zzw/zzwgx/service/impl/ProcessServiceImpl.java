@@ -11,6 +11,7 @@ import com.zzw.zzwgx.dto.request.UpdateProcessOrderRequest;
 import com.zzw.zzwgx.dto.request.UpdateProcessRequest;
 import com.zzw.zzwgx.dto.response.ProcessDetailResponse;
 import com.zzw.zzwgx.dto.response.ProcessResponse;
+import com.zzw.zzwgx.dto.response.StartProcessResponse;
 import com.zzw.zzwgx.dto.response.WorkerProcessListResponse;
 import com.zzw.zzwgx.entity.Cycle;
 import com.zzw.zzwgx.entity.Process;
@@ -401,7 +402,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public com.zzw.zzwgx.dto.response.StartProcessResponse startWorkerProcess(Long processId, Long workerId, LocalDateTime actualStartTime) {
+    public StartProcessResponse startWorkerProcess(Long processId, Long workerId, LocalDateTime actualStartTime) {
         log.info("施工人员开始工序，用户ID: {}, 工序ID: {}, 实际开始时间: {}", workerId, processId, actualStartTime);
         Process process = getById(processId);
         if (process == null) {
@@ -419,7 +420,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
 
         // 检查上一工序是否完成，但不阻止开始，只返回提示
         Process previousProcess = null;
-        com.zzw.zzwgx.dto.response.StartProcessResponse response = new com.zzw.zzwgx.dto.response.StartProcessResponse();
+        StartProcessResponse response = new StartProcessResponse();
         response.setSuccess(true);
         
         if (process.getCycleId() != null && process.getStartOrder() != null) {
