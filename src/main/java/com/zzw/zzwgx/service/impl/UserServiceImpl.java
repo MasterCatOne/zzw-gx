@@ -11,6 +11,7 @@ import com.zzw.zzwgx.dto.request.RegisterRequest;
 import com.zzw.zzwgx.dto.request.UpdateUserRequest;
 import com.zzw.zzwgx.dto.response.UserListResponse;
 import com.zzw.zzwgx.dto.response.UserProfileResponse;
+import com.zzw.zzwgx.dto.response.UserViewListResponse;
 import com.zzw.zzwgx.entity.Role;
 import com.zzw.zzwgx.entity.User;
 import com.zzw.zzwgx.entity.UserRoleRelation;
@@ -251,12 +252,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             response.setId(user.getId());
             response.setUsername(user.getUsername());
             response.setRealName(user.getRealName());
-            response.setIdCard(user.getIdCard());
-            response.setPhone(user.getPhone());
-            response.setStatus(user.getStatus());
-            response.setRoles(getUserRoleCodes(user.getId()));
-            response.setCreateTime(user.getCreateTime());
-            response.setUpdateTime(user.getUpdateTime());
             return response;
         }).collect(Collectors.toList());
         
@@ -264,6 +259,28 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         
         log.info("管理员查询用户列表成功，总数: {}", responsePage.getTotal());
         return responsePage;
+    }
+
+    @Override
+    public List<UserViewListResponse> listWorkers() {
+        log.info("查询施工人员列表，关键词: {}");
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getDeleted, 0)
+                .eq(User::getStatus, 1);
+
+        List<User> users = list(wrapper);
+        return users.stream()
+                .filter(u -> getUserRoleCodes(u.getId()).contains(UserRole.WORKER.getCode()))
+                .map(u -> {
+                    UserViewListResponse resp = new UserViewListResponse();
+                    resp.setId(u.getId());
+                    resp.setUsername(u.getUsername());
+                    resp.setRealName(u.getRealName());
+//                    resp.setPhone(u.getPhone());
+//                    resp.setRoles(getUserRoleCodes(u.getId()));
+                    return resp;
+                })
+                .collect(Collectors.toList());
     }
 }
 

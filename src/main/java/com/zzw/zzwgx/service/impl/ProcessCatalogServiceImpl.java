@@ -168,12 +168,12 @@ public class ProcessCatalogServiceImpl extends ServiceImpl<ProcessCatalogMapper,
         ProcessCatalogResponse response = new ProcessCatalogResponse();
         response.setId(catalog.getId());
         response.setProcessName(catalog.getProcessName());
-        response.setProcessCode(catalog.getProcessCode());
-        response.setDescription(catalog.getDescription());
-        response.setDisplayOrder(catalog.getDisplayOrder());
-        response.setStatus(catalog.getStatus());
-        response.setCreateTime(catalog.getCreateTime());
-        response.setUpdateTime(catalog.getUpdateTime());
+//        response.setProcessCode(catalog.getProcessCode());
+//        response.setDescription(catalog.getDescription());
+//        response.setDisplayOrder(catalog.getDisplayOrder());
+//        response.setStatus(catalog.getStatus());
+//        response.setCreateTime(catalog.getCreateTime());
+//        response.setUpdateTime(catalog.getUpdateTime());
         return response;
     }
 }

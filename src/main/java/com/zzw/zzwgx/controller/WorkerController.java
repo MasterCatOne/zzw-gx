@@ -82,8 +82,8 @@ public class WorkerController {
         Long userId = SecurityUtils.getCurrentUserId();
         log.info("施工人员完成工序，用户ID: {}, 工序ID: {}", userId, processId);
         processService.completeWorkerProcess(processId, userId);
-        ProcessDetailResponse response = processService.getWorkerProcessDetail(processId, userId);
-        return Result.success("工序已完成", response);
+//        ProcessDetailResponse response = processService.getWorkerProcessDetail(processId, userId);
+        return Result.success("工序已完成", null);
     }
 
     @Operation(summary = "完成并进入下一循环", description = "用于已点过完成的工序，再提交超时原因后进入下一循环；若未超时则可直接提交。")
@@ -94,7 +94,6 @@ public class WorkerController {
         Long userId = SecurityUtils.getCurrentUserId();
         log.info("施工人员完成并进入下一循环，用户ID: {}, 工序ID: {}", userId, processId);
 
-        // 已经完成过的工序，这里主要用于提交超时原因；如果还未完成则补一次完成。
         // 这里需要检查循环状态，如果所有工序都完成则更新循环为已完成
         ProcessDetailResponse detail = processService.getWorkerProcessDetail(processId, userId);
         boolean isOvertime = detail.getTimeDifferenceText() != null && detail.getTimeDifferenceText().startsWith("超时");
@@ -105,11 +104,11 @@ public class WorkerController {
         }
         if (isOvertime) {
             processService.submitOvertimeReason(processId, userId, overtimeReason);
-            detail = processService.getWorkerProcessDetail(processId, userId);
+//            detail = processService.getWorkerProcessDetail(processId, userId);
         }
         processService.completeWorkerProcessAndCheckCycle(processId, userId);
         // 未超时或已补充原因，视为可进入下一循环（此处仅返回提示，不创建新循环）
-        return Result.success("已完成，可进入下一循环", detail);
+        return Result.success("已完成，可进入下一循环", null);
     }
     
     @Operation(summary = "我的工点本周超耗统计", description = "按工点汇总当前施工人员本周完成工序的超时/节时总计（单位：小时）。")

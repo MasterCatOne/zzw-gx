@@ -12,6 +12,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zzw.zzwgx.common.enums.ProcessStatus;
 import com.zzw.zzwgx.common.enums.ResultCode;
+import com.zzw.zzwgx.common.enums.RockLevel;
 import com.zzw.zzwgx.common.exception.BusinessException;
 import com.zzw.zzwgx.dto.request.CreateCycleRequest;
 import com.zzw.zzwgx.dto.request.UpdateCycleRequest;
@@ -113,6 +114,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         cycle.setProjectId(request.getProjectId());
         cycle.setCycleNumber(cycleNumber);
         cycle.setControlDuration(request.getControlDuration());
+        cycle.setRockLevel(RockLevel.LEVEL_I.getCode());
         cycle.setStartDate(request.getStartDate());
         cycle.setEndDate(request.getEndDate());
         
@@ -1048,7 +1050,10 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             // 填充完所有工序后，将模版第12行（"一个循环合计"）复制到导出文件的最后一行，并保留原始格式
             if (savedTemplateRow12 != null) {
                 // 计算导出文件的最后一行位置（工序列表之后的第一行）
-                int exportLastRowIndex = startRowIndex + sortedProcesses.size();
+                // 如果工序数量未超过模板自带的行数（4行），保持“一个循环合计”在模板原位置（第12行）
+                int exportLastRowIndex = sortedProcesses.size() > templateProcessRowCount
+                        ? startRowIndex + sortedProcesses.size()
+                        : templateRowIndex;
                 
                 // 复制保存的模版第12行的内容和格式到导出文件的最后一行
                 Row exportLastRow = sheet.getRow(exportLastRowIndex);

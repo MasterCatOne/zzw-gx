@@ -15,19 +15,7 @@ import com.zzw.zzwgx.dto.request.UpdateProcessRequest;
 import com.zzw.zzwgx.dto.request.UpdateProcessTemplateRequest;
 import com.zzw.zzwgx.dto.request.UpdateCycleRequest;
 import com.zzw.zzwgx.dto.request.UpdateUserRequest;
-import com.zzw.zzwgx.dto.response.CycleResponse;
-import com.zzw.zzwgx.dto.response.OvertimeProcessResponse;
-import com.zzw.zzwgx.dto.response.ProcessCatalogResponse;
-import com.zzw.zzwgx.dto.response.ProcessTemplateOptionResponse;
-import com.zzw.zzwgx.dto.response.ProcessTemplateResponse;
-import com.zzw.zzwgx.dto.response.ProcessDetailResponse;
-import com.zzw.zzwgx.dto.response.ProcessResponse;
-import com.zzw.zzwgx.dto.response.ProgressDetailResponse;
-import com.zzw.zzwgx.dto.response.ProjectListResponse;
-import com.zzw.zzwgx.dto.response.ProjectTreeNodeResponse;
-import com.zzw.zzwgx.dto.response.SiteConstructionStatusResponse;
-import com.zzw.zzwgx.dto.response.TemplateListResponse;
-import com.zzw.zzwgx.dto.response.UserListResponse;
+import com.zzw.zzwgx.dto.response.*;
 import com.zzw.zzwgx.service.CycleService;
 import com.zzw.zzwgx.service.ProcessCatalogService;
 import com.zzw.zzwgx.service.ProcessService;
@@ -326,6 +314,13 @@ public class AdminController {
                 pageNum, pageSize, username, realName, roleCode);
         Page<UserListResponse> page = userService.getUserList(pageNum, pageSize, username, realName, roleCode);
         return Result.success(page);
+    }
+    
+    @Operation(summary = "获取施工人员列表", description = "供项目管理员选择施工人员使用，只返回角色为WORKER的用户，可按用户名或姓名模糊搜索。", tags = {"管理员管理-用户管理"})
+    @GetMapping("/workers")
+    public Result<java.util.List<UserViewListResponse>> listWorkers() {
+        java.util.List<UserViewListResponse> workers = userService.listWorkers();
+        return Result.success(workers);
     }
     
     @Operation(summary = "创建用户账号", description = "管理员为填报人员创建账号。每个填报人员固定一个账号，便于区分。可以指定账号、密码、姓名、身份证号、手机号、角色等信息。", tags = {"管理员管理-用户管理"})

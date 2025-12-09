@@ -7,6 +7,7 @@ import com.zzw.zzwgx.dto.request.RegisterRequest;
 import com.zzw.zzwgx.dto.request.UpdateUserRequest;
 import com.zzw.zzwgx.dto.response.UserListResponse;
 import com.zzw.zzwgx.dto.response.UserProfileResponse;
+import com.zzw.zzwgx.dto.response.UserViewListResponse;
 import com.zzw.zzwgx.entity.User;
 
 import java.util.List;
@@ -50,5 +51,10 @@ public interface UserService extends IService<User> {
      * 获取用户角色代码列表
      */
     List<String> getUserRoleCodes(Long userId);
+
+    /**
+     * 获取施工人员列表（仅角色为WORKER），支持按用户名或姓名模糊搜索
+     */
+    List<UserViewListResponse> listWorkers();
 }
 

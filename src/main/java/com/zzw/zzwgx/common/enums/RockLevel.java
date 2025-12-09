@@ -7,8 +7,8 @@ import lombok.Getter;
  */
 @Getter
 public enum RockLevel {
-    LEVEL_I("LEVEL_I", "I级"),
-    LEVEL_II("LEVEL_II", "II级");
+    LEVEL_I("IVa级（人工钻爆）", "I级"),
+    LEVEL_II("IVb级（机器钻爆）", "II级");
 
     private final String code;
     private final String desc;

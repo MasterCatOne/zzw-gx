@@ -68,7 +68,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         
         Process process = new Process();
         process.setCycleId(request.getCycleId());
-        process.setActualStartTime(request.getActualStartTime());
+        // 初始创建不填实际开始时间，保持未开始状态
         process.setProcessStatus(ProcessStatus.NOT_STARTED.getCode());
         process.setOperatorId(request.getWorkerId());
         process.setStartOrder(request.getStartOrder());
@@ -97,14 +97,12 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         }
         process.setControlTime(request.getControlTime());
         
-        // 根据实际开始时间和控制时长标准自动计算预计结束时间
-        if (request.getActualStartTime() != null && request.getControlTime() != null) {
-            // 预计开始时间与实际开始时间一致
-            process.setEstimatedStartTime(request.getActualStartTime());
-            // 预计结束时间 = 实际开始时间 + 控制时长（分钟）
-            process.setEstimatedEndTime(request.getActualStartTime().plusMinutes(request.getControlTime()));
-            log.debug("自动计算预计结束时间，实际开始时间: {}, 控制时长: {}分钟, 预计结束时间: {}", 
-                    request.getActualStartTime(), request.getControlTime(), process.getEstimatedEndTime());
+        // 根据预计开始时间和控制时长标准自动计算预计结束时间
+        if (request.getEstimatedStartTime() != null && request.getControlTime() != null) {
+            process.setEstimatedStartTime(request.getEstimatedStartTime());
+            process.setEstimatedEndTime(request.getEstimatedStartTime().plusMinutes(request.getControlTime()));
+            log.debug("自动计算预计结束时间，预计开始时间: {}, 控制时长: {}分钟, 预计结束时间: {}",
+                    request.getEstimatedStartTime(), request.getControlTime(), process.getEstimatedEndTime());
         }
         
         log.debug("根据工序字典创建工序，工序字典ID: {}, 工序名称: {}, 控制时长: {}", 
