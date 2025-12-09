@@ -95,9 +95,8 @@ public class WorkerController {
         log.info("施工人员完成并进入下一循环，用户ID: {}, 工序ID: {}", userId, processId);
 
         // 已经完成过的工序，这里主要用于提交超时原因；如果还未完成则补一次完成。
-        processService.completeWorkerProcess(processId, userId);
+        // 这里需要检查循环状态，如果所有工序都完成则更新循环为已完成
         ProcessDetailResponse detail = processService.getWorkerProcessDetail(processId, userId);
-
         boolean isOvertime = detail.getTimeDifferenceText() != null && detail.getTimeDifferenceText().startsWith("超时");
 
         // 超时必须填写原因
@@ -108,7 +107,7 @@ public class WorkerController {
             processService.submitOvertimeReason(processId, userId, overtimeReason);
             detail = processService.getWorkerProcessDetail(processId, userId);
         }
-
+        processService.completeWorkerProcessAndCheckCycle(processId, userId);
         // 未超时或已补充原因，视为可进入下一循环（此处仅返回提示，不创建新循环）
         return Result.success("已完成，可进入下一循环", detail);
     }

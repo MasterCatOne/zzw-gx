@@ -89,8 +89,13 @@ public interface ProcessService extends IService<Process> {
             Integer pageNum, Integer pageSize, String projectName);
 
     /**
-     * 施工人员完成工序（自动填充实际结束时间为当前时间并标记完成）
+     * 施工人员完成工序（自动填充实际结束时间为当前时间并标记完成，不检查循环状态）
      */
     ProcessResponse completeWorkerProcess(Long processId, Long workerId);
+    
+    /**
+     * 施工人员完成工序并检查循环状态（如果所有工序都完成，则更新循环状态为已完成）
+     */
+    ProcessResponse completeWorkerProcessAndCheckCycle(Long processId, Long workerId);
 }
 

@@ -466,6 +466,34 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         process.setProcessStatus(ProcessStatus.COMPLETED.getCode());
         updateById(process);
 
+        return buildProcessResponse(process);
+    }
+    
+    @Override
+    public ProcessResponse completeWorkerProcessAndCheckCycle(Long processId, Long workerId) {
+        log.info("施工人员完成工序并检查循环状态，用户ID: {}, 工序ID: {}", workerId, processId);
+        Process process = getById(processId);
+        if (process == null) {
+            throw new BusinessException(ResultCode.PROCESS_NOT_FOUND);
+        }
+        if (process.getOperatorId() == null || !process.getOperatorId().equals(workerId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN);
+        }
+        if (process.getActualStartTime() == null) {
+            throw new BusinessException("当前工序未开始，无法完成");
+        }
+        if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus())) {
+            // 即使已完成，也检查循环状态
+            tryCompleteCycle(process);
+            return buildProcessResponse(process);
+        }
+
+        // 使用当前时间作为实际结束时间
+        LocalDateTime now = LocalDateTime.now();
+        process.setActualEndTime(now);
+        process.setProcessStatus(ProcessStatus.COMPLETED.getCode());
+        updateById(process);
+
         // 如果本循环所有工序都已完成，则将循环状态置为已完成并记录结束时间
         tryCompleteCycle(process);
 
