@@ -144,6 +144,15 @@ public class AdminController {
         cycleService.exportCycleReport(cycleId, response);
     }
     
+    @Operation(summary = "获取循环报表数据", description = "获取循环报表中需要填写的单元格值，返回JSON格式数据，用于前端展示或手动填写Excel。", tags = {"管理员管理-循环管理"})
+    @GetMapping("/cycles/{cycleId}/report-data")
+    public Result<com.zzw.zzwgx.dto.response.CycleReportDataResponse> getCycleReportData(
+            @Parameter(description = "循环ID", required = true, example = "1") @PathVariable Long cycleId) {
+        log.info("获取循环报表数据，循环ID: {}", cycleId);
+        com.zzw.zzwgx.dto.response.CycleReportDataResponse response = cycleService.getCycleReportData(cycleId);
+        return Result.success(response);
+    }
+    
     @Operation(summary = "更新循环信息", description = "修改循环的控制时长、开始结束时间、状态、进尺、围岩等级等信息。如果更新为进行中状态，会检查该工点是否已有其他进行中的循环。", tags = {"管理员管理-循环管理"})
     @PutMapping("/cycles/{cycleId}")
     public Result<CycleResponse> updateCycle(

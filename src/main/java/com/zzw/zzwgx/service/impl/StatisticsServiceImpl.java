@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -82,8 +83,8 @@ public class StatisticsServiceImpl implements StatisticsService {
         StatisticsResponse.ProcessTimeStat stat = new StatisticsResponse.ProcessTimeStat();
         stat.setProjectName(project.getProjectName());
         if (count > 0) {
-            stat.setAverageTime(totalActualTime / count / 60.0); // 转换为小时
-            stat.setSavedTime(Math.max(0, (totalControlTime - totalActualTime) / 60.0)); // 转换为小时
+            stat.setAverageTime(formatToOneDecimal(totalActualTime / count / 60.0)); // 转换为小时
+            stat.setSavedTime(formatToOneDecimal(Math.max(0, (totalControlTime - totalActualTime) / 60.0))); // 转换为小时
         } else {
             stat.setAverageTime(0.0);
             stat.setSavedTime(0.0);
@@ -144,7 +145,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         StatisticsResponse.AdvanceLengthStat stat = new StatisticsResponse.AdvanceLengthStat();
         stat.setProjectName(project.getProjectName());
         stat.setCycleCount(cycleCount);
-        stat.setAdvanceLength(totalAdvanceLength);
+        stat.setAdvanceLength(formatToOneDecimal(totalAdvanceLength));
         log.info("进总尺长度统计计算完成，项目ID: {}, 循环数量: {}, 总进尺: {} 米", 
                 projectId, cycleCount, totalAdvanceLength);
         
@@ -212,8 +213,8 @@ public class StatisticsServiceImpl implements StatisticsService {
         
         StatisticsResponse.OvertimeStat stat = new StatisticsResponse.OvertimeStat();
         stat.setProjectName(project.getProjectName());
-        stat.setOvertime(totalOvertime);
-        stat.setSavedTime(totalSavedTime);
+        stat.setOvertime(formatToOneDecimal(totalOvertime));
+        stat.setSavedTime(formatToOneDecimal(totalSavedTime));
         log.info("本周超耗总时间统计计算完成，项目ID: {}, 超时时间: {} 小时，节省时间: {} 小时", 
                 projectId, totalOvertime, totalSavedTime);
         
@@ -286,9 +287,9 @@ public class StatisticsServiceImpl implements StatisticsService {
             });
             
             if (diffHours > 0) {
-                stat.setOvertime(stat.getOvertime() + diffHours);
+                stat.setOvertime(formatToOneDecimal(stat.getOvertime() + diffHours));
             } else {
-                stat.setSavedTime(stat.getSavedTime() + Math.abs(diffHours));
+                stat.setSavedTime(formatToOneDecimal(stat.getSavedTime() + Math.abs(diffHours)));
             }
         }
         
@@ -351,7 +352,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                     totalAdvanceLength = totalAdvanceLength.add(cycle.getAdvanceLength());
                 }
             }
-            projectStat.setAdvanceLength(totalAdvanceLength);
+            projectStat.setAdvanceLength(formatBigDecimalToOneDecimal(totalAdvanceLength));
             
             // 统计工序时间和超耗信息
             double totalProcessTime = 0.0; // 总时长（小时）
@@ -403,8 +404,8 @@ public class StatisticsServiceImpl implements StatisticsService {
                 }
             }
             
-            projectStat.setTotalProcessTime(totalProcessTime);
-            projectStat.setOvertime(totalOvertime);
+            projectStat.setTotalProcessTime(formatToOneDecimal(totalProcessTime));
+            projectStat.setOvertime(formatToOneDecimal(totalOvertime));
             projectStat.setOvertimeDetails(overtimeDetails);
             
             projectStatsList.add(projectStat);
@@ -551,8 +552,8 @@ public class StatisticsServiceImpl implements StatisticsService {
                     new WeeklyOvertimeSummaryResponse.ProjectOvertimeStat();
             overtimeStat.setProjectId(site.getId());
             overtimeStat.setProjectName(site.getProjectName());
-            overtimeStat.setOvertime(totalOvertime);
-            overtimeStat.setSavedTime(totalSavedTime);
+            overtimeStat.setOvertime(formatToOneDecimal(totalOvertime));
+            overtimeStat.setSavedTime(formatToOneDecimal(totalSavedTime));
             overtimeStat.setCompletedProcessCount(completedProcessCount);
             overtimeStats.add(overtimeStat);
             
@@ -561,8 +562,8 @@ public class StatisticsServiceImpl implements StatisticsService {
                     new WeeklyOvertimeSummaryResponse.ProjectSavedTimeRank();
             savedTimeRank.setProjectId(site.getId());
             savedTimeRank.setProjectName(site.getProjectName());
-            savedTimeRank.setSavedTime(totalSavedTime);
-            savedTimeRank.setOvertime(totalOvertime);
+            savedTimeRank.setSavedTime(formatToOneDecimal(totalSavedTime));
+            savedTimeRank.setOvertime(formatToOneDecimal(totalOvertime));
             savedTimeRank.setCompletedProcessCount(completedProcessCount);
             savedTimeRanks.add(savedTimeRank);
         }
@@ -585,6 +586,28 @@ public class StatisticsServiceImpl implements StatisticsService {
         log.info("每周超耗时间汇总计算完成，工点数量: {}, 超耗排名数量: {}, 节约排名数量: {}", 
                 sites.size(), overtimeStats.size(), savedTimeRanks.size());
         return response;
+    }
+    
+    /**
+     * 格式化Double值为保留一位小数
+     */
+    private Double formatToOneDecimal(Double value) {
+        if (value == null) {
+            return null;
+        }
+        return BigDecimal.valueOf(value)
+                .setScale(1, RoundingMode.HALF_UP)
+                .doubleValue();
+    }
+    
+    /**
+     * 格式化BigDecimal值为保留一位小数
+     */
+    private BigDecimal formatBigDecimalToOneDecimal(BigDecimal value) {
+        if (value == null) {
+            return null;
+        }
+        return value.setScale(1, RoundingMode.HALF_UP);
     }
 
 }

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.zzw.zzwgx.dto.request.CreateCycleRequest;
 import com.zzw.zzwgx.dto.request.UpdateCycleRequest;
+import com.zzw.zzwgx.dto.response.CycleReportDataResponse;
 import com.zzw.zzwgx.dto.response.CycleResponse;
 import com.zzw.zzwgx.entity.Cycle;
 
@@ -54,5 +55,13 @@ public interface CycleService extends IService<Cycle> {
      * @param response HTTP响应流（写出Excel）
      */
     void exportCycleReport(Long cycleId, jakarta.servlet.http.HttpServletResponse response);
+    
+    /**
+     * 获取循环报表数据（返回报表中需要填写的单元格值）
+     *
+     * @param cycleId 循环ID
+     * @return 报表数据
+     */
+    CycleReportDataResponse getCycleReportData(Long cycleId);
 }
 

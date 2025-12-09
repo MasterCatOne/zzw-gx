@@ -15,6 +15,7 @@ import com.zzw.zzwgx.common.enums.ResultCode;
 import com.zzw.zzwgx.common.exception.BusinessException;
 import com.zzw.zzwgx.dto.request.CreateCycleRequest;
 import com.zzw.zzwgx.dto.request.UpdateCycleRequest;
+import com.zzw.zzwgx.dto.response.CycleReportDataResponse;
 import com.zzw.zzwgx.dto.response.CycleResponse;
 import com.zzw.zzwgx.entity.Cycle;
 import com.zzw.zzwgx.entity.Process;
@@ -355,10 +356,8 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         
         // 两循环响炮时间差 = 本循环开始时间 - 上循环开始时间（分钟）
         Long cycleBlastDiffMinutes = null;
-        Double cycleBlastDiffHours = null;
         if (start != null && lastCycle != null && lastCycle.getStartDate() != null) {
             cycleBlastDiffMinutes = Duration.between(lastCycle.getStartDate(), start).toMinutes();
-            cycleBlastDiffHours = cycleBlastDiffMinutes / 60.0;
         }
         
         // 获取工序列表
@@ -377,7 +376,12 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             
             // 第2行
             cellValues.put("C2", TemplateCellValue.date(start, false)); // 循环开始时间
-            cellValues.put("F2", TemplateCellValue.date(end, false)); // 循环结束时间（F2,G2,H2合并）
+            // F2：循环结束时间（F2,G2,H2合并），如果没有结束日期则显示"施工中"
+            if (end != null) {
+                cellValues.put("F2", TemplateCellValue.date(end, false));
+            } else {
+                cellValues.put("F2", TemplateCellValue.string("施工中"));
+            }
             cellValues.put("K2", TemplateCellValue.number(controlMinutes)); // 控制时长（分钟）
             cellValues.put("L2", TemplateCellValue.number(controlHours)); // 控制时长（小时）
             cellValues.put("O2", TemplateCellValue.number(cycle.getCycleNumber())); // 本月循环数（O2,P2合并）
@@ -392,10 +396,16 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             // 精确到秒，直接填充字符串
             cellValues.put("C4", TemplateCellValue.string(formatDateTime(lastCycleEnd))); // 上循环响炮时间
             cellValues.put("F4", TemplateCellValue.string(formatDateTime(theoreticalBlastTime))); // 本循环理论响炮时间（F4,G4,H4合并）
-            cellValues.put("K4", TemplateCellValue.number(blastOvertimeMinutes != null ? blastOvertimeMinutes.doubleValue() : null)); // 响炮超时（分钟）
-            cellValues.put("L4", TemplateCellValue.number(blastOvertimeMinutes != null ? blastOvertimeMinutes / 60.0 : null)); // 响炮超时（小时）
+            // K4、L4：响炮超时（合并单元格），如果没有响炮时间则显示"数据缺失"，否则显示"X天X小时X分钟"
+            if (start == null) {
+                cellValues.put("K4", TemplateCellValue.string("数据缺失"));
+            } else if (blastOvertimeMinutes != null) {
+                cellValues.put("K4", TemplateCellValue.string(formatDaysHoursMinutes(blastOvertimeMinutes)));
+            } else {
+                cellValues.put("K4", TemplateCellValue.string(""));
+            }
             cellValues.put("N4", TemplateCellValue.number(cycleBlastDiffMinutes != null ? cycleBlastDiffMinutes.doubleValue() : null)); // 两循环响炮时间差（分钟）
-            cellValues.put("O4", TemplateCellValue.number(cycleBlastDiffHours)); // 两循环响炮时间差（小时，O4,P4合并）
+            cellValues.put("O4", TemplateCellValue.string(formatMinutesFromLong(cycleBlastDiffMinutes))); // 两循环响炮时间差（X小时Y分钟，O4,P4合并）
             
             // 第5行
             cellValues.put("C5", TemplateCellValue.date(start, true)); // 循环开始时间（年月+时分）
@@ -413,7 +423,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                          .withTemplate(templateFile)
                          .inMemory(true) // 使用内存模式，避免 SXSSF 对已存在行的限制
                          .autoCloseStream(false)
-                         .registerWriteHandler(new TemplateCellWriteHandler(cellValues, processes))
+                         .registerWriteHandler(new TemplateCellWriteHandler(cellValues, processes, cycle))
                          .build()) {
                 WriteSheet sheet = EasyExcel.writerSheet(0).build();
                 // 写入空数据以触发模板和处理器
@@ -433,6 +443,248 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             log.error("导出循环报表失败，循环ID: {}", cycleId, e);
             throw new BusinessException("导出循环报表失败");
         }
+    }
+    
+    @Override
+    public CycleReportDataResponse getCycleReportData(Long cycleId) {
+        log.info("获取循环报表数据，循环ID: {}", cycleId);
+        Cycle cycle = getById(cycleId);
+        if (cycle == null) {
+            throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
+        }
+        Project project = projectMapper.selectById(cycle.getProjectId());
+        String projectName = project != null ? project.getProjectName() : "循环报表";
+        
+        // 计算时间信息
+        LocalDateTime start = cycle.getStartDate();
+        LocalDateTime end = cycle.getEndDate();
+        Integer controlMinutes = cycle.getControlDuration();
+        Double controlHours = controlMinutes != null ? controlMinutes / 60.0 : null;
+        
+        // 获取上循环信息
+        Cycle lastCycle = getCycleByProjectAndNumber(cycle.getProjectId(), cycle.getCycleNumber() - 1);
+        LocalDateTime lastCycleEnd = lastCycle != null ? lastCycle.getEndDate() : null;
+        Integer lastControlMinutes = lastCycle != null ? lastCycle.getControlDuration() : null;
+        
+        // 计算预测时间
+        LocalDateTime predictedNextByControl = null;
+        if (start != null && controlMinutes != null) {
+            predictedNextByControl = start.plusMinutes(controlMinutes);
+        }
+        
+        LocalDateTime predictedNextByInterval = null;
+        if (end != null && controlMinutes != null) {
+            predictedNextByInterval = end.plusMinutes(controlMinutes);
+        }
+        
+        // 本循环理论响炮时间 = 上循环响炮时间 + 上循环控制标准
+        LocalDateTime theoreticalBlastTime = null;
+        if (lastCycleEnd != null && lastControlMinutes != null) {
+            theoreticalBlastTime = lastCycleEnd.plusMinutes(lastControlMinutes);
+        }
+        
+        // 响炮超时 = 本循环开始时间 - 本循环理论响炮时间（分钟）
+        Long blastOvertimeMinutes = null;
+        if (start != null && theoreticalBlastTime != null) {
+            blastOvertimeMinutes = Duration.between(theoreticalBlastTime, start).toMinutes();
+        }
+        
+        // 两循环响炮时间差 = 本循环开始时间 - 上循环开始时间（分钟）
+        Long cycleBlastDiffMinutes = null;
+        if (start != null && lastCycle != null && lastCycle.getStartDate() != null) {
+            cycleBlastDiffMinutes = Duration.between(lastCycle.getStartDate(), start).toMinutes();
+        }
+        
+        // 获取工序列表
+        List<Process> processes = processService.getProcessesByCycleId(cycleId);
+        
+        // 构建响应对象
+        CycleReportDataResponse response = new CycleReportDataResponse();
+        response.setTitle(projectName + "循环时间通报");
+        
+        // 第2行数据
+        CycleReportDataResponse.Row2Data row2 = new CycleReportDataResponse.Row2Data();
+        row2.setCycleStartTime(start);
+        row2.setCycleEndTime(end);
+        row2.setControlDurationMinutes(controlMinutes);
+        row2.setControlDurationHours(controlHours);
+        row2.setCycleNumber(cycle.getCycleNumber());
+        response.setRow2(row2);
+        
+        // 第3行数据
+        CycleReportDataResponse.Row3Data row3 = new CycleReportDataResponse.Row3Data();
+        row3.setMileage("100.5");
+        row3.setRockLevel(cycle.getRockLevel());
+        row3.setAdvanceLength(cycle.getAdvanceLength() != null ? cycle.getAdvanceLength().toPlainString() : "");
+        row3.setDevelopmentMethod("台阶法");
+        response.setRow3(row3);
+        
+        // 第4行数据
+        CycleReportDataResponse.Row4Data row4 = new CycleReportDataResponse.Row4Data();
+        row4.setLastCycleBlastTime(formatDateTime(lastCycleEnd));
+        row4.setTheoreticalBlastTime(formatDateTime(theoreticalBlastTime));
+        if (start == null) {
+            row4.setBlastOvertime("数据缺失");
+        } else if (blastOvertimeMinutes != null) {
+            row4.setBlastOvertime(formatDaysHoursMinutes(blastOvertimeMinutes));
+        } else {
+            row4.setBlastOvertime("");
+        }
+        row4.setCycleBlastDiffMinutes(cycleBlastDiffMinutes);
+        row4.setCycleBlastDiffText(formatMinutesFromLong(cycleBlastDiffMinutes));
+        response.setRow4(row4);
+        
+        // 第5行数据
+        CycleReportDataResponse.Row5Data row5 = new CycleReportDataResponse.Row5Data();
+        row5.setCycleStartTime(start);
+        row5.setPredictedNextBlastTimeByControl(formatDateTime(predictedNextByControl));
+        row5.setPredictedNextBlastTimeByInterval(formatDateTime(predictedNextByInterval));
+        response.setRow5(row5);
+        
+        // 工序列表数据
+        List<Process> sortedProcesses = processes.stream()
+                .sorted(Comparator.comparing(Process::getStartOrder, Comparator.nullsLast(Integer::compareTo)))
+                .collect(Collectors.toList());
+        
+        List<CycleReportDataResponse.ProcessRowData> processList = new ArrayList<>();
+        int totalActualMinutes = 0;
+        int totalControlMinutes = 0;
+        boolean hasActual = false;
+        boolean hasControl = false;
+        
+        for (int i = 0; i < sortedProcesses.size(); i++) {
+            Process process = sortedProcesses.get(i);
+            CycleReportDataResponse.ProcessRowData processRow = new CycleReportDataResponse.ProcessRowData();
+            
+            // A列：工序名称
+            processRow.setProcessName((i + 1) + "." + process.getProcessName());
+            
+            // C、D列：开始时间
+            LocalDateTime startTime = process.getActualStartTime() != null ? 
+                    process.getActualStartTime() : process.getEstimatedStartTime();
+            if (startTime != null) {
+                processRow.setStartYearMonth(startTime.format(DateTimeFormatter.ofPattern("yyyy-MM")));
+                processRow.setStartTime(startTime.format(DateTimeFormatter.ofPattern("HH:mm")));
+            }
+            
+            // E、F列：结束时间
+            LocalDateTime endTime = process.getActualEndTime() != null ? 
+                    process.getActualEndTime() : process.getEstimatedEndTime();
+            if (endTime != null) {
+                processRow.setEndYearMonth(endTime.format(DateTimeFormatter.ofPattern("yyyy-MM")));
+                processRow.setEndTime(endTime.format(DateTimeFormatter.ofPattern("HH:mm")));
+            }
+            
+            // G、H列：耗时
+            Integer actualMinutes = null;
+            if (process.getActualStartTime() != null && process.getActualEndTime() != null) {
+                actualMinutes = (int) Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
+            } else if (process.getActualStartTime() != null) {
+                actualMinutes = (int) Duration.between(process.getActualStartTime(), LocalDateTime.now()).toMinutes();
+            }
+            if (actualMinutes != null) {
+                processRow.setActualMinutes(actualMinutes);
+                processRow.setActualTimeText(formatMinutesStatic(actualMinutes));
+                totalActualMinutes += actualMinutes;
+                hasActual = true;
+            }
+            
+            // I、J列：控制标准
+            if (process.getControlTime() != null) {
+                processRow.setControlTime(process.getControlTime());
+                processRow.setControlTimeText(formatMinutesHourMinuteStatic(process.getControlTime()));
+                totalControlMinutes += process.getControlTime();
+                hasControl = true;
+            }
+            
+            // K列：差值
+            if (process.getControlTime() != null && actualMinutes != null) {
+                int diffMinutes = actualMinutes - process.getControlTime();
+                processRow.setDiffText(formatMinutesWithSignStatic(diffMinutes));
+            }
+            
+            // N列：情况说明（暂时为空）
+            processRow.setDescription("");
+            
+            // O列：工序状态
+            processRow.setStatus(getStatusDesc(process.getProcessStatus()));
+            
+            processList.add(processRow);
+        }
+        response.setProcessList(processList);
+        
+        // 合计行数据
+        CycleReportDataResponse.SummaryRowData summary = new CycleReportDataResponse.SummaryRowData();
+        int totalDiffMinutes = totalActualMinutes - totalControlMinutes;
+        summary.setTotalActualMinutes(hasActual ? totalActualMinutes : null);
+        summary.setTotalActualTimeText(hasActual ? formatMinutesStatic(totalActualMinutes) : "");
+        summary.setTotalControlMinutes(hasControl ? totalControlMinutes : null);
+        summary.setTotalControlTimeText(hasControl ? formatMinutesHourMinuteStatic(totalControlMinutes) : "");
+        summary.setTotalDiffText((hasActual || hasControl) ? formatMinutesWithSignStatic(totalDiffMinutes) : "");
+        response.setSummary(summary);
+        
+        return response;
+    }
+    
+    /**
+     * 获取工序状态描述
+     */
+    private String getStatusDesc(String status) {
+        if (status == null) {
+            return "";
+        }
+        return switch (status) {
+            case "NOT_STARTED" -> "未开始";
+            case "IN_PROGRESS" -> "进行中";
+            case "COMPLETED" -> "已完成";
+            default -> status;
+        };
+    }
+    
+    /**
+     * 格式化分钟数为"X小时Y分钟"（静态方法）
+     */
+    private static String formatMinutesStatic(Integer minutes) {
+        if (minutes == null) {
+            return "";
+        }
+        int hrs = minutes / 60;
+        int mins = minutes % 60;
+        StringBuilder sb = new StringBuilder();
+        if (hrs != 0) {
+            sb.append(hrs).append("小时");
+        }
+        if (mins != 0) {
+            sb.append(mins).append("分钟");
+        }
+        if (sb.length() == 0) {
+            sb.append("0分钟");
+        }
+        return sb.toString();
+    }
+    
+    /**
+     * 格式化分钟数为"X小时Y分钟"（带符号，静态方法）
+     */
+    private static String formatMinutesWithSignStatic(Integer minutes) {
+        if (minutes == null) {
+            return "";
+        }
+        boolean negative = minutes < 0;
+        String base = formatMinutesStatic(Math.abs(minutes));
+        return negative ? "-" + base : base;
+    }
+    
+    /**
+     * 格式化分钟数为"X小时Y分钟"（静态方法，用于控制标准）
+     */
+    private static String formatMinutesHourMinuteStatic(Integer minutes) {
+        if (minutes == null) {
+            return "";
+        }
+        int hrs = minutes / 60;
+        int mins = Math.abs(minutes % 60);
+        return hrs + "小时" + mins + "分钟";
     }
     
     /**
@@ -500,10 +752,12 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         
         private final Map<String, TemplateCellValue> cellValues;
         private final List<Process> processes;
+        private final Cycle cycle;
         
-        TemplateCellWriteHandler(Map<String, TemplateCellValue> cellValues, List<Process> processes) {
+        TemplateCellWriteHandler(Map<String, TemplateCellValue> cellValues, List<Process> processes, Cycle cycle) {
             this.cellValues = cellValues;
             this.processes = processes;
+            this.cycle = cycle;
         }
         
         @Override
@@ -523,9 +777,91 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                 cellValues.forEach((ref, val) -> applyValue(sheet, ref, val));
             }
             
+            // 设置红色字体
+            setRedFontCells(sheet);
+            
             // 填充工序列表（从第10行开始，索引为9）
             if (processes != null && !processes.isEmpty()) {
                 fillProcessList(sheet, processes);
+            }
+        }
+        
+        /**
+         * 设置需要红色字体的单元格
+         */
+        private void setRedFontCells(Sheet sheet) {
+            org.apache.poi.ss.usermodel.Workbook workbook = sheet.getWorkbook();
+            org.apache.poi.ss.usermodel.Font redFont = workbook.createFont();
+            redFont.setColor(org.apache.poi.ss.usermodel.IndexedColors.RED.getIndex());
+            
+            org.apache.poi.ss.usermodel.CellStyle redStyle = workbook.createCellStyle();
+            redStyle.setFont(redFont);
+            
+            // F2：循环结束时间（红色，值已在cellValues中设置）
+            Row row2 = sheet.getRow(1); // 第2行，索引1
+            if (row2 != null) {
+                Cell cellF2 = row2.getCell(5); // F列，索引5
+                if (cellF2 != null) {
+                    // 保留原有样式，只设置红色字体
+                    org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
+                    if (cellF2.getCellStyle() != null) {
+                        style.cloneStyleFrom(cellF2.getCellStyle());
+                    }
+                    style.setFont(redFont);
+                    cellF2.setCellStyle(style);
+                }
+            }
+            
+            // K4、L4：响炮超时（合并单元格，红色，值已在cellValues中设置）
+            Row row4 = sheet.getRow(3); // 第4行，索引3
+            if (row4 != null) {
+                Cell cellK4 = row4.getCell(10); // K列，索引10
+                if (cellK4 != null) {
+                    org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
+                    if (cellK4.getCellStyle() != null) {
+                        style.cloneStyleFrom(cellK4.getCellStyle());
+                    }
+                    style.setFont(redFont);
+                    cellK4.setCellStyle(style);
+                }
+                Cell cellL4 = row4.getCell(11); // L列，索引11
+                if (cellL4 != null) {
+                    org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
+                    if (cellL4.getCellStyle() != null) {
+                        style.cloneStyleFrom(cellL4.getCellStyle());
+                    }
+                    style.setFont(redFont);
+                    cellL4.setCellStyle(style);
+                }
+            }
+            
+            // C5：循环开始时间（红色）
+            Row row5 = sheet.getRow(4); // 第5行，索引4
+            if (row5 != null) {
+                Cell cellC5 = row5.getCell(2); // C列，索引2
+                if (cellC5 != null) {
+                    org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
+                    if (cellC5.getCellStyle() != null) {
+                        style.cloneStyleFrom(cellC5.getCellStyle());
+                    }
+                    style.setFont(redFont);
+                    cellC5.setCellStyle(style);
+                }
+            }
+            
+            // K5-P5：下循环响炮时间（合并单元格，红色）
+            if (row5 != null) {
+                for (int col = 10; col <= 15; col++) { // K到P列，索引10-15
+                    Cell cell = row5.getCell(col);
+                    if (cell != null) {
+                        org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
+                        if (cell.getCellStyle() != null) {
+                            style.cloneStyleFrom(cell.getCellStyle());
+                        }
+                        style.setFont(redFont);
+                        cell.setCellStyle(style);
+                    }
+                }
             }
         }
         
@@ -664,13 +1000,26 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                     applyCellFormat(row, 7, templateFormatRow, 7);
                 }
                 
-                // I列：工序的控制标准（分钟）
+                // I列：工序的控制标准（分钟），红色字体
                 if (process.getControlTime() != null) {
                     setCellValueWithFormat(row, 8, process.getControlTime(), templateFormatRow, 8);
                     totalControlMinutes += process.getControlTime();
                     hasControl = true;
                 } else {
                     applyCellFormat(row, 8, templateFormatRow, 8);
+                }
+                // 设置I列为红色字体
+                Cell cellI = row.getCell(8);
+                if (cellI != null) {
+                    org.apache.poi.ss.usermodel.Workbook workbook = sheet.getWorkbook();
+                    org.apache.poi.ss.usermodel.Font redFont = workbook.createFont();
+                    redFont.setColor(org.apache.poi.ss.usermodel.IndexedColors.RED.getIndex());
+                    org.apache.poi.ss.usermodel.CellStyle redStyle = workbook.createCellStyle();
+                    if (cellI.getCellStyle() != null) {
+                        redStyle.cloneStyleFrom(cellI.getCellStyle());
+                    }
+                    redStyle.setFont(redFont);
+                    cellI.setCellStyle(redStyle);
                 }
                 
                 // J列：工序的控制标准（小时）
@@ -1044,6 +1393,57 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
     
     private static String formatDateTime(LocalDateTime dateTime) {
         return dateTime == null ? "" : dateTime.format(DATE_TIME_FORMATTER);
+    }
+    
+    /**
+     * 将分钟数（Long）格式化为"X小时Y分钟"格式
+     */
+    private static String formatMinutesFromLong(Long minutes) {
+        if (minutes == null) {
+            return "";
+        }
+        long totalMinutes = Math.abs(minutes);
+        long hrs = totalMinutes / 60;
+        long mins = totalMinutes % 60;
+        StringBuilder sb = new StringBuilder();
+        if (hrs != 0) {
+            sb.append(hrs).append("小时");
+        }
+        if (mins != 0) {
+            sb.append(mins).append("分钟");
+        }
+        if (sb.length() == 0) {
+            sb.append("0分钟");
+        }
+        return sb.toString();
+    }
+    
+    /**
+     * 将分钟数（Long）格式化为"X天X小时X分钟"格式
+     */
+    private static String formatDaysHoursMinutes(Long minutes) {
+        if (minutes == null) {
+            return "";
+        }
+        long totalMinutes = Math.abs(minutes);
+        long days = totalMinutes / (24 * 60);
+        long remainingMinutes = totalMinutes % (24 * 60);
+        long hrs = remainingMinutes / 60;
+        long mins = remainingMinutes % 60;
+        StringBuilder sb = new StringBuilder();
+        if (days != 0) {
+            sb.append(days).append("天");
+        }
+        if (hrs != 0) {
+            sb.append(hrs).append("小时");
+        }
+        if (mins != 0) {
+            sb.append(mins).append("分钟");
+        }
+        if (sb.length() == 0) {
+            sb.append("0分钟");
+        }
+        return sb.toString();
     }
     
     /**
