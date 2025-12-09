@@ -12,9 +12,13 @@ import com.zzw.zzwgx.dto.request.UpdateUserRequest;
 import com.zzw.zzwgx.dto.response.UserListResponse;
 import com.zzw.zzwgx.dto.response.UserProfileResponse;
 import com.zzw.zzwgx.dto.response.UserViewListResponse;
+import com.zzw.zzwgx.entity.Cycle;
+import com.zzw.zzwgx.entity.Process;
 import com.zzw.zzwgx.entity.Role;
 import com.zzw.zzwgx.entity.User;
 import com.zzw.zzwgx.entity.UserRoleRelation;
+import com.zzw.zzwgx.mapper.CycleMapper;
+import com.zzw.zzwgx.mapper.ProcessMapper;
 import com.zzw.zzwgx.mapper.RoleMapper;
 import com.zzw.zzwgx.mapper.UserMapper;
 import com.zzw.zzwgx.mapper.UserRoleRelationMapper;
@@ -27,7 +31,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -41,6 +48,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final PasswordEncoder passwordEncoder;
     private final RoleMapper roleMapper;
     private final UserRoleRelationMapper userRoleRelationMapper;
+    private final CycleMapper cycleMapper;
+    private final ProcessMapper processMapper;
     
     @Override
     public User getByUsername(String username) {
@@ -262,12 +271,40 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public List<UserViewListResponse> listWorkers() {
-        log.info("查询施工人员列表，关键词: {}");
+    public List<UserViewListResponse> listWorkers(Long projectId, String keyword) {
+        log.info("查询施工人员列表，项目ID: {}, 关键词: {}", projectId, keyword);
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getDeleted, 0)
                 .eq(User::getStatus, 1);
-
+        if (StringUtils.hasText(keyword)) {
+            wrapper.and(w -> w.like(User::getUsername, keyword).or().like(User::getRealName, keyword));
+        }
+        
+        // 如果指定项目ID，则仅返回该项目下已有参与记录的施工人员
+        Set<Long> projectWorkerIds = null;
+        if (projectId != null) {
+            List<Cycle> cycles = cycleMapper.selectList(new LambdaQueryWrapper<Cycle>()
+                    .eq(Cycle::getProjectId, projectId));
+            if (!cycles.isEmpty()) {
+                List<Long> cycleIds = cycles.stream().map(Cycle::getId).toList();
+                List<Process> processes = processMapper.selectList(new LambdaQueryWrapper<Process>()
+                        .in(Process::getCycleId, cycleIds)
+                        .isNotNull(Process::getOperatorId));
+                projectWorkerIds = processes.stream()
+                        .map(Process::getOperatorId)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toCollection(HashSet::new));
+                if (projectWorkerIds.isEmpty()) {
+                    // 项目下无已参与的施工人员，直接返回空
+                    return Collections.emptyList();
+                }
+                wrapper.in(User::getId, projectWorkerIds);
+            } else {
+                // 项目下无循环，返回空
+                return Collections.emptyList();
+            }
+        }
+        
         List<User> users = list(wrapper);
         return users.stream()
                 .filter(u -> getUserRoleCodes(u.getId()).contains(UserRole.WORKER.getCode()))
@@ -276,8 +313,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                     resp.setId(u.getId());
                     resp.setUsername(u.getUsername());
                     resp.setRealName(u.getRealName());
-//                    resp.setPhone(u.getPhone());
-//                    resp.setRoles(getUserRoleCodes(u.getId()));
                     return resp;
                 })
                 .collect(Collectors.toList());

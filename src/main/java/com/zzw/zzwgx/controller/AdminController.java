@@ -316,10 +316,12 @@ public class AdminController {
         return Result.success(page);
     }
     
-    @Operation(summary = "获取施工人员列表", description = "供项目管理员选择施工人员使用，只返回角色为WORKER的用户，可按用户名或姓名模糊搜索。", tags = {"管理员管理-用户管理"})
+    @Operation(summary = "获取施工人员列表", description = "供项目管理员选择施工人员使用，只返回角色为WORKER的用户，可按用户名或姓名模糊搜索，可选按项目过滤。", tags = {"管理员管理-用户管理"})
     @GetMapping("/workers")
-    public Result<java.util.List<UserViewListResponse>> listWorkers() {
-        java.util.List<UserViewListResponse> workers = userService.listWorkers();
+    public Result<java.util.List<UserViewListResponse>> listWorkers(
+            @Parameter(description = "项目ID（可选，传入则仅返回该项目已有参与记录的施工人员）", example = "7") @RequestParam(required = false) Long projectId,
+            @Parameter(description = "用户名或姓名关键词", example = "张") @RequestParam(required = false) String keyword) {
+        java.util.List<UserViewListResponse> workers = userService.listWorkers(projectId, keyword);
         return Result.success(workers);
     }
     
