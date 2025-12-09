@@ -1,5 +1,6 @@
 package com.zzw.zzwgx.controller;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zzw.zzwgx.common.Result;
 import com.zzw.zzwgx.dto.request.CreateCycleRequest;
@@ -16,6 +17,7 @@ import com.zzw.zzwgx.dto.request.UpdateProcessTemplateRequest;
 import com.zzw.zzwgx.dto.request.UpdateCycleRequest;
 import com.zzw.zzwgx.dto.request.UpdateUserRequest;
 import com.zzw.zzwgx.dto.response.*;
+import com.zzw.zzwgx.entity.User;
 import com.zzw.zzwgx.service.CycleService;
 import com.zzw.zzwgx.service.ProcessCatalogService;
 import com.zzw.zzwgx.service.ProcessService;
@@ -29,6 +31,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletResponse;
+
+import java.util.List;
 
 /**
  * 管理员控制器
@@ -134,10 +138,10 @@ public class AdminController {
     
     @Operation(summary = "获取循环报表数据", description = "获取循环报表中需要填写的单元格值，返回JSON格式数据，用于前端展示或手动填写Excel。", tags = {"管理员管理-循环管理"})
     @GetMapping("/cycles/{cycleId}/report-data")
-    public Result<com.zzw.zzwgx.dto.response.CycleReportDataResponse> getCycleReportData(
+    public Result<CycleReportDataResponse> getCycleReportData(
             @Parameter(description = "循环ID", required = true, example = "1") @PathVariable Long cycleId) {
         log.info("获取循环报表数据，循环ID: {}", cycleId);
-        com.zzw.zzwgx.dto.response.CycleReportDataResponse response = cycleService.getCycleReportData(cycleId);
+        CycleReportDataResponse response = cycleService.getCycleReportData(cycleId);
         return Result.success(response);
     }
     
@@ -190,10 +194,10 @@ public class AdminController {
     
     @Operation(summary = "计算循环工序总时间", description = "计算指定循环的工序总时间统计。返回单工序总时间（所有工序实际完成时间的总和）和整套工序总时间（考虑重叠时间不重复计算）。单工序时间依旧按照实际完成时间进行统计。", tags = {"管理员管理-工序管理"})
     @GetMapping("/cycles/{cycleId}/process-time")
-    public Result<com.zzw.zzwgx.dto.response.CycleProcessTimeResponse> calculateCycleProcessTime(
+    public Result<CycleProcessTimeResponse> calculateCycleProcessTime(
             @Parameter(description = "循环ID", required = true, example = "1") @PathVariable Long cycleId) {
         log.info("计算循环工序总时间，循环ID: {}", cycleId);
-        com.zzw.zzwgx.dto.response.CycleProcessTimeResponse response = processService.calculateCycleProcessTime(cycleId);
+        CycleProcessTimeResponse response = processService.calculateCycleProcessTime(cycleId);
         return Result.success(response);
     }
     
@@ -210,25 +214,25 @@ public class AdminController {
     
     @Operation(summary = "获取所有模板名称列表", description = "获取系统中所有工序模板的名称列表（去重）。", tags = {"管理员管理-工序模板管理"})
     @GetMapping("/process-templates/names")
-    public Result<java.util.List<String>> getAllTemplateNames() {
+    public Result<List<String>> getAllTemplateNames() {
         log.info("查询所有模板名称列表");
-        java.util.List<String> templateNames = processTemplateService.getAllTemplateNames();
+        List<String> templateNames = processTemplateService.getAllTemplateNames();
         return Result.success(templateNames);
     }
     
     @Operation(summary = "获取模板列表", description = "获取系统中所有模板列表，用于前端选择模板。每个模板包含模板名称和对应的templateId（该模板下第一个工序模板的ID），前端选择模板后可以使用返回的templateId来创建循环。", tags = {"管理员管理-工序模板管理"})
     @GetMapping("/templates")
-    public Result<java.util.List<TemplateListResponse>> getTemplateList() {
+    public Result<List<TemplateListResponse>> getTemplateList() {
         log.info("查询模板列表");
-        java.util.List<TemplateListResponse> templateList = processTemplateService.getTemplateList();
+        List<TemplateListResponse> templateList = processTemplateService.getTemplateList();
         return Result.success(templateList);
     }
     
     @Operation(summary = "获取所有工序模板选项列表", description = "获取系统中所有工序模板的选项列表，用于前端下拉选择工序名称。返回数据包含模板ID、工序名称、模板名称和控制时间等信息。前端选择工序名称后，可以使用返回的templateId来创建工序。", tags = {"管理员管理-工序模板管理"})
     @GetMapping("/process-templates/options")
-    public Result<java.util.List<ProcessTemplateOptionResponse>> getAllProcessTemplateOptions() {
+    public Result<List<ProcessTemplateOptionResponse>> getAllProcessTemplateOptions() {
         log.info("查询所有工序模板选项列表");
-        java.util.List<ProcessTemplateOptionResponse> options = processTemplateService.getAllProcessTemplateOptions();
+        List<ProcessTemplateOptionResponse> options = processTemplateService.getAllProcessTemplateOptions();
         return Result.success(options);
     }
     
@@ -330,7 +334,7 @@ public class AdminController {
     public Result<UserListResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
         log.info("管理员创建用户账号，用户名: {}, 姓名: {}, 角色: {}", 
                 request.getUsername(), request.getRealName(), request.getRoleCode());
-        com.zzw.zzwgx.entity.User user = userService.createUser(request);
+        User user = userService.createUser(request);
         
         // 转换为响应DTO
         UserListResponse response = new UserListResponse();
@@ -343,7 +347,6 @@ public class AdminController {
         response.setRoles(userService.getUserRoleCodes(user.getId()));
         response.setCreateTime(user.getCreateTime());
         response.setUpdateTime(user.getUpdateTime());
-        
         return Result.success(response);
     }
     

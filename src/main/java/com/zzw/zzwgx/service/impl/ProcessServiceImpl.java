@@ -34,8 +34,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 工序服务实现类
@@ -192,18 +195,18 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         List<Process> processes = processPage.getRecords();
         List<Long> cycleIds = processes.stream().map(Process::getCycleId).distinct().toList();
         List<Cycle> cycles = cycleIds.isEmpty()
-                ? java.util.Collections.emptyList()
+                ? Collections.emptyList()
                 : cycleMapper.selectBatchIds(cycleIds);
-        Map<Long, Cycle> cycleMap = cycles.stream().collect(java.util.stream.Collectors.toMap(Cycle::getId, c -> c));
+        Map<Long, Cycle> cycleMap = cycles.stream().collect(Collectors.toMap(Cycle::getId, c -> c));
 
         List<Long> projectIds = cycles.stream().map(Cycle::getProjectId).distinct().toList();
         List<Project> projects = projectIds.isEmpty()
-                ? java.util.Collections.emptyList()
+                ? Collections.emptyList()
                 : projectMapper.selectBatchIds(projectIds);
-        Map<Long, Project> projectMap = projects.stream().collect(java.util.stream.Collectors.toMap(Project::getId, p -> p));
+        Map<Long, Project> projectMap = projects.stream().collect(Collectors.toMap(Project::getId, p -> p));
 
         // 映射为响应DTO，并在内存中根据项目名称做过滤
-        List<WorkerProcessListResponse> all = new java.util.ArrayList<>();
+        List<WorkerProcessListResponse> all = new ArrayList<>();
         for (Process p : processes) {
             Cycle cycle = cycleMap.get(p.getCycleId());
             if (cycle == null) {
@@ -239,7 +242,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         Page<WorkerProcessListResponse> result = new Page<>(pageNum, pageSize, total);
         int fromIndex = (int) ((pageNum - 1L) * pageSize);
         if (fromIndex >= total) {
-            result.setRecords(java.util.Collections.emptyList());
+            result.setRecords(Collections.emptyList());
             return result;
         }
         int toIndex = (int) Math.min(fromIndex + pageSize, total);
@@ -698,10 +701,10 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         // 计算单工序总时间（所有工序实际完成时间的总和，不考虑重叠）
         long totalIndividualTime = 0;
         int completedCount = 0;
-        List<com.zzw.zzwgx.dto.response.CycleProcessTimeResponse.ProcessTimeDetail> details = new java.util.ArrayList<>();
+        List<com.zzw.zzwgx.dto.response.CycleProcessTimeResponse.ProcessTimeDetail> details = new ArrayList<>();
 
         // 收集所有已完成工序的时间段
-        List<TimeInterval> intervals = new java.util.ArrayList<>();
+        List<TimeInterval> intervals = new ArrayList<>();
         
         for (Process process : processes) {
             com.zzw.zzwgx.dto.response.CycleProcessTimeResponse.ProcessTimeDetail detail = 
@@ -752,7 +755,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         intervals.sort((a, b) -> a.start.compareTo(b.start));
 
         // 合并重叠的时间段
-        List<TimeInterval> merged = new java.util.ArrayList<>();
+        List<TimeInterval> merged = new ArrayList<>();
         TimeInterval current = intervals.get(0);
 
         for (int i = 1; i < intervals.size(); i++) {
@@ -863,19 +866,19 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         List<Process> processes = processPage.getRecords();
         List<Long> cycleIds = processes.stream().map(Process::getCycleId).distinct().toList();
         List<Cycle> cycles = cycleIds.isEmpty() 
-                ? java.util.Collections.emptyList()
+                ? Collections.emptyList()
                 : cycleMapper.selectBatchIds(cycleIds);
         Map<Long, Cycle> cycleMap = cycles.stream()
                 .filter(cycle -> !"COMPLETED".equals(cycle.getStatus())) // 只保留未完成的循环
-                .collect(java.util.stream.Collectors.toMap(Cycle::getId, c -> c));
+                .collect(Collectors.toMap(Cycle::getId, c -> c));
         
         // 获取项目信息
         List<Long> projectIds = cycles.stream().map(Cycle::getProjectId).distinct().toList();
         List<Project> projects = projectIds.isEmpty()
-                ? java.util.Collections.emptyList()
+                ? Collections.emptyList()
                 : projectMapper.selectBatchIds(projectIds);
         Map<Long, Project> projectMap = projects.stream()
-                .collect(java.util.stream.Collectors.toMap(Project::getId, p -> p));
+                .collect(Collectors.toMap(Project::getId, p -> p));
         
         // 获取操作员信息
         List<Long> operatorIds = processes.stream()
@@ -884,13 +887,13 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
                 .distinct()
                 .toList();
         List<User> operators = operatorIds.isEmpty()
-                ? java.util.Collections.emptyList()
+                ? Collections.emptyList()
                 : userService.listByIds(operatorIds);
         Map<Long, User> operatorMap = operators.stream()
-                .collect(java.util.stream.Collectors.toMap(User::getId, u -> u));
+                .collect(Collectors.toMap(User::getId, u -> u));
         
         // 构建响应列表
-        List<com.zzw.zzwgx.dto.response.OvertimeProcessResponse> result = new java.util.ArrayList<>();
+        List<com.zzw.zzwgx.dto.response.OvertimeProcessResponse> result = new ArrayList<>();
         for (Process process : processes) {
             Cycle cycle = cycleMap.get(process.getCycleId());
             if (cycle == null) {

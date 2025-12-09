@@ -48,11 +48,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -1370,9 +1366,9 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         private final Type type;
         private final String stringValue;
         private final Double numberValue;
-        private final java.util.Date dateValue;
+        private final Date dateValue;
         
-        private TemplateCellValue(Type type, String stringValue, Double numberValue, java.util.Date dateValue) {
+        private TemplateCellValue(Type type, String stringValue, Double numberValue, Date dateValue) {
             this.type = type;
             this.stringValue = stringValue;
             this.numberValue = numberValue;
@@ -1391,7 +1387,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             if (v == null) {
                 return null;
             }
-            java.util.Date date = java.util.Date.from(v.atZone(ZoneId.systemDefault()).toInstant());
+            Date date = Date.from(v.atZone(ZoneId.systemDefault()).toInstant());
             return new TemplateCellValue(Type.DATE, null, null, date);
         }
     }

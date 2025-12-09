@@ -22,10 +22,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 统计服务实现类
@@ -467,7 +464,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         if (CollectionUtils.isEmpty(rootIds)) {
             return result;
         }
-        java.util.Queue<Long> queue = new java.util.ArrayDeque<>(rootIds);
+        Queue<Long> queue = new ArrayDeque<>(rootIds);
         while (!queue.isEmpty()) {
             Long currentId = queue.poll();
             Project project = projectService.getById(currentId);

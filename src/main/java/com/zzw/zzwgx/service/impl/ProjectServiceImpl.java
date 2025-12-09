@@ -487,7 +487,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
         if (explicitUserId != null) {
             List<Long> assignedProjectIds = userProjectService.getProjectIdsByUser(explicitUserId);
             if (CollectionUtils.isEmpty(assignedProjectIds)) {
-                return new java.util.ArrayList<>();
+                return new ArrayList<>();
             }
             return expandToSiteProjectIds(assignedProjectIds);
         }
@@ -495,7 +495,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
         // 场景2：未传 userId，走原来的基于当前登录用户的权限控制逻辑
         var currentUser = SecurityUtils.getCurrentUser();
         if (currentUser == null) {
-            return new java.util.ArrayList<>();
+            return new ArrayList<>();
         }
         var roles = currentUser.getRoleCodes();
         boolean isSystemAdmin = roles.stream().anyMatch(r -> "SYSTEM_ADMIN".equals(r));
@@ -506,7 +506,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
         Long userId = currentUser.getUserId();
         List<Long> assignedProjectIds = userProjectService.getProjectIdsByUser(userId);
         if (CollectionUtils.isEmpty(assignedProjectIds)) {
-            return new java.util.ArrayList<>();
+            return new ArrayList<>();
         }
         return expandToSiteProjectIds(assignedProjectIds);
     }
@@ -515,7 +515,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
      * 将任意层级的节点展开为所有子层级的工点（node_type=SITE）ID
      */
     private List<Long> expandToSiteProjectIds(List<Long> rootIds) {
-        List<Long> result = new java.util.ArrayList<>();
+        List<Long> result = new ArrayList<>();
         if (CollectionUtils.isEmpty(rootIds)) {
             return result;
         }
