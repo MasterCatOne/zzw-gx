@@ -56,5 +56,10 @@ public interface UserService extends IService<User> {
      * 获取施工人员列表（仅角色为WORKER），支持按用户名或姓名模糊搜索
      */
     List<UserViewListResponse> listWorkers(Long projectId, String keyword);
+
+    /**
+     * 施工人员修改个人信息
+     */
+    UserProfileResponse updateWorkerProfile(Long userId, com.zzw.zzwgx.dto.request.WorkerUpdateProfileRequest request);
 }
 

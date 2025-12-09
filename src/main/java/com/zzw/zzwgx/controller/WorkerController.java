@@ -3,6 +3,7 @@ package com.zzw.zzwgx.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zzw.zzwgx.common.Result;
 import com.zzw.zzwgx.dto.request.WorkerStartProcessRequest;
+import com.zzw.zzwgx.dto.request.WorkerUpdateProfileRequest;
 import com.zzw.zzwgx.dto.response.*;
 import com.zzw.zzwgx.security.SecurityUtils;
 import com.zzw.zzwgx.service.StatisticsService;
@@ -62,6 +63,15 @@ public class WorkerController {
         log.info("施工人员查询工序详情，用户ID: {}, 工序ID: {}", userId, processId);
         ProcessDetailResponse response = processService.getWorkerProcessDetail(processId, userId);
         return Result.success(response);
+    }
+
+    @Operation(summary = "修改个人信息", description = "施工人员修改自己的姓名、手机号或密码。")
+    @PutMapping("/profile")
+    public Result<UserProfileResponse> updateMyProfile(@Valid @RequestBody WorkerUpdateProfileRequest request) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        log.info("施工人员修改个人信息，用户ID: {}", userId);
+        UserProfileResponse response = userService.updateWorkerProfile(userId, request);
+        return Result.success("修改成功", response);
     }
 
     @Operation(summary = "开始工序", description = "施工人员立即开始工序任务，需要选择实际开始时间。接口将工序状态更新为进行中。如果上一工序未完成，会返回提示信息，但不阻止开始。")

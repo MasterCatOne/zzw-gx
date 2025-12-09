@@ -9,6 +9,7 @@ import com.zzw.zzwgx.common.exception.BusinessException;
 import com.zzw.zzwgx.dto.request.CreateUserRequest;
 import com.zzw.zzwgx.dto.request.RegisterRequest;
 import com.zzw.zzwgx.dto.request.UpdateUserRequest;
+import com.zzw.zzwgx.dto.request.WorkerUpdateProfileRequest;
 import com.zzw.zzwgx.dto.response.UserListResponse;
 import com.zzw.zzwgx.dto.response.UserProfileResponse;
 import com.zzw.zzwgx.dto.response.UserViewListResponse;
@@ -316,6 +317,30 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                     return resp;
                 })
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public UserProfileResponse updateWorkerProfile(Long userId, WorkerUpdateProfileRequest request) {
+        log.info("施工人员修改个人信息，用户ID: {}", userId);
+        User user = getById(userId);
+        if (user == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        if (request.getRealName() != null) {
+            user.setRealName(request.getRealName());
+        }
+        if (request.getIdCard() != null) {
+            user.setIdCard(request.getIdCard());
+        }
+        if (request.getPhone() != null) {
+            user.setPhone(request.getPhone());
+        }
+        if (request.getPassword() != null) {
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+        }
+        updateById(user);
+        return getProfile(userId);
     }
 }
 
