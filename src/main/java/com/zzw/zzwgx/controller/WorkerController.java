@@ -123,7 +123,7 @@ public class WorkerController {
     
     @Operation(summary = "我的工点本周超耗统计", description = "按工点汇总当前施工人员本周完成工序的超时/节时总计（单位：小时）。")
     @GetMapping("/statistics/overtime-week")
-    public Result<List<com.zzw.zzwgx.dto.response.StatisticsResponse.OvertimeStat>> getMyOvertimeStatistics() {
+    public Result<List<StatisticsResponse.OvertimeStat>> getMyOvertimeStatistics() {
         Long userId = SecurityUtils.getCurrentUserId();
         log.info("施工人员查询本周超耗统计，用户ID: {}", userId);
         List<StatisticsResponse.OvertimeStat> stats =

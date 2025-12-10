@@ -50,6 +50,9 @@ public class Cycle {
     
     /** 实际里程（米），初喷后的测量放样结束后填报 */
     private BigDecimal actualMileage;
+
+    /** 开挖/开发方式，如：台阶法 */
+    private String developmentMethod;
     
     /** 循环状态：IN_PROGRESS/COMPLETED */
     @TableField("cycle_status")

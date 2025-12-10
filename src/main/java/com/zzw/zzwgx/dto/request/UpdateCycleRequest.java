@@ -38,6 +38,9 @@ public class UpdateCycleRequest {
     
     @Schema(description = "实际进尺（米）", example = "2.3")
     private BigDecimal advanceLength;
+
+    @Schema(description = "开挖/开发方式，如：台阶法", example = "台阶法")
+    private String developmentMethod;
     
     @Schema(description = "循环状态：IN_PROGRESS/COMPLETED/PAUSED", example = "IN_PROGRESS")
     private String status;

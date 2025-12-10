@@ -102,6 +102,8 @@ CREATE TABLE IF NOT EXISTS cycle (
     estimated_start_date DATETIME COMMENT '预计开始日期',
     estimated_end_date DATETIME COMMENT '预计结束日期',
     estimated_mileage DECIMAL(10, 2) COMMENT '预估里程（米）',
+    actual_mileage DECIMAL(10, 2) COMMENT '实际里程（米）',
+    development_method VARCHAR(50) COMMENT '开挖/开发方式，如：台阶法',
     cycle_status VARCHAR(20) DEFAULT 'IN_PROGRESS' COMMENT '循环状态：IN_PROGRESS-进行中，COMPLETED-已完成',
     advance_length DECIMAL(10, 2) DEFAULT 0 COMMENT '循环进尺（米）',
     rock_level VARCHAR(20) COMMENT '围岩等级：LEVEL_I-I级，LEVEL_II-II级，LEVEL_III-III级，LEVEL_IV-IV级，LEVEL_V-V级，LEVEL_VI-VI级',
@@ -146,6 +148,21 @@ CREATE TABLE IF NOT EXISTS process (
     FOREIGN KEY (template_id) REFERENCES process_template(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     FOREIGN KEY (process_catalog_id) REFERENCES process_catalog(id) ON DELETE RESTRICT ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工序表';
+
+-- 工序操作日志表（记录施工人员对工序的关键操作：开始、完成、填报原因等）
+CREATE TABLE IF NOT EXISTS process_operation_log (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    process_id BIGINT NOT NULL COMMENT '工序ID',
+    user_id BIGINT COMMENT '操作人ID',
+    action VARCHAR(50) NOT NULL COMMENT '操作类型：START/COMPLETED/COMPLETED_AND_NEXT/OVERTIME_REASON/CREATE_AND_START 等',
+    remark VARCHAR(500) COMMENT '备注信息，如超时原因等',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_process_id (process_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_action (action),
+    FOREIGN KEY (process_id) REFERENCES process(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES sys_user(id) ON DELETE RESTRICT ON UPDATE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工序操作日志表';
 
 -- 工序字典表（统一管理所有工序，支持顺序调整）
 CREATE TABLE IF NOT EXISTS process_catalog (

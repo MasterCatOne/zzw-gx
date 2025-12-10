@@ -42,6 +42,9 @@ public class CycleResponse {
     
     @Schema(description = "实际里程（米），初喷后的测量放样结束后填报", example = "1.8")
     private BigDecimal actualMileage;
+
+    @Schema(description = "开挖/开发方式，如：台阶法", example = "台阶法")
+    private String developmentMethod;
     
     @Schema(description = "循环状态", example = "IN_PROGRESS")
     private String status;

@@ -93,12 +93,12 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         }
 
         // 业务校验：检查该工点是否已有进行中的循环
-        Cycle existingCycle = getCurrentCycleByProjectId(request.getProjectId());
-        if (existingCycle != null) {
-            log.error("创建循环失败，该工点已有进行中的循环，项目ID: {}, 当前循环ID: {}, 循环号: {}", 
-                    request.getProjectId(), existingCycle.getId(), existingCycle.getCycleNumber());
-            throw new BusinessException(ResultCode.CYCLE_IN_PROGRESS_EXISTS);
-        }
+//        Cycle existingCycle = getCurrentCycleByProjectId(request.getProjectId());
+//        if (existingCycle != null) {
+//            log.error("创建循环失败，该工点已有进行中的循环，项目ID: {}, 当前循环ID: {}, 循环号: {}",
+//                    request.getProjectId(), existingCycle.getId(), existingCycle.getCycleNumber());
+//            throw new BusinessException(ResultCode.CYCLE_IN_PROGRESS_EXISTS);
+//        }
         
         // 获取当前循环次数
         Cycle latestCycle = getLatestCycleByProjectId(request.getProjectId());
@@ -113,6 +113,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         cycle.setRockLevel(RockLevel.LEVEL_I.getCode());
         cycle.setStartDate(request.getStartDate());
         cycle.setEndDate(request.getEndDate());
+        cycle.setDevelopmentMethod(request.getDevelopmentMethod());
         
         // 预估开始时间与实际开始时间一致
         cycle.setEstimatedStartDate(request.getStartDate());
@@ -134,6 +135,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         if (request.getEstimatedMileage() != null) {
             cycle.setEstimatedMileage(BigDecimal.valueOf(request.getEstimatedMileage()));
         }
+        // 实际里程创建时通常未知，保持null
         cycle.setAdvanceLength(request.getAdvanceLength() != null
                 ? BigDecimal.valueOf(request.getAdvanceLength())
                 : BigDecimal.ZERO);
@@ -143,7 +145,8 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         log.info("循环创建成功，循环ID: {}, 循环次数: {}", cycle.getId(), cycleNumber);
         
         // 根据模板自动创建工序（模板已验证，直接创建）
-        createProcessesFromTemplate(cycle.getId(), template.getTemplateName());
+        Long currentUserId = com.zzw.zzwgx.security.SecurityUtils.getCurrentUserId();
+        createProcessesFromTemplate(cycle.getId(), template.getTemplateName(), cycle.getStartDate(), currentUserId);
         
         return convertToResponse(cycle);
     }
@@ -187,6 +190,9 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         }
         if (request.getActualMileage() != null) {
             cycle.setActualMileage(request.getActualMileage());
+        }
+        if (request.getDevelopmentMethod() != null) {
+            cycle.setDevelopmentMethod(request.getDevelopmentMethod());
         }
         if (request.getAdvanceLength() != null) {
             cycle.setAdvanceLength(request.getAdvanceLength());
@@ -273,13 +279,16 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
      * 根据模板名称创建工序
      * 此方法假设模板已验证存在，不再进行重复验证
      */
-    private void createProcessesFromTemplate(Long cycleId, String templateName) {
+    private void createProcessesFromTemplate(Long cycleId, String templateName, LocalDateTime cycleStartTime, Long firstOperatorId) {
         log.info("根据模板创建工序，循环ID: {}, 模板名称: {}", cycleId, templateName);
         
         // 获取该模板下的所有工序模板（已在createCycle中验证，这里直接获取）
-        List<ProcessTemplate> templates = processTemplateService.getTemplatesByName(templateName);
+        List<ProcessTemplate> templates = processTemplateService.getTemplatesByName(templateName).stream()
+                .sorted(Comparator.comparing(ProcessTemplate::getDefaultOrder, Comparator.nullsLast(Integer::compareTo)))
+                .collect(Collectors.toList());
         
         // 根据模板创建工序
+        boolean firstStarted = false;
         for (ProcessTemplate processTemplate : templates) {
             Process process = new Process();
             process.setCycleId(cycleId);
@@ -297,11 +306,25 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             }
             process.setControlTime(processTemplate.getControlTime());
             process.setStartOrder(processTemplate.getDefaultOrder());
-            process.setProcessStatus(ProcessStatus.NOT_STARTED.getCode());
             process.setAdvanceLength(BigDecimal.ZERO);
             // 记录工序来源模板ID
             process.setTemplateId(processTemplate.getId());
-            process.setOperatorId(null);
+
+            // 首个工序直接开工，操作员为当前用户；其余保持未开始
+            if (!firstStarted && firstOperatorId != null) {
+                process.setProcessStatus(ProcessStatus.IN_PROGRESS.getCode());
+                process.setOperatorId(firstOperatorId);
+                LocalDateTime actualStart = cycleStartTime != null ? cycleStartTime : LocalDateTime.now();
+                process.setActualStartTime(actualStart);
+                process.setEstimatedStartTime(actualStart);
+                if (processTemplate.getControlTime() != null) {
+                    process.setEstimatedEndTime(actualStart.plusMinutes(processTemplate.getControlTime()));
+                }
+                firstStarted = true;
+            } else {
+                process.setProcessStatus(ProcessStatus.NOT_STARTED.getCode());
+                process.setOperatorId(null);
+            }
             processService.save(process);
             log.debug("根据模板创建工序成功，工序名称: {}, 顺序: {}, 模板ID: {}", process.getProcessName(), processTemplate.getDefaultOrder(), processTemplate.getId());
         }
@@ -401,7 +424,10 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             cellValues.put("C3", TemplateCellValue.string(mileage)); // 掌子面里程
             cellValues.put("F3", TemplateCellValue.string(RockLevel.LEVEL_I.getCode())); // 围岩等级（F3,G3,H3合并）
             cellValues.put("K3", TemplateCellValue.string(cycle.getAdvanceLength() != null ? cycle.getAdvanceLength().toPlainString() : "")); // 进尺（K3,L3合并）
-            cellValues.put("O3", TemplateCellValue.string("台阶法")); // 开发方式（O3,P3合并，固定值）
+            String devMethod = StringUtils.hasText(cycle.getDevelopmentMethod())
+                    ? cycle.getDevelopmentMethod()
+                    : "台阶法";
+            cellValues.put("O3", TemplateCellValue.string(devMethod)); // 开发方式（O3,P3合并）
             
             // 第4行
             // 精确到秒，直接填充字符串
@@ -539,7 +565,10 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         row3.setMileage(mileage);
         row3.setRockLevel(cycle.getRockLevel());
         row3.setAdvanceLength(cycle.getAdvanceLength() != null ? cycle.getAdvanceLength().toPlainString() : "");
-        row3.setDevelopmentMethod("台阶法");
+        String devMethod = StringUtils.hasText(cycle.getDevelopmentMethod())
+                ? cycle.getDevelopmentMethod()
+                : "台阶法";
+        row3.setDevelopmentMethod(devMethod);
         response.setRow3(row3);
         
         // 第4行数据

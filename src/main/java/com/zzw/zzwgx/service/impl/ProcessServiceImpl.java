@@ -13,6 +13,7 @@ import com.zzw.zzwgx.dto.response.*;
 import com.zzw.zzwgx.entity.Cycle;
 import com.zzw.zzwgx.entity.Process;
 import com.zzw.zzwgx.entity.ProcessCatalog;
+import com.zzw.zzwgx.entity.ProcessOperationLog;
 import com.zzw.zzwgx.entity.Project;
 import com.zzw.zzwgx.entity.User;
 import com.zzw.zzwgx.mapper.CycleMapper;
@@ -20,6 +21,7 @@ import com.zzw.zzwgx.mapper.ProcessMapper;
 import com.zzw.zzwgx.mapper.ProjectMapper;
 import com.zzw.zzwgx.service.CycleService;
 import com.zzw.zzwgx.service.ProcessCatalogService;
+import com.zzw.zzwgx.service.ProcessOperationLogService;
 import com.zzw.zzwgx.service.ProcessService;
 import com.zzw.zzwgx.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +51,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
     private final ProjectMapper projectMapper;
     private final UserService userService;
     private final ProcessCatalogService processCatalogService;
+    private final ProcessOperationLogService processOperationLogService;
     
     @Lazy
     @Autowired
@@ -174,6 +177,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
 
         save(process);
         log.info("工序创建并开工成功，工序ID: {}, 工序名称: {}", process.getId(), process.getProcessName());
+        logProcessOperation(process.getId(), request.getWorkerId(), "CREATE_AND_START", null);
         return buildProcessResponse(process);
     }
     
@@ -222,10 +226,10 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         if (process == null) {
             throw new BusinessException(ResultCode.PROCESS_NOT_FOUND);
         }
-        if (process.getOperatorId() == null || !process.getOperatorId().equals(workerId)) {
-            log.warn("没有权限查看该工序详情，工序ID: {}, 用户ID: {}", processId, workerId);
-            throw new BusinessException(ResultCode.FORBIDDEN);
-        }
+//        if (process.getOperatorId() == null || !process.getOperatorId().equals(workerId)) {
+//            log.warn("没有权限查看该工序详情，工序ID: {}, 用户ID: {}", processId, workerId);
+//            throw new BusinessException(ResultCode.FORBIDDEN);
+//        }
         return buildProcessDetail(process);
     }
 
@@ -499,6 +503,9 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         process.setProcessStatus(ProcessStatus.IN_PROGRESS.getCode());
         updateById(process);
 
+        // 记录开始操作
+        logProcessOperation(processId, workerId, "START", null);
+
         log.info("施工人员开始工序成功，工序ID: {}", processId);
         return response;
     }
@@ -512,7 +519,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             throw new BusinessException(ResultCode.PROCESS_NOT_FOUND);
         }
         if (process.getOperatorId() == null || !process.getOperatorId().equals(workerId)) {
-            throw new BusinessException(ResultCode.FORBIDDEN);
+            throw new BusinessException(ResultCode.PREVIOUS_PROCESS_NOT_COMPLETED);
         }
         if (process.getActualStartTime() == null) {
             throw new BusinessException("当前工序未开始，无法完成");
@@ -527,6 +534,13 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         process.setProcessStatus(ProcessStatus.COMPLETED.getCode());
         updateById(process);
 
+        logProcessOperation(processId, workerId, "COMPLETED", null);
+
+        // 完成后自动开启下一道未开始的工序
+        startNextProcess(process, workerId);
+
+        // 如果本循环所有工序都已完成，则将循环状态置为已完成并记录结束时间
+        tryCompleteCycle(process);
         return buildProcessResponse(process);
     }
     
@@ -554,6 +568,11 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         process.setActualEndTime(now);
         process.setProcessStatus(ProcessStatus.COMPLETED.getCode());
         updateById(process);
+
+        logProcessOperation(processId, workerId, "COMPLETED_AND_NEXT", null);
+
+        // 完成后自动开启下一道未开始的工序
+        startNextProcess(process, workerId);
 
         // 如果本循环所有工序都已完成，则将循环状态置为已完成并记录结束时间
         tryCompleteCycle(process);
@@ -585,6 +604,56 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
                 cycleMapper.updateById(cycle);
                 log.info("循环所有工序完成，自动将循环置为已完成，循环ID: {}", cycleId);
             }
+        }
+    }
+
+    /**
+     * 完成当前工序后，自动开启下一道未开始的工序
+     */
+    private void startNextProcess(Process currentProcess, Long workerId) {
+        if (currentProcess == null || currentProcess.getCycleId() == null || currentProcess.getStartOrder() == null) {
+            return;
+        }
+        Process next = lambdaQuery()
+                .eq(Process::getCycleId, currentProcess.getCycleId())
+                .gt(Process::getStartOrder, currentProcess.getStartOrder())
+                .eq(Process::getProcessStatus, ProcessStatus.NOT_STARTED.getCode())
+                .orderByAsc(Process::getStartOrder)
+                .last("LIMIT 1")
+                .one();
+        if (next == null) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        next.setProcessStatus(ProcessStatus.IN_PROGRESS.getCode());
+        next.setActualStartTime(now);
+        next.setEstimatedStartTime(now);
+        if (next.getControlTime() != null) {
+            next.setEstimatedEndTime(now.plusMinutes(next.getControlTime()));
+        }
+        if (next.getOperatorId() == null && workerId != null) {
+            next.setOperatorId(workerId);
+        }
+        updateById(next);
+        // 记录自动开启下一工序
+        logProcessOperation(next.getId(), workerId, "AUTO_START_NEXT", null);
+        log.info("已自动开启下一工序，当前工序ID: {}, 下一工序ID: {}, 操作员: {}", currentProcess.getId(), next.getId(), next.getOperatorId());
+    }
+
+    /**
+     * 记录工序操作日志
+     */
+    private void logProcessOperation(Long processId, Long userId, String action, String remark) {
+        try {
+            ProcessOperationLog log = new ProcessOperationLog();
+            log.setProcessId(processId);
+            log.setUserId(userId);
+            log.setAction(action);
+            log.setRemark(remark);
+            log.setCreateTime(LocalDateTime.now());
+            processOperationLogService.save(log);
+        } catch (Exception e) {
+            log.warn("记录工序操作日志失败，processId: {}, userId: {}, action: {}, error: {}", processId, userId, action, e.getMessage());
         }
     }
 
@@ -896,6 +965,8 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         process.setOvertimeReason(overtimeReason);
         updateById(process);
         
+        logProcessOperation(processId, workerId, "OVERTIME_REASON", overtimeReason);
+
         log.info("施工人员填报超时原因成功，工序ID: {}", processId);
     }
 

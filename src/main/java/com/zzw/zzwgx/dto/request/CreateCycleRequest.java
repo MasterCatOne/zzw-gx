@@ -39,6 +39,9 @@ public class CreateCycleRequest {
     
     @Schema(description = "实际进尺（米）", example = "2.3")
     private Double advanceLength;
+
+    @Schema(description = "开挖/开发方式，如：台阶法", example = "台阶法")
+    private String developmentMethod;
     
     @Schema(description = "围岩等级，如：III、IV、V等", example = "III")
     private String rockLevel;
