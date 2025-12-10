@@ -13,6 +13,7 @@ import com.zzw.zzwgx.mapper.UserProjectMapper;
 import com.zzw.zzwgx.service.UserProjectService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -71,8 +72,14 @@ public class UserProjectServiceImpl extends ServiceImpl<UserProjectMapper, UserP
             relation.setProjectId(projectId);
             return relation;
         }).collect(Collectors.toList());
-        
-        saveBatch(relations);
+
+        try {
+            saveBatch(relations);
+        } catch (DuplicateKeyException e) {
+            // 唯一索引冲突：该用户已被分配到该项目
+            throw new BusinessException(ResultCode.USER_PROJECT_SAVE_FAILED.getCode(), "该用户已被分配到该项目");
+        }
+
         log.info("用户项目分配成功，用户ID: {}, 关联数量: {}", userId, relations.size());
     }
     

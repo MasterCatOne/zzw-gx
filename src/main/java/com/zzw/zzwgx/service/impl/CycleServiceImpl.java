@@ -64,7 +64,8 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
     private final ProcessCatalogService processCatalogService;
     private final ProcessService processService;
     private final ResourceLoader resourceLoader;
-    
+
+    private static final BigDecimal PROJECT_START_MILEAGE = new BigDecimal("84000");
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     
     @Override
@@ -1503,26 +1504,25 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         }
         return sb.toString();
     }
-    
     /**
-     * 将里程（米）格式化为"DK84+XXX.X"格式
-     * 基准里程为 DK84+000 = 84000 米
-     * 
-     * @param mileageInMeters 里程（米），可以为实际里程或预估里程
-     * @return 格式化后的里程字符串，如 "DK84+309.6"，如果输入为null则返回空字符串
+     * 将相对里程数（BigDecimal）格式化为"DKX+Y.Z"格式
+     *
+     * @param relativeMileage 相对里程数
+     * @return "DKX+Y.Z"格式的里程数
      */
-    private static String formatMileage(BigDecimal mileageInMeters) {
-        if (mileageInMeters == null) {
-            return "";
-        }
-        // 基准里程：DK84+000 = 84000 米
-        double baseMeters = 84000.0;
-        double totalMeters = mileageInMeters.doubleValue();
-        // 计算相对于基准里程的偏移量
-        double offsetMeters = totalMeters - baseMeters;
-        // 格式化为 DK84+XXX.X
-        return String.format("DK84+%.1f", offsetMeters);
+    public static String formatMileage(BigDecimal relativeMileage) {
+        if (relativeMileage == null) return "";
+
+        // 计算绝对里程
+        BigDecimal abs = PROJECT_START_MILEAGE.add(relativeMileage);
+
+        double meters = abs.doubleValue();
+        int km = (int) (meters / 1000);
+        double rest = meters - km * 1000;
+
+        return String.format("DK%d+%.1f", km, rest);
     }
+
     
     /**
      * 获取循环中"装药爆破"工序的结束时间（响炮时间）
