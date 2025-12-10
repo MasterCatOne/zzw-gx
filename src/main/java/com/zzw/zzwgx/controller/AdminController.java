@@ -2,6 +2,7 @@ package com.zzw.zzwgx.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zzw.zzwgx.common.Result;
+import com.zzw.zzwgx.common.enums.ResultCode;
 import com.zzw.zzwgx.dto.request.CreateCycleRequest;
 import com.zzw.zzwgx.dto.request.CreateProcessRequest;
 import com.zzw.zzwgx.dto.request.CreateProcessTemplateRequest;
@@ -18,11 +19,7 @@ import com.zzw.zzwgx.dto.request.UpdateUserRequest;
 import com.zzw.zzwgx.dto.response.*;
 import com.zzw.zzwgx.entity.ProcessTemplate;
 import com.zzw.zzwgx.entity.User;
-import com.zzw.zzwgx.service.CycleService;
-import com.zzw.zzwgx.service.ProcessCatalogService;
-import com.zzw.zzwgx.service.ProcessService;
-import com.zzw.zzwgx.service.ProjectService;
-import com.zzw.zzwgx.service.UserService;
+import com.zzw.zzwgx.service.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
@@ -47,7 +44,7 @@ public class AdminController {
     private final ProjectService projectService;
     private final CycleService cycleService;
     private final ProcessService processService;
-    private final com.zzw.zzwgx.service.ProcessTemplateService processTemplateService;
+    private final ProcessTemplateService processTemplateService;
     private final ProcessCatalogService processCatalogService;
     private final UserService userService;
     
@@ -251,7 +248,7 @@ public class AdminController {
     public Result<List<ProcessTemplateResponse>> getProcessTemplates(
             @Parameter(description = "模板名称", required = true, example = "标准模板") @RequestParam String templateName) {
         log.info("查询工序模板列表，模板名称: {}", templateName);
-        List<com.zzw.zzwgx.entity.ProcessTemplate> templates = processTemplateService.getTemplatesByName(templateName);
+        List<ProcessTemplate> templates = processTemplateService.getTemplatesByName(templateName);
         List<ProcessTemplateResponse> responses = templates.stream()
                 .map(processTemplateService::convertToResponse)
                 .collect(Collectors.toList());
@@ -265,7 +262,7 @@ public class AdminController {
         log.info("查询工序模板详情，模板ID: {}", templateId);
         ProcessTemplate template = processTemplateService.getById(templateId);
         if (template == null) {
-            return Result.fail(com.zzw.zzwgx.common.enums.ResultCode.TEMPLATE_NOT_FOUND);
+            return Result.fail(ResultCode.TEMPLATE_NOT_FOUND);
         }
         ProcessTemplateResponse response = processTemplateService.convertToResponse(template);
         return Result.success(response);
@@ -294,7 +291,7 @@ public class AdminController {
         log.info("更新工序模板，模板ID: {}", templateId);
         ProcessTemplate template = processTemplateService.getById(templateId);
         if (template == null) {
-            return Result.fail(com.zzw.zzwgx.common.enums.ResultCode.TEMPLATE_NOT_FOUND);
+            return Result.fail(ResultCode.TEMPLATE_NOT_FOUND);
         }
         if (request.getTemplateName() != null) {
             template.setTemplateName(request.getTemplateName());

@@ -9,10 +9,7 @@ import com.zzw.zzwgx.common.exception.BusinessException;
 import com.zzw.zzwgx.dto.request.CreateProcessRequest;
 import com.zzw.zzwgx.dto.request.UpdateProcessOrderRequest;
 import com.zzw.zzwgx.dto.request.UpdateProcessRequest;
-import com.zzw.zzwgx.dto.response.ProcessDetailResponse;
-import com.zzw.zzwgx.dto.response.ProcessResponse;
-import com.zzw.zzwgx.dto.response.StartProcessResponse;
-import com.zzw.zzwgx.dto.response.WorkerProcessListResponse;
+import com.zzw.zzwgx.dto.response.*;
 import com.zzw.zzwgx.entity.Cycle;
 import com.zzw.zzwgx.entity.Process;
 import com.zzw.zzwgx.entity.ProcessCatalog;
@@ -747,7 +744,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
     }
 
     @Override
-    public com.zzw.zzwgx.dto.response.CycleProcessTimeResponse calculateCycleProcessTime(Long cycleId) {
+    public CycleProcessTimeResponse calculateCycleProcessTime(Long cycleId) {
         log.info("计算循环工序总时间，循环ID: {}", cycleId);
         Cycle cycle = cycleMapper.selectById(cycleId);
         if (cycle == null) {
@@ -756,7 +753,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
 
         List<Process> processes = getProcessesByCycleId(cycleId);
         
-        com.zzw.zzwgx.dto.response.CycleProcessTimeResponse response = new com.zzw.zzwgx.dto.response.CycleProcessTimeResponse();
+        CycleProcessTimeResponse response = new CycleProcessTimeResponse();
         response.setCycleId(cycleId);
         response.setCycleNumber(cycle.getCycleNumber());
         response.setTotalProcessCount(processes.size());
@@ -764,14 +761,14 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         // 计算单工序总时间（所有工序实际完成时间的总和，不考虑重叠）
         long totalIndividualTime = 0;
         int completedCount = 0;
-        List<com.zzw.zzwgx.dto.response.CycleProcessTimeResponse.ProcessTimeDetail> details = new ArrayList<>();
+        List<CycleProcessTimeResponse.ProcessTimeDetail> details = new ArrayList<>();
 
         // 收集所有已完成工序的时间段
         List<TimeInterval> intervals = new ArrayList<>();
         
         for (Process process : processes) {
-            com.zzw.zzwgx.dto.response.CycleProcessTimeResponse.ProcessTimeDetail detail = 
-                new com.zzw.zzwgx.dto.response.CycleProcessTimeResponse.ProcessTimeDetail();
+            CycleProcessTimeResponse.ProcessTimeDetail detail =
+                new CycleProcessTimeResponse.ProcessTimeDetail();
             detail.setProcessId(process.getId());
             detail.setProcessName(process.getProcessName());
             detail.setActualStartTime(process.getActualStartTime());
@@ -903,7 +900,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
     }
 
     @Override
-    public Page<com.zzw.zzwgx.dto.response.OvertimeProcessResponse> getOvertimeProcessesWithoutReason(
+    public Page<OvertimeProcessResponse> getOvertimeProcessesWithoutReason(
             Integer pageNum, Integer pageSize, String projectName) {
         log.info("查询超时未填报原因的工序列表，页码: {}, 大小: {}, 工点名称: {}", pageNum, pageSize, projectName);
         
@@ -956,7 +953,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
                 .collect(Collectors.toMap(User::getId, u -> u));
         
         // 构建响应列表
-        List<com.zzw.zzwgx.dto.response.OvertimeProcessResponse> result = new ArrayList<>();
+        List<OvertimeProcessResponse> result = new ArrayList<>();
         for (Process process : processes) {
             Cycle cycle = cycleMap.get(process.getCycleId());
             if (cycle == null) {
@@ -981,7 +978,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
                 }
             }
             
-            com.zzw.zzwgx.dto.response.OvertimeProcessResponse response = new com.zzw.zzwgx.dto.response.OvertimeProcessResponse();
+            OvertimeProcessResponse response = new OvertimeProcessResponse();
             response.setProcessId(process.getId());
             response.setProcessName(process.getProcessName());
             response.setProjectName(project.getProjectName());
@@ -1002,7 +999,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             result.add(response);
         }
         
-        Page<com.zzw.zzwgx.dto.response.OvertimeProcessResponse> resultPage = new Page<>(pageNum, pageSize, result.size());
+        Page<OvertimeProcessResponse> resultPage = new Page<>(pageNum, pageSize, result.size());
         resultPage.setRecords(result);
         
         log.info("查询超时未填报原因的工序列表完成，找到 {} 条记录", result.size());

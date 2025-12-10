@@ -301,6 +301,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             process.setAdvanceLength(BigDecimal.ZERO);
             // 记录工序来源模板ID
             process.setTemplateId(processTemplate.getId());
+            process.setOperatorId(null);
             processService.save(process);
             log.debug("根据模板创建工序成功，工序名称: {}, 顺序: {}, 模板ID: {}", process.getProcessName(), processTemplate.getDefaultOrder(), processTemplate.getId());
         }
@@ -326,36 +327,41 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         
         // 获取上循环信息
         Cycle lastCycle = getCycleByProjectAndNumber(cycle.getProjectId(), cycle.getCycleNumber() - 1);
-        LocalDateTime lastCycleEnd = lastCycle != null ? lastCycle.getEndDate() : null;
-        Integer lastControlMinutes = lastCycle != null ? lastCycle.getControlDuration() : null;
+        // 上循环响炮时间 = 上循环中"装药爆破"工序的结束时间
+        LocalDateTime lastCycleBlastTime = lastCycle != null ? getBlastTimeByCycleId(lastCycle.getId()) : null;
+        
+        // 获取本循环响炮时间 = 本循环中"装药爆破"工序的结束时间
+        LocalDateTime currentCycleBlastTime = getBlastTimeByCycleId(cycleId);
         
         // 计算预测时间
-        LocalDateTime predictedNextByControl = null; // 本循环开始时间+控制标准=预测下循环响炮时间
-        if (start != null && controlMinutes != null) {
-            predictedNextByControl = start.plusMinutes(controlMinutes);
+        LocalDateTime predictedNextByControl = null; // 本循环响炮时间+控制标准=预测下循环响炮时间
+        if (currentCycleBlastTime != null && controlMinutes != null) {
+            predictedNextByControl = currentCycleBlastTime.plusMinutes(controlMinutes);
         }
         
-        LocalDateTime predictedNextByInterval = null; // 本循环结束时间+控制标准=下循环响炮时间（按间隔）
-        if (end != null && controlMinutes != null) {
-            predictedNextByInterval = end.plusMinutes(controlMinutes);
+        LocalDateTime predictedNextByInterval = null; // 本循环响炮时间+本循环从响炮到结束的实际耗时=预测下循环响炮时间（按间隔）
+        if (currentCycleBlastTime != null && end != null) {
+            // 计算本循环从响炮到结束的实际耗时（分钟）
+            long blastToEndMinutes = Duration.between(currentCycleBlastTime, end).toMinutes();
+            predictedNextByInterval = currentCycleBlastTime.plusMinutes(blastToEndMinutes);
         }
         
-        // 本循环理论响炮时间 = 上循环响炮时间 + 上循环控制标准
+        // 本循环理论响炮时间 = 上循环响炮时间 + 本循环控制标准
         LocalDateTime theoreticalBlastTime = null;
-        if (lastCycleEnd != null && lastControlMinutes != null) {
-            theoreticalBlastTime = lastCycleEnd.plusMinutes(lastControlMinutes);
+        if (lastCycleBlastTime != null && controlMinutes != null) {
+            theoreticalBlastTime = lastCycleBlastTime.plusMinutes(controlMinutes);
         }
         
-        // 响炮超时 = 本循环开始时间 - 本循环理论响炮时间（分钟）
+        // 响炮超时 = 本循环响炮时间 - 本循环理论响炮时间（分钟）
         Long blastOvertimeMinutes = null;
-        if (start != null && theoreticalBlastTime != null) {
-            blastOvertimeMinutes = Duration.between(theoreticalBlastTime, start).toMinutes();
+        if (currentCycleBlastTime != null && theoreticalBlastTime != null) {
+            blastOvertimeMinutes = Duration.between(theoreticalBlastTime, currentCycleBlastTime).toMinutes();
         }
         
-        // 两循环响炮时间差 = 本循环开始时间 - 上循环开始时间（分钟）
+        // 两循环响炮时间差 = 本循环响炮时间 - 上循环响炮时间（分钟）
         Long cycleBlastDiffMinutes = null;
-        if (start != null && lastCycle != null && lastCycle.getStartDate() != null) {
-            cycleBlastDiffMinutes = Duration.between(lastCycle.getStartDate(), start).toMinutes();
+        if (currentCycleBlastTime != null && lastCycleBlastTime != null) {
+            cycleBlastDiffMinutes = Duration.between(lastCycleBlastTime, currentCycleBlastTime).toMinutes();
         }
         
         // 获取工序列表
@@ -385,17 +391,24 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             cellValues.put("O2", TemplateCellValue.number(cycle.getCycleNumber())); // 本月循环数（O2,P2合并）
             
             // 第3行
-            cellValues.put("C3", TemplateCellValue.string("100.5")); // 掌子面里程（默认值）
-            cellValues.put("F3", TemplateCellValue.string(cycle.getRockLevel())); // 围岩等级（F3,G3,H3合并）
+            // 掌子面里程：优先使用实际里程，其次预估里程，都没有则不填
+            String mileage = "";
+            if (cycle.getActualMileage() != null) {
+                mileage = formatMileage(cycle.getActualMileage());
+            } else if (cycle.getEstimatedMileage() != null) {
+                mileage = formatMileage(cycle.getEstimatedMileage());
+            }
+            cellValues.put("C3", TemplateCellValue.string(mileage)); // 掌子面里程
+            cellValues.put("F3", TemplateCellValue.string(RockLevel.LEVEL_I.getCode())); // 围岩等级（F3,G3,H3合并）
             cellValues.put("K3", TemplateCellValue.string(cycle.getAdvanceLength() != null ? cycle.getAdvanceLength().toPlainString() : "")); // 进尺（K3,L3合并）
             cellValues.put("O3", TemplateCellValue.string("台阶法")); // 开发方式（O3,P3合并，固定值）
             
             // 第4行
             // 精确到秒，直接填充字符串
-            cellValues.put("C4", TemplateCellValue.string(formatDateTime(lastCycleEnd))); // 上循环响炮时间
+            cellValues.put("C4", TemplateCellValue.string(formatDateTime(lastCycleBlastTime))); // 上循环响炮时间
             cellValues.put("F4", TemplateCellValue.string(formatDateTime(theoreticalBlastTime))); // 本循环理论响炮时间（F4,G4,H4合并）
             // K4、L4：响炮超时（合并单元格），如果没有响炮时间则显示"数据缺失"，否则显示"X天X小时X分钟"
-            if (start == null) {
+            if (currentCycleBlastTime == null) {
                 cellValues.put("K4", TemplateCellValue.string("数据缺失"));
             } else if (blastOvertimeMinutes != null) {
                 cellValues.put("K4", TemplateCellValue.string(formatDaysHoursMinutes(blastOvertimeMinutes)));
@@ -406,10 +419,10 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             cellValues.put("O4", TemplateCellValue.string(formatMinutesFromLong(cycleBlastDiffMinutes))); // 两循环响炮时间差（X小时Y分钟，O4,P4合并）
             
             // 第5行
-            cellValues.put("C5", TemplateCellValue.date(start, true)); // 循环开始时间（年月+时分）
             // 需要精确到秒，直接填充为字符串
+            cellValues.put("C5", TemplateCellValue.string(formatDateTime(currentCycleBlastTime))); // 循环实际响炮时间（装药爆破结束时间）
             cellValues.put("F5", TemplateCellValue.string(formatDateTime(predictedNextByControl))); // 预测下循环响炮时间（按控制标准，F5,G5,H5合并）
-            cellValues.put("K5", TemplateCellValue.string(formatDateTime(predictedNextByInterval))); // 下循环响炮时间（按间隔，K5到P5合并）
+            cellValues.put("K5", TemplateCellValue.string(formatDateTime(predictedNextByInterval))); // 预测下循环响炮时间（按间隔，K5到P5合并）
             
             String fileName = projectName + "-循环报表.xlsx";
             response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
@@ -421,7 +434,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                          .withTemplate(templateFile)
                          .inMemory(true) // 使用内存模式，避免 SXSSF 对已存在行的限制
                          .autoCloseStream(false)
-                         .registerWriteHandler(new TemplateCellWriteHandler(cellValues, processes, cycle))
+                         .registerWriteHandler(new TemplateCellWriteHandler(cellValues, processes))
                          .build()) {
                 WriteSheet sheet = EasyExcel.writerSheet(0).build();
                 // 写入空数据以触发模板和处理器
@@ -461,36 +474,41 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         
         // 获取上循环信息
         Cycle lastCycle = getCycleByProjectAndNumber(cycle.getProjectId(), cycle.getCycleNumber() - 1);
-        LocalDateTime lastCycleEnd = lastCycle != null ? lastCycle.getEndDate() : null;
-        Integer lastControlMinutes = lastCycle != null ? lastCycle.getControlDuration() : null;
+        // 上循环响炮时间 = 上循环中"装药爆破"工序的结束时间
+        LocalDateTime lastCycleBlastTime = lastCycle != null ? getBlastTimeByCycleId(lastCycle.getId()) : null;
+        
+        // 获取本循环响炮时间 = 本循环中"装药爆破"工序的结束时间
+        LocalDateTime currentCycleBlastTime = getBlastTimeByCycleId(cycleId);
         
         // 计算预测时间
-        LocalDateTime predictedNextByControl = null;
-        if (start != null && controlMinutes != null) {
-            predictedNextByControl = start.plusMinutes(controlMinutes);
+        LocalDateTime predictedNextByControl = null; // 本循环响炮时间+控制标准=预测下循环响炮时间
+        if (currentCycleBlastTime != null && controlMinutes != null) {
+            predictedNextByControl = currentCycleBlastTime.plusMinutes(controlMinutes);
         }
         
-        LocalDateTime predictedNextByInterval = null;
-        if (end != null && controlMinutes != null) {
-            predictedNextByInterval = end.plusMinutes(controlMinutes);
+        LocalDateTime predictedNextByInterval = null; // 本循环响炮时间+本循环从响炮到结束的实际耗时=预测下循环响炮时间（按间隔）
+        if (currentCycleBlastTime != null && end != null) {
+            // 计算本循环从响炮到结束的实际耗时（分钟）
+            long blastToEndMinutes = Duration.between(currentCycleBlastTime, end).toMinutes();
+            predictedNextByInterval = currentCycleBlastTime.plusMinutes(blastToEndMinutes);
         }
         
-        // 本循环理论响炮时间 = 上循环响炮时间 + 上循环控制标准
+        // 本循环理论响炮时间 = 上循环响炮时间 + 本循环控制标准
         LocalDateTime theoreticalBlastTime = null;
-        if (lastCycleEnd != null && lastControlMinutes != null) {
-            theoreticalBlastTime = lastCycleEnd.plusMinutes(lastControlMinutes);
+        if (lastCycleBlastTime != null && controlMinutes != null) {
+            theoreticalBlastTime = lastCycleBlastTime.plusMinutes(controlMinutes);
         }
         
-        // 响炮超时 = 本循环开始时间 - 本循环理论响炮时间（分钟）
+        // 响炮超时 = 本循环响炮时间 - 本循环理论响炮时间（分钟）
         Long blastOvertimeMinutes = null;
-        if (start != null && theoreticalBlastTime != null) {
-            blastOvertimeMinutes = Duration.between(theoreticalBlastTime, start).toMinutes();
+        if (currentCycleBlastTime != null && theoreticalBlastTime != null) {
+            blastOvertimeMinutes = Duration.between(theoreticalBlastTime, currentCycleBlastTime).toMinutes();
         }
         
-        // 两循环响炮时间差 = 本循环开始时间 - 上循环开始时间（分钟）
+        // 两循环响炮时间差 = 本循环响炮时间 - 上循环响炮时间（分钟）
         Long cycleBlastDiffMinutes = null;
-        if (start != null && lastCycle != null && lastCycle.getStartDate() != null) {
-            cycleBlastDiffMinutes = Duration.between(lastCycle.getStartDate(), start).toMinutes();
+        if (currentCycleBlastTime != null && lastCycleBlastTime != null) {
+            cycleBlastDiffMinutes = Duration.between(lastCycleBlastTime, currentCycleBlastTime).toMinutes();
         }
         
         // 获取工序列表
@@ -511,7 +529,14 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         
         // 第3行数据
         CycleReportDataResponse.Row3Data row3 = new CycleReportDataResponse.Row3Data();
-        row3.setMileage("100.5");
+        // 掌子面里程：优先使用实际里程，其次预估里程，都没有则不填
+        String mileage = "";
+        if (cycle.getActualMileage() != null) {
+            mileage = formatMileage(cycle.getActualMileage());
+        } else if (cycle.getEstimatedMileage() != null) {
+            mileage = formatMileage(cycle.getEstimatedMileage());
+        }
+        row3.setMileage(mileage);
         row3.setRockLevel(cycle.getRockLevel());
         row3.setAdvanceLength(cycle.getAdvanceLength() != null ? cycle.getAdvanceLength().toPlainString() : "");
         row3.setDevelopmentMethod("台阶法");
@@ -519,9 +544,9 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         
         // 第4行数据
         CycleReportDataResponse.Row4Data row4 = new CycleReportDataResponse.Row4Data();
-        row4.setLastCycleBlastTime(formatDateTime(lastCycleEnd));
+        row4.setLastCycleBlastTime(formatDateTime(lastCycleBlastTime));
         row4.setTheoreticalBlastTime(formatDateTime(theoreticalBlastTime));
-        if (start == null) {
+        if (currentCycleBlastTime == null) {
             row4.setBlastOvertime("数据缺失");
         } else if (blastOvertimeMinutes != null) {
             row4.setBlastOvertime(formatDaysHoursMinutes(blastOvertimeMinutes));
@@ -534,7 +559,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         
         // 第5行数据
         CycleReportDataResponse.Row5Data row5 = new CycleReportDataResponse.Row5Data();
-        row5.setCycleStartTime(start);
+        row5.setCycleStartTime(currentCycleBlastTime); // 循环实际响炮时间（装药爆破结束时间）
         row5.setPredictedNextBlastTimeByControl(formatDateTime(predictedNextByControl));
         row5.setPredictedNextBlastTimeByInterval(formatDateTime(predictedNextByInterval));
         response.setRow5(row5);
@@ -561,7 +586,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             LocalDateTime startTime = process.getActualStartTime() != null ? 
                     process.getActualStartTime() : process.getEstimatedStartTime();
             if (startTime != null) {
-                processRow.setStartYearMonth(startTime.format(DateTimeFormatter.ofPattern("yyyy-MM")));
+                processRow.setStartYearMonth(startTime.format(DateTimeFormatter.ofPattern("MM月dd日")));
                 processRow.setStartTime(startTime.format(DateTimeFormatter.ofPattern("HH:mm")));
             }
             
@@ -569,7 +594,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             LocalDateTime endTime = process.getActualEndTime() != null ? 
                     process.getActualEndTime() : process.getEstimatedEndTime();
             if (endTime != null) {
-                processRow.setEndYearMonth(endTime.format(DateTimeFormatter.ofPattern("yyyy-MM")));
+                processRow.setEndYearMonth(endTime.format(DateTimeFormatter.ofPattern("MM月dd日")));
                 processRow.setEndTime(endTime.format(DateTimeFormatter.ofPattern("HH:mm")));
             }
             
@@ -602,7 +627,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             }
             
             // N列：情况说明（暂时为空）
-            processRow.setDescription("");
+            processRow.setDescription(process.getOvertimeReason());
             
             // O列：工序状态
             processRow.setStatus(getStatusDesc(process.getProcessStatus()));
@@ -750,12 +775,10 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         
         private final Map<String, TemplateCellValue> cellValues;
         private final List<Process> processes;
-        private final Cycle cycle;
         
-        TemplateCellWriteHandler(Map<String, TemplateCellValue> cellValues, List<Process> processes, Cycle cycle) {
+        TemplateCellWriteHandler(Map<String, TemplateCellValue> cellValues, List<Process> processes) {
             this.cellValues = cellValues;
             this.processes = processes;
-            this.cycle = cycle;
         }
         
         @Override
@@ -940,11 +963,11 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                 String processNameWithNumber = (i + 1) + "." + process.getProcessName();
                 setCellValueWithFormat(row, 0, processNameWithNumber, templateFormatRow, 0);
                 
-                // C列：当前工序开始的年月
+                // C列：当前工序开始的月日
                 LocalDateTime startTime = process.getActualStartTime() != null ? 
                         process.getActualStartTime() : process.getEstimatedStartTime();
                 if (startTime != null) {
-                    setCellValueWithFormat(row, 2, startTime.format(DateTimeFormatter.ofPattern("yyyy-MM")), templateFormatRow, 2);
+                    setCellValueWithFormat(row, 2, startTime.format(DateTimeFormatter.ofPattern("MM月dd日")), templateFormatRow, 2);
                 } else {
                     // 即使值为空，也应用格式
                     applyCellFormat(row, 2, templateFormatRow, 2);
@@ -957,11 +980,11 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                     applyCellFormat(row, 3, templateFormatRow, 3);
                 }
                 
-                // E列：当前工序结束的年月
+                // E列：当前工序结束的月日
                 LocalDateTime endTime = process.getActualEndTime() != null ? 
                         process.getActualEndTime() : process.getEstimatedEndTime();
                 if (endTime != null) {
-                    setCellValueWithFormat(row, 4, endTime.format(DateTimeFormatter.ofPattern("yyyy-MM")), templateFormatRow, 4);
+                    setCellValueWithFormat(row, 4, endTime.format(DateTimeFormatter.ofPattern("MM月dd日")), templateFormatRow, 4);
                 } else {
                     applyCellFormat(row, 4, templateFormatRow, 4);
                 }
@@ -1035,8 +1058,13 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                     applyCellFormat(row, 10, templateFormatRow, 10);
                 }
                 
-                // N列：情况说明（即使为空也应用格式）
-                applyCellFormat(row, 13, templateFormatRow, 13);
+                // N列：情况说明（超时原因）
+                String overtimeReason = process.getOvertimeReason();
+                if (overtimeReason != null && !overtimeReason.isBlank()) {
+                    setCellValueWithFormat(row, 13, overtimeReason, templateFormatRow, 13);
+                } else {
+                    applyCellFormat(row, 13, templateFormatRow, 13);
+                }
                 
                 // O列：工序状态
                 String statusDesc = getStatusDesc(process.getProcessStatus());
@@ -1445,6 +1473,52 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             sb.append("0分钟");
         }
         return sb.toString();
+    }
+    
+    /**
+     * 将里程（米）格式化为"DK84+XXX.X"格式
+     * 基准里程为 DK84+000 = 84000 米
+     * 
+     * @param mileageInMeters 里程（米），可以为实际里程或预估里程
+     * @return 格式化后的里程字符串，如 "DK84+309.6"，如果输入为null则返回空字符串
+     */
+    private static String formatMileage(BigDecimal mileageInMeters) {
+        if (mileageInMeters == null) {
+            return "";
+        }
+        // 基准里程：DK84+000 = 84000 米
+        double baseMeters = 84000.0;
+        double totalMeters = mileageInMeters.doubleValue();
+        // 计算相对于基准里程的偏移量
+        double offsetMeters = totalMeters - baseMeters;
+        // 格式化为 DK84+XXX.X
+        return String.format("DK84+%.1f", offsetMeters);
+    }
+    
+    /**
+     * 获取循环中"装药爆破"工序的结束时间（响炮时间）
+     * 优先使用实际结束时间，其次使用预计结束时间
+     * 
+     * @param cycleId 循环ID
+     * @return 装药爆破工序的结束时间，如果未找到该工序则返回null
+     */
+    private LocalDateTime getBlastTimeByCycleId(Long cycleId) {
+        if (cycleId == null) {
+            return null;
+        }
+        List<Process> processes = processService.getProcessesByCycleId(cycleId);
+        for (Process process : processes) {
+            // 查找工序名称为"装药爆破"的工序
+            if ("装药爆破".equals(process.getProcessName())) {
+                // 优先使用实际结束时间，其次使用预计结束时间
+                if (process.getActualEndTime() != null) {
+                    return process.getActualEndTime();
+                } else if (process.getEstimatedEndTime() != null) {
+                    return process.getEstimatedEndTime();
+                }
+            }
+        }
+        return null;
     }
     
     /**

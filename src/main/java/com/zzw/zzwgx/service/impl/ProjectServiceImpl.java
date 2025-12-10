@@ -16,6 +16,7 @@ import com.zzw.zzwgx.dto.response.SiteConstructionStatusResponse;
 import com.zzw.zzwgx.entity.Cycle;
 import com.zzw.zzwgx.entity.Process;
 import com.zzw.zzwgx.entity.Project;
+import com.zzw.zzwgx.entity.User;
 import com.zzw.zzwgx.mapper.ProjectMapper;
 import com.zzw.zzwgx.service.CycleService;
 import com.zzw.zzwgx.security.SecurityUtils;
@@ -672,7 +673,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
             
             // 获取操作员姓名
             if (currentProcess.getOperatorId() != null) {
-                com.zzw.zzwgx.entity.User operator = userService.getById(currentProcess.getOperatorId());
+                User operator = userService.getById(currentProcess.getOperatorId());
                 if (operator != null) {
                     currentInfo.setOperatorName(operator.getRealName());
                 }
@@ -735,7 +736,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
                     
                     // 获取操作员姓名
                     if (process.getOperatorId() != null) {
-                        com.zzw.zzwgx.entity.User operator = userService.getById(process.getOperatorId());
+                        User operator = userService.getById(process.getOperatorId());
                         if (operator != null) {
                             info.setOperatorName(operator.getRealName());
                         }
