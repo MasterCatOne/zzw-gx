@@ -23,6 +23,9 @@ public class CreateProcessRequest {
     
     @Schema(description = "预计开始时间", example = "2024-01-01T08:00:00")
     private LocalDateTime estimatedStartTime;
+
+    @Schema(description = "实际开始时间（可选，立即开工接口必填）", example = "2024-01-01T08:05:00")
+    private LocalDateTime actualStartTime;
     
     @Schema(description = "施工人员用户ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "3")
     @NotNull(message = "施工人员ID不能为空")

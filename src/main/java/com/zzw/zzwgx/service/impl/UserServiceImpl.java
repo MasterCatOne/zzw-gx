@@ -262,6 +262,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             response.setId(user.getId());
             response.setUsername(user.getUsername());
             response.setRealName(user.getRealName());
+            response.setIdCard(user.getIdCard());
+            response.setPhone(user.getPhone());
+            response.setRoles(getUserRoleCodes(user.getId()));
+            response.setStatus(user.getStatus());
+            response.setCreateTime(user.getCreateTime());
+            response.setUpdateTime(user.getUpdateTime());
             return response;
         }).collect(Collectors.toList());
         

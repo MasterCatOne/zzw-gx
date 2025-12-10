@@ -116,6 +116,69 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
 
         return buildProcessResponse(process);
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ProcessResponse createProcessAndStart(CreateProcessRequest request) {
+        log.info("创建并立即开工工序，循环ID: {}, 施工人员ID: {}", request.getCycleId(), request.getWorkerId());
+
+        if (request.getActualStartTime() == null) {
+            throw new BusinessException("实际开始时间不能为空");
+        }
+
+        // 验证循环是否存在
+        Cycle cycle = cycleMapper.selectById(request.getCycleId());
+        if (cycle == null) {
+            log.error("创建工序失败，循环不存在，循环ID: {}", request.getCycleId());
+            throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
+        }
+
+        Process process = new Process();
+        process.setCycleId(request.getCycleId());
+        process.setProcessStatus(ProcessStatus.IN_PROGRESS.getCode());
+        process.setOperatorId(request.getWorkerId());
+        process.setStartOrder(request.getStartOrder());
+        process.setAdvanceLength(java.math.BigDecimal.ZERO);
+
+        // 根据工序字典ID获取工序信息
+        if (request.getProcessCatalogId() == null) {
+            throw new BusinessException("工序字典ID不能为空");
+        }
+
+        ProcessCatalog catalog = processCatalogService.getById(request.getProcessCatalogId());
+        if (catalog == null) {
+            log.error("创建工序失败，工序字典不存在，工序字典ID: {}", request.getProcessCatalogId());
+            throw new BusinessException("工序字典不存在，工序字典ID: " + request.getProcessCatalogId());
+        }
+
+        process.setProcessName(catalog.getProcessName());
+        process.setProcessCatalogId(request.getProcessCatalogId());
+        process.setTemplateId(null);
+
+        if (request.getControlTime() == null) {
+            throw new BusinessException("控制时长不能为空");
+        }
+        process.setControlTime(request.getControlTime());
+
+        // 设置实际开始时间为必填
+        process.setActualStartTime(request.getActualStartTime());
+
+        // 预计开始时间为空时，默认等于实际开始时间
+        LocalDateTime estimatedStart = request.getEstimatedStartTime() != null
+                ? request.getEstimatedStartTime()
+                : request.getActualStartTime();
+        process.setEstimatedStartTime(estimatedStart);
+
+        if (estimatedStart != null && request.getControlTime() != null) {
+            process.setEstimatedEndTime(estimatedStart.plusMinutes(request.getControlTime()));
+            log.debug("自动计算预计结束时间（立即开工），开始时间: {}, 控制时长: {}分钟, 预计结束时间: {}",
+                    estimatedStart, request.getControlTime(), process.getEstimatedEndTime());
+        }
+
+        save(process);
+        log.info("工序创建并开工成功，工序ID: {}, 工序名称: {}", process.getId(), process.getProcessName());
+        return buildProcessResponse(process);
+    }
     
     @Override
     public List<Process> getProcessesByCycleId(Long cycleId) {

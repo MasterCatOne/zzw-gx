@@ -21,6 +21,11 @@ public interface ProcessService extends IService<Process> {
      * 创建工序
      */
     ProcessResponse createProcess(CreateProcessRequest request);
+
+    /**
+     * 创建并立即开工的工序（状态为进行中，必填实际开始时间）
+     */
+    ProcessResponse createProcessAndStart(CreateProcessRequest request);
     
     /**
      * 根据循环ID获取工序列表

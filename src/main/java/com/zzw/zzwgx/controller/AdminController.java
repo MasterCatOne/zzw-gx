@@ -1,6 +1,5 @@
 package com.zzw.zzwgx.controller;
 
-import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zzw.zzwgx.common.Result;
 import com.zzw.zzwgx.dto.request.CreateCycleRequest;
@@ -17,6 +16,7 @@ import com.zzw.zzwgx.dto.request.UpdateProcessTemplateRequest;
 import com.zzw.zzwgx.dto.request.UpdateCycleRequest;
 import com.zzw.zzwgx.dto.request.UpdateUserRequest;
 import com.zzw.zzwgx.dto.response.*;
+import com.zzw.zzwgx.entity.ProcessTemplate;
 import com.zzw.zzwgx.entity.User;
 import com.zzw.zzwgx.service.CycleService;
 import com.zzw.zzwgx.service.ProcessCatalogService;
@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 管理员控制器
@@ -154,12 +155,21 @@ public class AdminController {
         return Result.success(response);
     }
     
-    @Operation(summary = "新建工序", description = "为指定循环创建新工序。需要指定工序字典ID（从工序字典表中选择工序），工序名称会自动从工序字典中获取。控制时长需要用户输入。", tags = {"管理员管理-工序管理"})
-    @PostMapping("/processes")
-    public Result<ProcessResponse> createProcess(@Valid @RequestBody CreateProcessRequest request) {
-        log.info("创建新工序，循环ID: {}, 工序字典ID: {}, 施工人员ID: {}, 控制时长: {}", 
-                request.getCycleId(), request.getProcessCatalogId(), request.getWorkerId(), request.getControlTime());
-        ProcessResponse response = processService.createProcess(request);
+//    @Operation(summary = "新建工序", description = "为指定循环创建新工序。需要指定工序字典ID（从工序字典表中选择工序），工序名称会自动从工序字典中获取。控制时长需要用户输入。", tags = {"管理员管理-工序管理"})
+//    @PostMapping("/processes")
+//    public Result<ProcessResponse> createProcess(@Valid @RequestBody CreateProcessRequest request) {
+//        log.info("创建新工序，循环ID: {}, 工序字典ID: {}, 施工人员ID: {}, 控制时长: {}",
+//                request.getCycleId(), request.getProcessCatalogId(), request.getWorkerId(), request.getControlTime());
+//        ProcessResponse response = processService.createProcess(request);
+//        return Result.success(response);
+//    }
+
+    @Operation(summary = "新建并开工工序", description = "为指定循环创建工序且状态直接为进行中，需填写实际开始时间；会根据实际/预计开始时间与控制时长计算预计结束时间。", tags = {"管理员管理-工序管理"})
+    @PostMapping("/processes/start-now")
+    public Result<ProcessResponse> createProcessAndStart(@Valid @RequestBody CreateProcessRequest request) {
+        log.info("创建并开工工序，循环ID: {}, 工序字典ID: {}, 施工人员ID: {}, 控制时长: {}, 实际开始时间: {}",
+                request.getCycleId(), request.getProcessCatalogId(), request.getWorkerId(), request.getControlTime(), request.getActualStartTime());
+        ProcessResponse response = processService.createProcessAndStart(request);
         return Result.success(response);
     }
     
@@ -238,13 +248,13 @@ public class AdminController {
     
     @Operation(summary = "根据模板名称获取工序模板列表", description = "根据模板名称查询该模板下的所有工序定义，按默认顺序排序。", tags = {"管理员管理-工序模板管理"})
     @GetMapping("/process-templates")
-    public Result<java.util.List<ProcessTemplateResponse>> getProcessTemplates(
+    public Result<List<ProcessTemplateResponse>> getProcessTemplates(
             @Parameter(description = "模板名称", required = true, example = "标准模板") @RequestParam String templateName) {
         log.info("查询工序模板列表，模板名称: {}", templateName);
-        java.util.List<com.zzw.zzwgx.entity.ProcessTemplate> templates = processTemplateService.getTemplatesByName(templateName);
-        java.util.List<ProcessTemplateResponse> responses = templates.stream()
+        List<com.zzw.zzwgx.entity.ProcessTemplate> templates = processTemplateService.getTemplatesByName(templateName);
+        List<ProcessTemplateResponse> responses = templates.stream()
                 .map(processTemplateService::convertToResponse)
-                .collect(java.util.stream.Collectors.toList());
+                .collect(Collectors.toList());
         return Result.success(responses);
     }
     
@@ -253,7 +263,7 @@ public class AdminController {
     public Result<ProcessTemplateResponse> getProcessTemplateDetail(
             @Parameter(description = "模板ID", required = true, example = "1") @PathVariable Long templateId) {
         log.info("查询工序模板详情，模板ID: {}", templateId);
-        com.zzw.zzwgx.entity.ProcessTemplate template = processTemplateService.getById(templateId);
+        ProcessTemplate template = processTemplateService.getById(templateId);
         if (template == null) {
             return Result.fail(com.zzw.zzwgx.common.enums.ResultCode.TEMPLATE_NOT_FOUND);
         }
@@ -265,7 +275,7 @@ public class AdminController {
     @PostMapping("/process-templates")
     public Result<ProcessTemplateResponse> createProcessTemplate(@Valid @RequestBody CreateProcessTemplateRequest request) {
         log.info("创建工序模板，模板名称: {}, 工序名称: {}", request.getTemplateName(), request.getProcessName());
-        com.zzw.zzwgx.entity.ProcessTemplate template = new com.zzw.zzwgx.entity.ProcessTemplate();
+        ProcessTemplate template = new ProcessTemplate();
         template.setTemplateName(request.getTemplateName());
         template.setProcessName(request.getProcessName());
         template.setControlTime(request.getControlTime());
@@ -282,7 +292,7 @@ public class AdminController {
             @Parameter(description = "模板ID", required = true, example = "1") @PathVariable Long templateId,
             @Valid @RequestBody UpdateProcessTemplateRequest request) {
         log.info("更新工序模板，模板ID: {}", templateId);
-        com.zzw.zzwgx.entity.ProcessTemplate template = processTemplateService.getById(templateId);
+        ProcessTemplate template = processTemplateService.getById(templateId);
         if (template == null) {
             return Result.fail(com.zzw.zzwgx.common.enums.ResultCode.TEMPLATE_NOT_FOUND);
         }
@@ -322,10 +332,10 @@ public class AdminController {
     
     @Operation(summary = "获取施工人员列表", description = "供项目管理员选择施工人员使用，只返回角色为WORKER的用户，可按用户名或姓名模糊搜索，可选按项目过滤。", tags = {"管理员管理-用户管理"})
     @GetMapping("/workers")
-    public Result<java.util.List<UserViewListResponse>> listWorkers(
+    public Result<List<UserViewListResponse>> listWorkers(
             @Parameter(description = "项目ID（可选，传入则仅返回该项目已有参与记录的施工人员）", example = "7") @RequestParam(required = false) Long projectId,
             @Parameter(description = "用户名或姓名关键词", example = "张") @RequestParam(required = false) String keyword) {
-        java.util.List<UserViewListResponse> workers = userService.listWorkers(projectId, keyword);
+        List<UserViewListResponse> workers = userService.listWorkers(projectId, keyword);
         return Result.success(workers);
     }
     
@@ -356,7 +366,7 @@ public class AdminController {
             @Parameter(description = "用户ID", required = true, example = "1") @PathVariable Long userId,
             @Valid @RequestBody UpdateUserRequest request) {
         log.info("管理员修改用户账号，用户ID: {}", userId);
-        com.zzw.zzwgx.entity.User user = userService.updateUser(userId, request);
+        User user = userService.updateUser(userId, request);
         
         // 转换为响应DTO
         UserListResponse response = new UserListResponse();
@@ -375,9 +385,9 @@ public class AdminController {
     
     @Operation(summary = "获取工序字典列表", description = "获取所有工序字典列表，按显示顺序排序。用于管理员查看和管理所有可用的工序。", tags = {"管理员管理-工序字典管理"})
     @GetMapping("/process-catalogs")
-    public Result<java.util.List<ProcessCatalogResponse>> getProcessCatalogs() {
+    public Result<List<ProcessCatalogResponse>> getProcessCatalogs() {
         log.info("查询工序字典列表");
-        java.util.List<ProcessCatalogResponse> catalogs = processCatalogService.getAllProcessCatalogs();
+        List<ProcessCatalogResponse> catalogs = processCatalogService.getAllProcessCatalogs();
         return Result.success(catalogs);
     }
     
