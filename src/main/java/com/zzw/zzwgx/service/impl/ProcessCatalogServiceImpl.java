@@ -81,6 +81,7 @@ public class ProcessCatalogServiceImpl extends ServiceImpl<ProcessCatalogMapper,
         catalog.setProcessName(request.getProcessName());
         catalog.setProcessCode(request.getProcessCode());
         catalog.setDescription(request.getDescription());
+        catalog.setCategory(request.getCategory());
         catalog.setDisplayOrder(displayOrder);
         catalog.setStatus(request.getStatus() != null ? request.getStatus() : 1);
         
@@ -130,6 +131,9 @@ public class ProcessCatalogServiceImpl extends ServiceImpl<ProcessCatalogMapper,
         if (StringUtils.hasText(request.getDescription())) {
             catalog.setDescription(request.getDescription());
         }
+        if (StringUtils.hasText(request.getCategory())) {
+            catalog.setCategory(request.getCategory());
+        }
         if (request.getDisplayOrder() != null) {
             catalog.setDisplayOrder(request.getDisplayOrder());
         }
@@ -168,6 +172,7 @@ public class ProcessCatalogServiceImpl extends ServiceImpl<ProcessCatalogMapper,
         ProcessCatalogResponse response = new ProcessCatalogResponse();
         response.setId(catalog.getId());
         response.setProcessName(catalog.getProcessName());
+        response.setCategory(catalog.getCategory());
 //        response.setProcessCode(catalog.getProcessCode());
 //        response.setDescription(catalog.getDescription());
 //        response.setDisplayOrder(catalog.getDisplayOrder());

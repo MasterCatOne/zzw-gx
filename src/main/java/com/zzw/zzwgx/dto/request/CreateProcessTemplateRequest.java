@@ -16,8 +16,11 @@ public class CreateProcessTemplateRequest {
     @NotBlank(message = "模板名称不能为空")
     private String templateName;
     
-    @Schema(description = "工序名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "扒渣（平整场地）")
-    @NotBlank(message = "工序名称不能为空")
+    @Schema(description = "工序字典ID（从工序字典表选择）", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
+    @NotNull(message = "工序字典ID不能为空")
+    private Long processCatalogId;
+    
+    @Schema(description = "工序名称（向后兼容，优先使用工序字典名称）", example = "扒渣（平整场地）")
     private String processName;
     
     @Schema(description = "控制时间（分钟）", requiredMode = Schema.RequiredMode.REQUIRED, example = "120")

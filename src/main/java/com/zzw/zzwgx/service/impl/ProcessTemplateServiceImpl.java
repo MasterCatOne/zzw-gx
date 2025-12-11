@@ -143,7 +143,15 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
         if (template == null) {
             return null;
         }
-        return BeanUtil.copyProperties(template, ProcessTemplateResponse.class);
+        ProcessTemplateResponse resp = BeanUtil.copyProperties(template, ProcessTemplateResponse.class);
+        // 如果工序名称为空且存在字典ID，从字典补充名称
+        if (resp.getProcessCatalogId() != null && (resp.getProcessName() == null || resp.getProcessName().isBlank())) {
+            ProcessCatalog catalog = processCatalogService.getById(resp.getProcessCatalogId());
+            if (catalog != null) {
+                resp.setProcessName(catalog.getProcessName());
+            }
+        }
+        return resp;
     }
 }
 

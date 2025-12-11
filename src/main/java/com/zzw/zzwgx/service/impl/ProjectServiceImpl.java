@@ -384,7 +384,14 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
         validateProjectCodeUnique(request.getProjectCode(), null);
         
         Project project = new Project();
-        project.setParentId(request.getParentId());
+        // 业务约定：当前只新增隧道和工点
+        // - 隧道：如果前端未传父节点，默认挂在 ID=149 的项目/父节点下
+        // - 工点：必须由前端传入隧道的 ID 作为 parentId
+        if ("TUNNEL".equalsIgnoreCase(request.getNodeType()) && request.getParentId() == null) {
+            project.setParentId(149L);
+        }else{
+            project.setParentId(request.getParentId());
+        }
         project.setNodeType(request.getNodeType());
         project.setProjectName(request.getProjectName());
         project.setProjectCode(request.getProjectCode());

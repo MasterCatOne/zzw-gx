@@ -28,6 +28,11 @@ public class ProcessCatalog {
     private String processCode;
     
     /**
+     * 工序类别：EXCAVATION-开挖/HAULING-出渣/SUPPORT-立架/SHOTCRETE-喷砼 等
+     */
+    private String category;
+    
+    /**
      * 工序描述
      */
     private String description;

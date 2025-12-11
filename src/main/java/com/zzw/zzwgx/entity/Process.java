@@ -70,6 +70,11 @@ public class Process {
     private Long processCatalogId;
     
     /**
+     * 工序类别：EXCAVATION/HAULING/SUPPORT/SHOTCRETE 等，冗余自工序字典
+     */
+    private String category;
+    
+    /**
      * 超时原因
      */
     private String overtimeReason;

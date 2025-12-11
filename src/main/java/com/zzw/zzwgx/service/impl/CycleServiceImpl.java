@@ -25,6 +25,7 @@ import com.zzw.zzwgx.entity.ProcessTemplate;
 import com.zzw.zzwgx.entity.Project;
 import com.zzw.zzwgx.mapper.CycleMapper;
 import com.zzw.zzwgx.mapper.ProjectMapper;
+import com.zzw.zzwgx.security.SecurityUtils;
 import com.zzw.zzwgx.service.CycleService;
 import com.zzw.zzwgx.service.ProcessCatalogService;
 import com.zzw.zzwgx.service.ProcessService;
@@ -146,7 +147,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         log.info("循环创建成功，循环ID: {}, 循环次数: {}", cycle.getId(), cycleNumber);
         
         // 根据模板自动创建工序（模板已验证，直接创建）
-        Long currentUserId = com.zzw.zzwgx.security.SecurityUtils.getCurrentUserId();
+        Long currentUserId = SecurityUtils.getCurrentUserId();
         createProcessesFromTemplate(cycle.getId(), template.getTemplateName(), cycle.getStartDate(), currentUserId);
         
         return convertToResponse(cycle);
@@ -298,6 +299,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                 ProcessCatalog catalog = processCatalogService.getById(processTemplate.getProcessCatalogId());
                 if (catalog != null) {
                     process.setProcessName(catalog.getProcessName());
+                    process.setCategory(catalog.getCategory());
                 } else {
                     process.setProcessName(processTemplate.getProcessName()); // 向后兼容
                 }
@@ -610,7 +612,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             CycleReportDataResponse.ProcessRowData processRow = new CycleReportDataResponse.ProcessRowData();
             
             // A列：工序名称
-            processRow.setProcessName((i + 1) + "." + process.getProcessName());
+            processRow.setProcessName(process.getProcessName());
             
             // C、D列：开始时间
             LocalDateTime startTime = process.getActualStartTime() != null ? 
@@ -652,7 +654,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             
             // K列：差值
             if (process.getControlTime() != null && actualMinutes != null) {
-                int diffMinutes = actualMinutes - process.getControlTime();
+                int diffMinutes = process.getControlTime()- actualMinutes;
                 processRow.setDiffText(formatMinutesWithSignStatic(diffMinutes));
             }
             
@@ -1082,7 +1084,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                 
                 // K列：当前工序控制标准和实际损耗的差值（显示为“X小时Y分钟”，负数表示节时）
                 if (process.getControlTime() != null && actualMinutes != null) {
-                    int diffMinutes = actualMinutes - process.getControlTime();
+                    int diffMinutes = process.getControlTime()- actualMinutes ;
                     setCellValueWithFormat(row, 10, formatMinutesWithSign(diffMinutes), templateFormatRow, 10);
                 } else {
                     applyCellFormat(row, 10, templateFormatRow, 10);

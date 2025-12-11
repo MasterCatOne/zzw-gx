@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -68,6 +69,32 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             log.error("创建工序失败，循环不存在，循环ID: {}", request.getCycleId());
             throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
         }
+
+        // 获取现有工序列表
+        List<Process> existingProcesses = getProcessesByCycleId(request.getCycleId());
+        
+        // 检查是否要插入到进行中的工序之前
+        // 规则：即使有进行中的工序，只要新工序的 startOrder > 进行中工序的 startOrder，就允许插入
+        // 但不允许插入到进行中工序之前（startOrder <= 进行中工序的 startOrder）
+        Process inProgressProcess = existingProcesses.stream()
+                .filter(p -> ProcessStatus.IN_PROGRESS.getCode().equals(p.getProcessStatus()))
+                .findFirst()
+                .orElse(null);
+        
+        if (inProgressProcess != null && request.getStartOrder() <= inProgressProcess.getStartOrder()) {
+            log.warn("创建工序失败，不能插入到进行中的工序之前，循环ID: {}, 新顺序: {}, 进行中工序顺序: {}", 
+                    request.getCycleId(), request.getStartOrder(), inProgressProcess.getStartOrder());
+            throw new BusinessException("不能将新工序插入到进行中的工序之前，进行中工序顺序: " + inProgressProcess.getStartOrder());
+        }
+
+        // 检查 startOrder 是否冲突，如果冲突则调整后续工序顺序
+        boolean orderExists = existingProcesses.stream()
+                .anyMatch(p -> Objects.equals(request.getStartOrder(), p.getStartOrder()));
+        
+        if (orderExists) {
+            log.debug("工序顺序冲突，将调整后续工序顺序，循环ID: {}, 新顺序: {}", request.getCycleId(), request.getStartOrder());
+            adjustProcessOrdersForInsert(request.getCycleId(), request.getStartOrder());
+        }
         
         Process process = new Process();
         process.setCycleId(request.getCycleId());
@@ -91,6 +118,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         // 设置工序名称和字典ID
         process.setProcessName(catalog.getProcessName());
         process.setProcessCatalogId(request.getProcessCatalogId());
+        process.setCategory(catalog.getCategory());
         // 通过工序字典创建的工序不需要模板ID
         process.setTemplateId(null);
         
@@ -122,10 +150,6 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
     public ProcessResponse createProcessAndStart(CreateProcessRequest request) {
         log.info("创建并立即开工工序，循环ID: {}, 施工人员ID: {}", request.getCycleId(), request.getWorkerId());
 
-        if (request.getActualStartTime() == null) {
-            throw new BusinessException("实际开始时间不能为空");
-        }
-
         // 验证循环是否存在
         Cycle cycle = cycleMapper.selectById(request.getCycleId());
         if (cycle == null) {
@@ -133,9 +157,57 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
         }
 
+        // 检查是否已有进行中的工序
+        List<Process> existingProcesses = getProcessesByCycleId(request.getCycleId());
+        Process inProgressProcess = existingProcesses.stream()
+                .filter(p -> ProcessStatus.IN_PROGRESS.getCode().equals(p.getProcessStatus()))
+                .findFirst()
+                .orElse(null);
+        boolean hasInProgress = inProgressProcess != null;
+        boolean replaceCurrentProcess = hasInProgress
+                && request.getStartOrder() != null
+                && Objects.equals(request.getStartOrder(), inProgressProcess.getStartOrder());
+
+        // 如果没有进行中的工序，则要求实际开始时间；如果有进行中的工序，则不需要实际开始时间
+        if (!hasInProgress && request.getActualStartTime() == null) {
+            throw new BusinessException("实际开始时间不能为空");
+        }
+
+        // 处理 startOrder 冲突（调整后续工序顺序）
+        boolean orderExists = existingProcesses.stream()
+                .anyMatch(p -> Objects.equals(request.getStartOrder(), p.getStartOrder()));
+        
+        if (orderExists) {
+            log.debug("工序顺序冲突，将调整后续工序顺序，循环ID: {}, 新顺序: {}", request.getCycleId(), request.getStartOrder());
+            adjustProcessOrdersForInsert(request.getCycleId(), request.getStartOrder());
+        }
+
+        // 如果需要替换当前进行中的工序，先将其状态重置
+        if (replaceCurrentProcess) {
+            Process current = getById(inProgressProcess.getId());
+            if (current != null) {
+                current.setProcessStatus(ProcessStatus.NOT_STARTED.getCode());
+                current.setActualStartTime(null);
+                current.setActualEndTime(null);
+                updateById(current);
+                logProcessOperation(current.getId(), request.getWorkerId(), "RESET_IN_PROGRESS",
+                        "插入同顺序新工序，原进行中工序重置为未开始");
+            }
+        }
+
         Process process = new Process();
         process.setCycleId(request.getCycleId());
-        process.setProcessStatus(ProcessStatus.IN_PROGRESS.getCode());
+        // 如果已有进行中的工序，新工序设置为未开始状态；否则设置为进行中状态
+        if (hasInProgress) {
+            if (replaceCurrentProcess) {
+                process.setProcessStatus(ProcessStatus.IN_PROGRESS.getCode());
+            } else {
+            process.setProcessStatus(ProcessStatus.NOT_STARTED.getCode());
+                log.debug("循环已有进行中的工序，新工序将创建为未开始状态，循环ID: {}", request.getCycleId());
+            }
+        } else {
+            process.setProcessStatus(ProcessStatus.IN_PROGRESS.getCode());
+        }
         process.setOperatorId(request.getWorkerId());
         process.setStartOrder(request.getStartOrder());
         process.setAdvanceLength(java.math.BigDecimal.ZERO);
@@ -153,6 +225,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
 
         process.setProcessName(catalog.getProcessName());
         process.setProcessCatalogId(request.getProcessCatalogId());
+        process.setCategory(catalog.getCategory());
         process.setTemplateId(null);
 
         if (request.getControlTime() == null) {
@@ -160,24 +233,53 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         }
         process.setControlTime(request.getControlTime());
 
-        // 设置实际开始时间为必填
-        process.setActualStartTime(request.getActualStartTime());
+        // 根据是否有进行中的工序决定是否设置实际开始时间
+        if (hasInProgress) {
+            if (replaceCurrentProcess) {
+                LocalDateTime startTime = LocalDateTime.now();
+                process.setActualStartTime(startTime);
+                process.setEstimatedStartTime(startTime);
+            } else {
+                // 如果已有进行中的工序，新工序为未开始状态，不设置实际开始时间
+                process.setActualStartTime(null);
+                // 预计开始时间使用请求中的值，如果没有则使用实际开始时间（但实际开始时间为null，所以使用请求的预计开始时间）
+                process.setEstimatedStartTime(request.getEstimatedStartTime() != null 
+                        ? request.getEstimatedStartTime() 
+                        : request.getActualStartTime());
+                log.debug("循环已有进行中的工序，新工序不设置实际开始时间，循环ID: {}", request.getCycleId());
+            }
+        } else {
+            // 如果没有进行中的工序，新工序为进行中状态，设置实际开始时间
+            process.setActualStartTime(request.getActualStartTime());
+            // 预计开始时间为空时，默认等于实际开始时间
+            LocalDateTime estimatedStart = request.getEstimatedStartTime() != null
+                    ? request.getEstimatedStartTime()
+                    : request.getActualStartTime();
+            process.setEstimatedStartTime(estimatedStart);
+        }
 
-        // 预计开始时间为空时，默认等于实际开始时间
-        LocalDateTime estimatedStart = request.getEstimatedStartTime() != null
-                ? request.getEstimatedStartTime()
-                : request.getActualStartTime();
-        process.setEstimatedStartTime(estimatedStart);
-
-        if (estimatedStart != null && request.getControlTime() != null) {
-            process.setEstimatedEndTime(estimatedStart.plusMinutes(request.getControlTime()));
-            log.debug("自动计算预计结束时间（立即开工），开始时间: {}, 控制时长: {}分钟, 预计结束时间: {}",
-                    estimatedStart, request.getControlTime(), process.getEstimatedEndTime());
+        // 计算预计结束时间
+        if (process.getEstimatedStartTime() != null && request.getControlTime() != null) {
+            process.setEstimatedEndTime(process.getEstimatedStartTime().plusMinutes(request.getControlTime()));
+            log.debug("自动计算预计结束时间，预计开始时间: {}, 控制时长: {}分钟, 预计结束时间: {}",
+                    process.getEstimatedStartTime(), request.getControlTime(), process.getEstimatedEndTime());
         }
 
         save(process);
-        log.info("工序创建并开工成功，工序ID: {}, 工序名称: {}", process.getId(), process.getProcessName());
-        logProcessOperation(process.getId(), request.getWorkerId(), "CREATE_AND_START", null);
+        if (hasInProgress) {
+            if (replaceCurrentProcess) {
+                log.info("工序创建成功，替换当前进行中的工序为新工序，工序ID: {}, 工序名称: {}", 
+                        process.getId(), process.getProcessName());
+                logProcessOperation(process.getId(), request.getWorkerId(), "REPLACE_AND_START", null);
+            } else {
+                log.info("工序创建成功（循环已有进行中的工序，新工序为未开始状态），工序ID: {}, 工序名称: {}", 
+                        process.getId(), process.getProcessName());
+                logProcessOperation(process.getId(), request.getWorkerId(), "CREATE", null);
+            }
+        } else {
+            log.info("工序创建并开工成功，工序ID: {}, 工序名称: {}", process.getId(), process.getProcessName());
+            logProcessOperation(process.getId(), request.getWorkerId(), "CREATE_AND_START", null);
+        }
         return buildProcessResponse(process);
     }
     
@@ -1075,6 +1177,37 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         
         log.info("查询超时未填报原因的工序列表完成，找到 {} 条记录", result.size());
         return resultPage;
+    }
+    
+    /**
+     * 调整工序顺序：将指定位置及之后的所有工序的 startOrder +1
+     * 用于在插入新工序时避免顺序冲突
+     * 
+     * @param cycleId 循环ID
+     * @param insertOrder 要插入的位置（新工序的 startOrder）
+     */
+    private void adjustProcessOrdersForInsert(Long cycleId, Integer insertOrder) {
+        log.debug("调整工序顺序，循环ID: {}, 插入位置: {}", cycleId, insertOrder);
+        
+        // 获取所有需要调整的工序（startOrder >= insertOrder）
+        List<Process> processesToAdjust = list(new LambdaQueryWrapper<Process>()
+                .eq(Process::getCycleId, cycleId)
+                .ge(Process::getStartOrder, insertOrder)
+                .orderByAsc(Process::getStartOrder));
+        
+        if (processesToAdjust.isEmpty()) {
+            return;
+        }
+        
+        // 批量更新：每个工序的 startOrder +1
+        for (Process process : processesToAdjust) {
+            process.setStartOrder(process.getStartOrder() + 1);
+            updateById(process);
+            log.debug("调整工序顺序，工序ID: {}, 工序名称: {}, 新顺序: {}", 
+                    process.getId(), process.getProcessName(), process.getStartOrder());
+        }
+        
+        log.info("工序顺序调整完成，循环ID: {}, 调整数量: {}", cycleId, processesToAdjust.size());
     }
 }
 

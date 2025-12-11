@@ -13,7 +13,10 @@ public class UpdateProcessTemplateRequest {
     @Schema(description = "模板名称", example = "标准模板")
     private String templateName;
     
-    @Schema(description = "工序名称", example = "扒渣（平整场地）")
+    @Schema(description = "工序字典ID（从工序字典表选择）", example = "1")
+    private Long processCatalogId;
+    
+    @Schema(description = "工序名称（向后兼容，优先使用工序字典名称）", example = "扒渣（平整场地）")
     private String processName;
     
     @Schema(description = "控制时间（分钟）", example = "120")

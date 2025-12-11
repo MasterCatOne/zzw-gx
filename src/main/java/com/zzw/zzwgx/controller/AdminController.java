@@ -6,6 +6,7 @@ import com.zzw.zzwgx.common.enums.ResultCode;
 import com.zzw.zzwgx.dto.request.CreateCycleRequest;
 import com.zzw.zzwgx.dto.request.CreateProcessRequest;
 import com.zzw.zzwgx.dto.request.CreateProcessTemplateRequest;
+import com.zzw.zzwgx.dto.request.CreateProcessTemplateBatchRequest;
 import com.zzw.zzwgx.dto.request.CreateProcessCatalogRequest;
 import com.zzw.zzwgx.dto.request.CreateUserRequest;
 import com.zzw.zzwgx.dto.request.ProjectRequest;
@@ -25,6 +26,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -127,6 +129,7 @@ public class AdminController {
     
     @Operation(summary = "导出循环报表", description = "基于Excel模板导出循环报表，生成并下载文件。", tags = {"管理员管理-循环管理"})
     @GetMapping("/cycles/{cycleId}/report")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SYSTEM_ADMIN')")
     public void exportCycleReport(
             @Parameter(description = "循环ID", required = true, example = "1") @PathVariable Long cycleId,
             HttpServletResponse response) {
@@ -268,19 +271,51 @@ public class AdminController {
         return Result.success(response);
     }
     
-    @Operation(summary = "创建工序模板", description = "创建新的工序模板项。", tags = {"管理员管理-工序模板管理"})
+    @Operation(summary = "创建工序模板", description = "创建新的工序模板项，需选择工序字典ID。", tags = {"管理员管理-工序模板管理"})
     @PostMapping("/process-templates")
     public Result<ProcessTemplateResponse> createProcessTemplate(@Valid @RequestBody CreateProcessTemplateRequest request) {
-        log.info("创建工序模板，模板名称: {}, 工序名称: {}", request.getTemplateName(), request.getProcessName());
+        log.info("创建工序模板，模板名称: {}, 工序字典ID: {}", request.getTemplateName(), request.getProcessCatalogId());
+        var catalog = processCatalogService.getById(request.getProcessCatalogId());
+        if (catalog == null) {
+            return Result.fail("工序字典不存在，ID: " + request.getProcessCatalogId());
+        }
         ProcessTemplate template = new ProcessTemplate();
         template.setTemplateName(request.getTemplateName());
-        template.setProcessName(request.getProcessName());
+        template.setProcessCatalogId(request.getProcessCatalogId());
+        // 兼容旧字段，冗余保存名称
+        template.setProcessName(catalog.getProcessName());
         template.setControlTime(request.getControlTime());
         template.setDefaultOrder(request.getDefaultOrder());
         template.setDescription(request.getDescription());
         processTemplateService.save(template);
         ProcessTemplateResponse response = processTemplateService.convertToResponse(template);
         return Result.success(response);
+    }
+    
+    @Operation(summary = "批量创建工序模板", description = "一次性为同一个模板名称创建多条工序模板，避免逐条新增。", tags = {"管理员管理-工序模板管理"})
+    @PostMapping("/process-templates/batch")
+    public Result<List<ProcessTemplateResponse>> createProcessTemplatesBatch(@Valid @RequestBody CreateProcessTemplateBatchRequest request) {
+        log.info("批量创建工序模板，模板名称: {}, 工序数量: {}", request.getTemplateName(), request.getProcesses().size());
+        List<ProcessTemplate> templates = new java.util.ArrayList<>();
+        for (CreateProcessTemplateBatchRequest.Item item : request.getProcesses()) {
+            var catalog = processCatalogService.getById(item.getProcessCatalogId());
+            if (catalog == null) {
+                return Result.fail("工序字典不存在，ID: " + item.getProcessCatalogId());
+            }
+            ProcessTemplate template = new ProcessTemplate();
+            template.setTemplateName(request.getTemplateName());
+            template.setProcessCatalogId(item.getProcessCatalogId());
+            template.setProcessName(catalog.getProcessName()); // 冗余名称，便于展示
+            template.setControlTime(item.getControlTime());
+            template.setDefaultOrder(item.getDefaultOrder());
+            template.setDescription(item.getDescription());
+            templates.add(template);
+        }
+        processTemplateService.saveBatch(templates);
+        List<ProcessTemplateResponse> responses = templates.stream()
+                .map(processTemplateService::convertToResponse)
+                .collect(Collectors.toList());
+        return Result.success(responses);
     }
     
     @Operation(summary = "更新工序模板", description = "更新指定工序模板的信息，支持部分字段更新。", tags = {"管理员管理-工序模板管理"})
@@ -296,7 +331,15 @@ public class AdminController {
         if (request.getTemplateName() != null) {
             template.setTemplateName(request.getTemplateName());
         }
-        if (request.getProcessName() != null) {
+        if (request.getProcessCatalogId() != null) {
+            var catalog = processCatalogService.getById(request.getProcessCatalogId());
+            if (catalog == null) {
+                return Result.fail("工序字典不存在，ID: " + request.getProcessCatalogId());
+            }
+            template.setProcessCatalogId(request.getProcessCatalogId());
+            template.setProcessName(catalog.getProcessName()); // 冗余名称
+        } else if (request.getProcessName() != null) {
+            // 仅向后兼容，优先使用字典
             template.setProcessName(request.getProcessName());
         }
         if (request.getControlTime() != null) {

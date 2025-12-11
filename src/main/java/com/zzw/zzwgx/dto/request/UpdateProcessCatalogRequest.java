@@ -23,6 +23,10 @@ public class UpdateProcessCatalogRequest {
     @Size(max = 500, message = "工序描述长度不能超过500个字符")
     private String description;
     
+    @Schema(description = "工序类别：EXCAVATION-开挖/HAULING-出渣/SUPPORT-立架/SHOTCRETE-喷砼", example = "EXCAVATION")
+    @Size(max = 20, message = "工序类别长度不能超过20个字符")
+    private String category;
+    
     @Schema(description = "显示顺序（用于调整工序顺序）", example = "1")
     private Integer displayOrder;
     

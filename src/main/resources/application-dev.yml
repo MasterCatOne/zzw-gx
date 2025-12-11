@@ -6,9 +6,9 @@ spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     # 开发环境数据库配置（可根据实际情况修改）
-    url: jdbc:mysql://localhost:3306/zzw_gx?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: root
-    password: 123456
+    url: jdbc:mysql://rm-bp1qg1gokn0hqrs07qo.mysql.rds.aliyuncs.com:3306/process_manage?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: process_admin
+    password: kV5zqXULejSKIRrHOWBA
 
 # 日志配置（开发环境更详细的日志）
 logging:

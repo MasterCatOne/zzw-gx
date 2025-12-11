@@ -18,6 +18,9 @@ public class ProcessTemplateResponse {
     @Schema(description = "模板名称", example = "标准模板")
     private String templateName;
     
+    @Schema(description = "工序字典ID", example = "1")
+    private Long processCatalogId;
+    
     @Schema(description = "工序名称", example = "扒渣（平整场地）")
     private String processName;
     

@@ -18,6 +18,9 @@ public class ProcessCatalogResponse {
     @Schema(description = "工序名称", example = "扒渣（平整场地）")
     private String processName;
     
+    @Schema(description = "工序类别：EXCAVATION/HAULING/SUPPORT/SHOTCRETE", example = "EXCAVATION")
+    private String category;
+    
 //    @Schema(description = "工序编码", example = "PROCESS_001")
 //    private String processCode;
 //

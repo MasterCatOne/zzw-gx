@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,7 +33,7 @@ public class UserProjectController {
         List<Long> projectIds = userProjectService.getProjectIdsByUser(userId);
         return Result.success(projectIds);
     }
-    
+
     @Operation(summary = "分配用户工点", description = "为用户分配可管理的工点列表。可以分配工点ID列表，如果分配父节点（如标段、隧道），则该用户可以查看该节点下所有子工点。传空列表表示清空该用户的所有工点权限。")
     @PostMapping("/assign")
     public Result<Void> assignProjects(@Valid @RequestBody UserProjectAssignRequest request) {
