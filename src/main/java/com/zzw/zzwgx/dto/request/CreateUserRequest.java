@@ -1,5 +1,7 @@
 package com.zzw.zzwgx.dto.request;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.zzw.zzwgx.dto.deserializer.SingleOrListDeserializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -45,11 +47,12 @@ public class CreateUserRequest {
     @Schema(description = "用户状态：0-禁用，1-启用，默认为1（启用）", example = "1")
     private Integer status;
     
-    @Schema(description = "工点ID列表（可选，创建用户时可绑定工点）", example = "[1, 2]")
+    @Schema(description = "工点ID（可选，创建用户时可绑定工点）。可以传单个值如 1，也可以传数组如 [1, 2]", example = "1")
+    @JsonDeserialize(using = SingleOrListDeserializer.class)
     private List<Long> siteIds;
     
-    @Schema(description = "隧道ID列表（可选，创建用户时可绑定隧道）", example = "[3, 4]")
-    @NotBlank(message = "隧道不能为空")
+    @Schema(description = "隧道ID（可选，创建用户时可绑定隧道）。可以传单个值如 3，也可以传数组如 [3, 4]", example = "3")
+    @JsonDeserialize(using = SingleOrListDeserializer.class)
     private List<Long> tunnelIds;
 }
 

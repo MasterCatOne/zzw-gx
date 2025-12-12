@@ -1,5 +1,6 @@
 package com.zzw.zzwgx.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zzw.zzwgx.common.Result;
 import com.zzw.zzwgx.common.enums.ResultCode;
@@ -303,6 +304,21 @@ public class AdminController {
         if (catalog == null) {
             return Result.fail("工序字典不存在，ID: " + request.getProcessCatalogId());
         }
+        
+        // 检查是否存在重复的模板记录
+        var existingTemplate = processTemplateService.getOne(
+                new LambdaQueryWrapper<ProcessTemplate>()
+                        .eq(ProcessTemplate::getSiteId, request.getSiteId())
+                        .eq(ProcessTemplate::getTemplateName, request.getTemplateName())
+                        .eq(ProcessTemplate::getProcessCatalogId, request.getProcessCatalogId())
+                        .eq(ProcessTemplate::getDeleted, 0)
+                        .last("LIMIT 1"));
+        if (existingTemplate != null) {
+            return Result.fail(ResultCode.TEMPLATE_DUPLICATE.getCode(), 
+                    String.format("该工点下已存在模板\"%s\"中的工序\"%s\"，请勿重复创建", 
+                            request.getTemplateName(), catalog.getProcessName()));
+        }
+        
         ProcessTemplate template = new ProcessTemplate();
         template.setSiteId(request.getSiteId());
         template.setTemplateName(request.getTemplateName());
@@ -326,6 +342,24 @@ public class AdminController {
         var site = projectService.getById(request.getSiteId());
         if (site == null || !"SITE".equals(site.getNodeType())) {
             return Result.fail("工点不存在或不是工点类型，ID: " + request.getSiteId());
+        }
+        
+        // 先检查是否存在重复的模板记录
+        for (CreateProcessTemplateBatchRequest.Item item : request.getProcesses()) {
+            var existingTemplate = processTemplateService.getOne(
+                    new LambdaQueryWrapper<ProcessTemplate>()
+                            .eq(ProcessTemplate::getSiteId, request.getSiteId())
+                            .eq(ProcessTemplate::getTemplateName, request.getTemplateName())
+                            .eq(ProcessTemplate::getProcessCatalogId, item.getProcessCatalogId())
+                            .eq(ProcessTemplate::getDeleted, 0)
+                            .last("LIMIT 1"));
+            if (existingTemplate != null) {
+                var catalog = processCatalogService.getById(item.getProcessCatalogId());
+                String processName = catalog != null ? catalog.getProcessName() : "未知工序";
+                return Result.fail(ResultCode.TEMPLATE_DUPLICATE.getCode(), 
+                        String.format("该工点下已存在模板\"%s\"中的工序\"%s\"，请勿重复创建", 
+                                request.getTemplateName(), processName));
+            }
         }
         
         List<ProcessTemplate> templates = new java.util.ArrayList<>();

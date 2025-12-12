@@ -34,10 +34,23 @@ public class UserListResponse {
     @Schema(description = "用户角色列表", example = "[\"WORKER\"]")
     private List<String> roles;
 
+    @Schema(description = "绑定的工点列表（仅SITE节点，ID+名称）")
+    private List<ProjectOption> sites;
+
+    @Schema(description = "绑定的隧道列表（仅TUNNEL节点，ID+名称）")
+    private List<ProjectOption> tunnels;
+
     @Schema(description = "创建时间", example = "2024-01-01 10:00:00")
     private LocalDateTime createTime;
 
     @Schema(description = "更新时间", example = "2024-01-01 10:00:00")
     private LocalDateTime updateTime;
+
+    @Data
+    @Schema(description = "项目选项（ID+名称）")
+    public static class ProjectOption {
+        private Long id;
+        private String name;
+    }
 }
 

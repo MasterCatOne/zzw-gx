@@ -682,6 +682,9 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             if (process.getControlTime() != null && actualMinutes != null) {
                 int diffMinutes = process.getControlTime()- actualMinutes;
                 processRow.setDiffText(formatMinutesWithSignStatic(diffMinutes));
+                processRow.setOvertime(actualMinutes > process.getControlTime());
+            } else {
+                processRow.setOvertime(null);
             }
             
             // N列：情况说明（暂时为空）

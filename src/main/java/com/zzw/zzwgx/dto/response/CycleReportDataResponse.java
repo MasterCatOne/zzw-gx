@@ -204,6 +204,11 @@ public class CycleReportDataResponse {
          * O列：工序状态
          */
         private String status;
+
+        /**
+         * 是否超时（actualMinutes > controlTime 时为 true）
+         */
+        private Boolean overtime;
     }
     
     @Data

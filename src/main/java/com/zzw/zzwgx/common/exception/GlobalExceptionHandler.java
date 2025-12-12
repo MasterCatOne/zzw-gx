@@ -3,6 +3,7 @@ package com.zzw.zzwgx.common.exception;
 import com.zzw.zzwgx.common.Result;
 import com.zzw.zzwgx.common.enums.ResultCode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.BindException;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.stream.Collectors;
 
 /**
@@ -66,6 +68,32 @@ public class GlobalExceptionHandler {
     public Result<?> handleAccessDeniedException(AccessDeniedException e) {
         log.error("权限异常：{}", e.getMessage());
         return Result.fail(ResultCode.FORBIDDEN);
+    }
+    
+    /**
+     * 处理唯一约束冲突异常（DuplicateKeyException）
+     */
+    @ExceptionHandler(DuplicateKeyException.class)
+    public Result<?> handleDuplicateKeyException(DuplicateKeyException e) {
+        log.error("唯一约束冲突异常：{}", e.getMessage());
+        
+        // 检查是否是模板重复
+        Throwable cause = e.getCause();
+        while (cause != null) {
+            if (cause instanceof SQLIntegrityConstraintViolationException) {
+                String message = cause.getMessage();
+                if (message != null && message.contains("uk_site_template_process")) {
+                    return Result.fail(ResultCode.TEMPLATE_DUPLICATE);
+                }
+                // 其他唯一约束冲突，返回通用错误信息
+                if (message != null && message.contains("Duplicate entry")) {
+                    return Result.fail(ResultCode.FAIL.getCode(), "数据已存在，请勿重复创建");
+                }
+            }
+            cause = cause.getCause();
+        }
+        
+        return Result.fail(ResultCode.FAIL.getCode(), "数据已存在，请勿重复创建");
     }
     
     /**

@@ -11,15 +11,19 @@ import com.zzw.zzwgx.dto.request.RegisterRequest;
 import com.zzw.zzwgx.dto.request.UpdateUserRequest;
 import com.zzw.zzwgx.dto.request.WorkerUpdateProfileRequest;
 import com.zzw.zzwgx.dto.response.UserListResponse;
+import com.zzw.zzwgx.dto.response.UserListResponse.ProjectOption;
 import com.zzw.zzwgx.dto.response.UserProfileResponse;
 import com.zzw.zzwgx.dto.response.UserViewListResponse;
 import com.zzw.zzwgx.entity.Cycle;
 import com.zzw.zzwgx.entity.Process;
+import com.zzw.zzwgx.entity.Project;
 import com.zzw.zzwgx.entity.Role;
 import com.zzw.zzwgx.entity.User;
+import com.zzw.zzwgx.entity.UserProject;
 import com.zzw.zzwgx.entity.UserRoleRelation;
 import com.zzw.zzwgx.mapper.CycleMapper;
 import com.zzw.zzwgx.mapper.ProcessMapper;
+import com.zzw.zzwgx.mapper.ProjectMapper;
 import com.zzw.zzwgx.mapper.RoleMapper;
 import com.zzw.zzwgx.mapper.UserMapper;
 import com.zzw.zzwgx.mapper.UserRoleRelationMapper;
@@ -34,6 +38,7 @@ import org.springframework.util.StringUtils;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -52,6 +57,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final CycleMapper cycleMapper;
     private final ProcessMapper processMapper;
     private final com.zzw.zzwgx.service.UserProjectService userProjectService;
+    private final ProjectMapper projectMapper;
     
     @Override
     public User getByUsername(String username) {
@@ -344,6 +350,29 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                     .collect(Collectors.toList());
         }
         
+        // 预取用户绑定的项目（工点/隧道）
+        Map<Long, List<Project>> tempUserProjectMap = Collections.emptyMap();
+        if (!users.isEmpty()) {
+            List<Long> userIds = users.stream().map(User::getId).toList();
+            List<UserProject> relations = userProjectService.list(new LambdaQueryWrapper<UserProject>()
+                    .in(UserProject::getUserId, userIds)
+                    .eq(UserProject::getDeleted, 0));
+            Set<Long> projectIds = relations.stream()
+                    .map(UserProject::getProjectId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            Map<Long, Project> projectMap = projectIds.isEmpty()
+                    ? Collections.emptyMap()
+                    : projectMapper.selectBatchIds(projectIds).stream()
+                    .collect(Collectors.toMap(Project::getId, p -> p));
+
+            tempUserProjectMap = relations.stream()
+                    .collect(Collectors.groupingBy(UserProject::getUserId,
+                            Collectors.mapping(rel -> projectMap.get(rel.getProjectId()),
+                                    Collectors.filtering(Objects::nonNull, Collectors.toList()))));
+        }
+        final Map<Long, List<Project>> userProjectMap = tempUserProjectMap;
+
         // 转换为响应DTO
         Page<UserListResponse> responsePage = new Page<>(pageNum, pageSize, userPage.getTotal());
         List<UserListResponse> responseList = users.stream().map(user -> {
@@ -357,6 +386,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             response.setStatus(user.getStatus());
             response.setCreateTime(user.getCreateTime());
             response.setUpdateTime(user.getUpdateTime());
+
+            List<Project> projects = userProjectMap.getOrDefault(user.getId(), Collections.emptyList());
+            List<ProjectOption> siteOptions = projects.stream()
+                    .filter(p -> "SITE".equals(p.getNodeType()))
+                    .map(this::toOption)
+                    .collect(Collectors.toList());
+            List<ProjectOption> tunnelOptions = projects.stream()
+                    .filter(p -> "TUNNEL".equals(p.getNodeType()))
+                    .map(this::toOption)
+                    .collect(Collectors.toList());
+            response.setSites(siteOptions);
+            response.setTunnels(tunnelOptions);
             return response;
         }).collect(Collectors.toList());
         
@@ -436,6 +477,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
         updateById(user);
         return getProfile(userId);
+    }
+
+    private ProjectOption toOption(Project project) {
+        ProjectOption option = new ProjectOption();
+        option.setId(project.getId());
+        option.setName(project.getProjectName());
+        return option;
     }
 }
 

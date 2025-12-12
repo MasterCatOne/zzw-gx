@@ -42,7 +42,8 @@ public enum ResultCode {
     USER_PROJECT_SAVE_FAILED(2019, "该用户已被分配到该项目"),
     CYCLE_START_TIME_INVALID(2020, "循环开始时间不能是过去时间"),
     PROCESS_START_TIME_INVALID(2021, "工序开始时间不能是过去时间"),
-    PROCESS_COMPLETED_CANNOT_UPDATE_ORDER(2022, "已完成的工序不能修改开始顺序");
+    PROCESS_COMPLETED_CANNOT_UPDATE_ORDER(2022, "已完成的工序不能修改开始顺序"),
+    TEMPLATE_DUPLICATE(2023, "该工点下已存在相同模板名称和工序的模板，请勿重复创建");
 
     private final Integer code;
     private final String message;
