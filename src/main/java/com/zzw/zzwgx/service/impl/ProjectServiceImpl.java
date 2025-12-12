@@ -459,6 +459,35 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
         }).collect(Collectors.toList());
     }
     
+    @Override
+    public List<com.zzw.zzwgx.dto.response.SiteOptionResponse> listSitesByTunnelId(Long tunnelId) {
+        log.info("根据隧道ID查询工点列表，隧道ID: {}", tunnelId);
+        // 验证隧道是否存在
+        Project tunnel = getById(tunnelId);
+        if (tunnel == null) {
+            log.warn("隧道不存在，隧道ID: {}", tunnelId);
+            return new ArrayList<>();
+        }
+        if (!"TUNNEL".equals(tunnel.getNodeType())) {
+            log.warn("节点不是隧道类型，节点ID: {}, 节点类型: {}", tunnelId, tunnel.getNodeType());
+            return new ArrayList<>();
+        }
+        
+        // 查询该隧道下的所有工点（SITE类型）
+        List<Project> sites = list(new LambdaQueryWrapper<Project>()
+                .eq(Project::getParentId, tunnelId)
+                .eq(Project::getNodeType, "SITE")
+                .eq(Project::getDeleted, 0)
+                .orderByAsc(Project::getId));
+        
+        return sites.stream().map(site -> {
+            com.zzw.zzwgx.dto.response.SiteOptionResponse resp = new com.zzw.zzwgx.dto.response.SiteOptionResponse();
+            resp.setId(site.getId());
+            resp.setName(site.getProjectName());
+            return resp;
+        }).collect(Collectors.toList());
+    }
+    
     private void validateParent(Long parentId, Long currentId) {
         if (parentId == null) {
             return;

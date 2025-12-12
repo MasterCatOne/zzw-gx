@@ -222,20 +222,34 @@ public class AdminController {
         return Result.success(page);
     }
     
-    @Operation(summary = "获取所有模板名称列表", description = "获取系统中所有工序模板的名称列表（去重）。", tags = {"管理员管理-工序模板管理"})
+    @Operation(summary = "获取所有模板名称列表", description = "获取系统中所有工序模板的名称列表（去重）。如果传入工点ID，则只返回该工点下的模板名称。", tags = {"管理员管理-工序模板管理"})
     @GetMapping("/process-templates/names")
-    public Result<List<String>> getAllTemplateNames() {
-        log.info("查询所有模板名称列表");
-        List<String> templateNames = processTemplateService.getAllTemplateNames();
+    public Result<List<String>> getAllTemplateNames(
+            @Parameter(description = "工点ID（可选，传入则只返回该工点下的模板名称）", example = "1") @RequestParam(required = false) Long siteId) {
+        log.info("查询模板名称列表，工点ID: {}", siteId);
+        List<String> templateNames = siteId != null 
+                ? processTemplateService.getTemplateNamesBySiteId(siteId)
+                : processTemplateService.getAllTemplateNames();
         return Result.success(templateNames);
     }
     
-    @Operation(summary = "获取模板列表", description = "获取系统中所有模板列表，用于前端选择模板。每个模板包含模板名称和对应的templateId（该模板下第一个工序模板的ID），前端选择模板后可以使用返回的templateId来创建循环。", tags = {"管理员管理-工序模板管理"})
+    @Operation(summary = "获取模板列表", description = "获取模板列表，用于前端选择模板。如果传入工点ID，则只返回该工点下的模板。每个模板包含模板名称和对应的templateId（该模板下第一个工序模板的ID），前端选择模板后可以使用返回的templateId来创建循环。", tags = {"管理员管理-工序模板管理"})
     @GetMapping("/templates")
-    public Result<List<TemplateListResponse>> getTemplateList() {
-        log.info("查询模板列表");
-        List<TemplateListResponse> templateList = processTemplateService.getTemplateList();
+    public Result<List<TemplateListResponse>> getTemplateList(
+            @Parameter(description = "工点ID（可选，传入则只返回该工点下的模板）", example = "1") @RequestParam(required = false) Long siteId) {
+        log.info("查询模板列表，工点ID: {}", siteId);
+        List<TemplateListResponse> templateList = siteId != null 
+                ? processTemplateService.getTemplateListBySiteId(siteId)
+                : processTemplateService.getTemplateList();
         return Result.success(templateList);
+    }
+    
+    @Operation(summary = "获取所有模板及其工序列表", description = "获取系统中所有模板及其下的所有工序列表。返回每个模板的详细信息，包括模板名称、模板ID和该模板下的所有工序（按默认顺序排序）。", tags = {"管理员管理-工序模板管理"})
+    @GetMapping("/templates/with-processes")
+    public Result<List<TemplateWithProcessesResponse>> getTemplatesWithProcesses() {
+        log.info("查询所有模板及其工序列表");
+        List<TemplateWithProcessesResponse> templates = processTemplateService.getTemplatesWithProcesses();
+        return Result.success(templates);
     }
     
     @Operation(summary = "获取所有工序模板选项列表", description = "获取系统中所有工序模板的选项列表，用于前端下拉选择工序名称。返回数据包含模板ID、工序名称、模板名称和控制时间等信息。前端选择工序名称后，可以使用返回的templateId来创建工序。", tags = {"管理员管理-工序模板管理"})
@@ -246,12 +260,15 @@ public class AdminController {
         return Result.success(options);
     }
     
-    @Operation(summary = "根据模板名称获取工序模板列表", description = "根据模板名称查询该模板下的所有工序定义，按默认顺序排序。", tags = {"管理员管理-工序模板管理"})
+    @Operation(summary = "根据模板名称获取工序模板列表", description = "根据模板名称查询该模板下的所有工序定义，按默认顺序排序。如果传入工点ID，则只返回该工点下的模板。", tags = {"管理员管理-工序模板管理"})
     @GetMapping("/process-templates")
     public Result<List<ProcessTemplateResponse>> getProcessTemplates(
-            @Parameter(description = "模板名称", required = true, example = "标准模板") @RequestParam String templateName) {
-        log.info("查询工序模板列表，模板名称: {}", templateName);
-        List<ProcessTemplate> templates = processTemplateService.getTemplatesByName(templateName);
+            @Parameter(description = "模板名称", required = true, example = "标准模板") @RequestParam String templateName,
+            @Parameter(description = "工点ID（可选，传入则只返回该工点下的模板）", example = "1") @RequestParam(required = false) Long siteId) {
+        log.info("查询工序模板列表，模板名称: {}, 工点ID: {}", templateName, siteId);
+        List<ProcessTemplate> templates = siteId != null 
+                ? processTemplateService.getTemplatesByNameAndSiteId(templateName, siteId)
+                : processTemplateService.getTemplatesByName(templateName);
         List<ProcessTemplateResponse> responses = templates.stream()
                 .map(processTemplateService::convertToResponse)
                 .collect(Collectors.toList());
@@ -271,15 +288,23 @@ public class AdminController {
         return Result.success(response);
     }
     
-    @Operation(summary = "创建工序模板", description = "创建新的工序模板项，需选择工序字典ID。", tags = {"管理员管理-工序模板管理"})
+    @Operation(summary = "创建工序模板", description = "创建新的工序模板项，需选择工点和工序字典ID。", tags = {"管理员管理-工序模板管理"})
     @PostMapping("/process-templates")
     public Result<ProcessTemplateResponse> createProcessTemplate(@Valid @RequestBody CreateProcessTemplateRequest request) {
-        log.info("创建工序模板，模板名称: {}, 工序字典ID: {}", request.getTemplateName(), request.getProcessCatalogId());
+        log.info("创建工序模板，工点ID: {}, 模板名称: {}, 工序字典ID: {}", request.getSiteId(), request.getTemplateName(), request.getProcessCatalogId());
+        
+        // 验证工点是否存在且类型为 SITE
+        var site = projectService.getById(request.getSiteId());
+        if (site == null || !"SITE".equals(site.getNodeType())) {
+            return Result.fail("工点不存在或不是工点类型，ID: " + request.getSiteId());
+        }
+        
         var catalog = processCatalogService.getById(request.getProcessCatalogId());
         if (catalog == null) {
             return Result.fail("工序字典不存在，ID: " + request.getProcessCatalogId());
         }
         ProcessTemplate template = new ProcessTemplate();
+        template.setSiteId(request.getSiteId());
         template.setTemplateName(request.getTemplateName());
         template.setProcessCatalogId(request.getProcessCatalogId());
         // 兼容旧字段，冗余保存名称
@@ -295,7 +320,14 @@ public class AdminController {
     @Operation(summary = "批量创建工序模板", description = "一次性为同一个模板名称创建多条工序模板，避免逐条新增。", tags = {"管理员管理-工序模板管理"})
     @PostMapping("/process-templates/batch")
     public Result<List<ProcessTemplateResponse>> createProcessTemplatesBatch(@Valid @RequestBody CreateProcessTemplateBatchRequest request) {
-        log.info("批量创建工序模板，模板名称: {}, 工序数量: {}", request.getTemplateName(), request.getProcesses().size());
+        log.info("批量创建工序模板，工点ID: {}, 模板名称: {}, 工序数量: {}", request.getSiteId(), request.getTemplateName(), request.getProcesses().size());
+        
+        // 验证工点是否存在且类型为 SITE
+        var site = projectService.getById(request.getSiteId());
+        if (site == null || !"SITE".equals(site.getNodeType())) {
+            return Result.fail("工点不存在或不是工点类型，ID: " + request.getSiteId());
+        }
+        
         List<ProcessTemplate> templates = new java.util.ArrayList<>();
         for (CreateProcessTemplateBatchRequest.Item item : request.getProcesses()) {
             var catalog = processCatalogService.getById(item.getProcessCatalogId());
@@ -303,6 +335,7 @@ public class AdminController {
                 return Result.fail("工序字典不存在，ID: " + item.getProcessCatalogId());
             }
             ProcessTemplate template = new ProcessTemplate();
+            template.setSiteId(request.getSiteId());
             template.setTemplateName(request.getTemplateName());
             template.setProcessCatalogId(item.getProcessCatalogId());
             template.setProcessName(catalog.getProcessName()); // 冗余名称，便于展示
@@ -324,35 +357,7 @@ public class AdminController {
             @Parameter(description = "模板ID", required = true, example = "1") @PathVariable Long templateId,
             @Valid @RequestBody UpdateProcessTemplateRequest request) {
         log.info("更新工序模板，模板ID: {}", templateId);
-        ProcessTemplate template = processTemplateService.getById(templateId);
-        if (template == null) {
-            return Result.fail(ResultCode.TEMPLATE_NOT_FOUND);
-        }
-        if (request.getTemplateName() != null) {
-            template.setTemplateName(request.getTemplateName());
-        }
-        if (request.getProcessCatalogId() != null) {
-            var catalog = processCatalogService.getById(request.getProcessCatalogId());
-            if (catalog == null) {
-                return Result.fail("工序字典不存在，ID: " + request.getProcessCatalogId());
-            }
-            template.setProcessCatalogId(request.getProcessCatalogId());
-            template.setProcessName(catalog.getProcessName()); // 冗余名称
-        } else if (request.getProcessName() != null) {
-            // 仅向后兼容，优先使用字典
-            template.setProcessName(request.getProcessName());
-        }
-        if (request.getControlTime() != null) {
-            template.setControlTime(request.getControlTime());
-        }
-        if (request.getDefaultOrder() != null) {
-            template.setDefaultOrder(request.getDefaultOrder());
-        }
-        if (request.getDescription() != null) {
-            template.setDescription(request.getDescription());
-        }
-        processTemplateService.updateById(template);
-        ProcessTemplateResponse response = processTemplateService.convertToResponse(template);
+        ProcessTemplateResponse response = processTemplateService.updateProcessTemplate(templateId, request);
         return Result.success(response);
     }
     
@@ -379,11 +384,12 @@ public class AdminController {
         return Result.success(workers);
     }
     
-    @Operation(summary = "创建用户账号", description = "管理员为填报人员创建账号。每个填报人员固定一个账号，便于区分。可以指定账号、密码、姓名、身份证号、手机号、角色等信息。", tags = {"管理员管理-用户管理"})
+    @Operation(summary = "创建用户账号", description = "管理员为填报人员创建账号。每个填报人员固定一个账号，便于区分。可以指定账号、密码、姓名、身份证号、手机号、角色等信息。创建用户时可同时分配工点或隧道（通过siteIds和tunnelIds字段），创建用户和分配项目在同一事务中执行，确保数据一致性。", tags = {"管理员管理-用户管理"})
     @PostMapping("/users")
     public Result<UserListResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
-        log.info("管理员创建用户账号，用户名: {}, 姓名: {}, 角色: {}", 
-                request.getUsername(), request.getRealName(), request.getRoleCode());
+        log.info("管理员创建用户账号，用户名: {}, 姓名: {}, 角色: {}, 工点IDs: {}, 隧道IDs: {}", 
+                request.getUsername(), request.getRealName(), request.getRoleCode(), 
+                request.getSiteIds(), request.getTunnelIds());
         User user = userService.createUser(request);
         
         // 转换为响应DTO

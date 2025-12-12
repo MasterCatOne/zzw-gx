@@ -60,5 +60,10 @@ public interface ProjectService extends IService<Project> {
      * 获取全部隧道列表（仅返回ID和名称）
      */
     List<com.zzw.zzwgx.dto.response.TunnelOptionResponse> listTunnels();
+    
+    /**
+     * 根据隧道ID获取该隧道下的所有工点列表（仅返回ID和名称）
+     */
+    List<com.zzw.zzwgx.dto.response.SiteOptionResponse> listSitesByTunnelId(Long tunnelId);
 }
 

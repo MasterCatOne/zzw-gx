@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.zzw.zzwgx.dto.request.CreateProcessRequest;
 import com.zzw.zzwgx.dto.request.UpdateProcessOrderRequest;
 import com.zzw.zzwgx.dto.request.UpdateProcessRequest;
+import com.zzw.zzwgx.dto.response.OvertimeProcessResponse;
 import com.zzw.zzwgx.dto.response.ProcessDetailResponse;
 import com.zzw.zzwgx.dto.response.ProcessResponse;
 import com.zzw.zzwgx.dto.response.WorkerProcessListResponse;
@@ -90,7 +91,7 @@ public interface ProcessService extends IService<Process> {
     /**
      * 查询超时未填报原因的工序列表（管理员查看，仅返回循环未完成的工序）
      */
-    Page<com.zzw.zzwgx.dto.response.OvertimeProcessResponse> getOvertimeProcessesWithoutReason(
+    Page<OvertimeProcessResponse> getOvertimeProcessesWithoutReason(
             Integer pageNum, Integer pageSize, String projectName);
 
     /**

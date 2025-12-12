@@ -80,17 +80,26 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             throw new BusinessException(ResultCode.PROJECT_NOT_FOUND);
         }
 
-        // 根据templateId获取模板，然后根据模板名称获取该模板下的所有工序模板
+        // 根据templateId获取模板，然后根据工点ID和模板名称获取该模板下的所有工序模板
         ProcessTemplate template = processTemplateService.getById(request.getTemplateId());
         if (template == null) {
             log.error("创建循环失败，工序模板不存在，模板ID: {}", request.getTemplateId());
             throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
         }
         
-        // 根据模板名称获取该模板下的所有工序模板
-        List<ProcessTemplate> templates = processTemplateService.getTemplatesByName(template.getTemplateName());
+        // 验证模板是否属于该工点
+        if (!request.getProjectId().equals(template.getSiteId())) {
+            log.error("创建循环失败，模板不属于该工点，工点ID: {}, 模板所属工点ID: {}", 
+                    request.getProjectId(), template.getSiteId());
+            throw new BusinessException("模板不属于该工点");
+        }
+        
+        // 根据工点ID和模板名称获取该模板下的所有工序模板
+        List<ProcessTemplate> templates = processTemplateService.getTemplatesByNameAndSiteId(
+                template.getTemplateName(), request.getProjectId());
         if (templates.isEmpty()) {
-            log.error("创建循环失败，模板下没有工序定义，模板名称: {}", template.getTemplateName());
+            log.error("创建循环失败，该工点下模板没有工序定义，工点ID: {}, 模板名称: {}", 
+                    request.getProjectId(), template.getTemplateName());
             throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
         }
 
@@ -156,7 +165,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         
         // 根据模板自动创建工序（模板已验证，直接创建）
         Long currentUserId = SecurityUtils.getCurrentUserId();
-        createProcessesFromTemplate(cycle.getId(), template.getTemplateName(), cycle.getStartDate(), currentUserId);
+        createProcessesFromTemplate(cycle.getId(), request.getProjectId(), template.getTemplateName(), cycle.getStartDate(), currentUserId);
         
         return convertToResponse(cycle);
     }
@@ -286,20 +295,28 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
     }
     
     /**
-     * 根据模板名称创建工序
+     * 根据工点ID和模板名称创建工序
      * 此方法假设模板已验证存在，不再进行重复验证
      */
-    private void createProcessesFromTemplate(Long cycleId, String templateName, LocalDateTime cycleStartTime, Long firstOperatorId) {
-        log.info("根据模板创建工序，循环ID: {}, 模板名称: {}", cycleId, templateName);
+    private void createProcessesFromTemplate(Long cycleId, Long siteId, String templateName, LocalDateTime cycleStartTime, Long firstOperatorId) {
+        log.info("根据模板创建工序，循环ID: {}, 工点ID: {}, 模板名称: {}", cycleId, siteId, templateName);
         
-        // 获取该模板下的所有工序模板（已在createCycle中验证，这里直接获取）
-        List<ProcessTemplate> templates = processTemplateService.getTemplatesByName(templateName).stream()
+        // 获取该工点下该模板的所有工序模板（已在createCycle中验证，这里直接获取）
+        List<ProcessTemplate> templates = processTemplateService.getTemplatesByNameAndSiteId(templateName, siteId).stream()
                 .sorted(Comparator.comparing(ProcessTemplate::getDefaultOrder, Comparator.nullsLast(Integer::compareTo)))
                 .collect(Collectors.toList());
         
         // 根据模板创建工序
         boolean firstStarted = false;
+        int createdCount = 0;
         for (ProcessTemplate processTemplate : templates) {
+            // 如果工序模板的控制时间为0或null，则跳过该工序
+            if (processTemplate.getControlTime() == null || processTemplate.getControlTime() == 0) {
+                log.debug("跳过控制时间为0的工序模板，工序名称: {}, 顺序: {}, 模板ID: {}", 
+                        processTemplate.getProcessName(), processTemplate.getDefaultOrder(), processTemplate.getId());
+                continue;
+            }
+            
             Process process = new Process();
             process.setCycleId(cycleId);
             // 从工序字典获取工序名称（如果processTemplate有processCatalogId）
@@ -337,10 +354,11 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                 process.setOperatorId(null);
             }
             processService.save(process);
+            createdCount++;
             log.debug("根据模板创建工序成功，工序名称: {}, 顺序: {}, 模板ID: {}", process.getProcessName(), processTemplate.getDefaultOrder(), processTemplate.getId());
         }
         
-        log.info("根据模板创建工序完成，循环ID: {}, 创建工序数量: {}", cycleId, templates.size());
+        log.info("根据模板创建工序完成，循环ID: {}, 模板工序总数: {}, 实际创建工序数量: {}", cycleId, templates.size(), createdCount);
     }
     
     @Override

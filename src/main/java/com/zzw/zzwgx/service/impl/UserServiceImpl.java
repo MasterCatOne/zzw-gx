@@ -51,6 +51,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final UserRoleRelationMapper userRoleRelationMapper;
     private final CycleMapper cycleMapper;
     private final ProcessMapper processMapper;
+    private final com.zzw.zzwgx.service.UserProjectService userProjectService;
     
     @Override
     public User getByUsername(String username) {
@@ -214,6 +215,19 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 绑定角色
         String roleCode = StringUtils.hasText(request.getRoleCode()) ? request.getRoleCode() : UserRole.WORKER.getCode();
         bindUserRole(user.getId(), roleCode);
+        
+        // 如果提供了工点或隧道ID列表，在同一事务中分配项目（工点或隧道）
+        java.util.List<Long> projectIds = new java.util.ArrayList<>();
+        if (request.getSiteIds() != null && !request.getSiteIds().isEmpty()) {
+            projectIds.addAll(request.getSiteIds());
+        }
+        if (request.getTunnelIds() != null && !request.getTunnelIds().isEmpty()) {
+            projectIds.addAll(request.getTunnelIds());
+        }
+        if (!projectIds.isEmpty()) {
+            log.info("创建用户时同时分配项目，用户ID: {}, 项目IDs: {}", user.getId(), projectIds);
+            userProjectService.assignProjects(user.getId(), projectIds);
+        }
         
         log.info("管理员创建用户成功，用户ID: {}, 用户名: {}, 角色: {}", user.getId(), user.getUsername(), roleCode);
         return user;

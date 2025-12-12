@@ -186,6 +186,7 @@ CREATE TABLE IF NOT EXISTS process_catalog (
 CREATE TABLE IF NOT EXISTS process_template (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     template_name VARCHAR(100) NOT NULL COMMENT '模板名称',
+    site_id BIGINT NOT NULL COMMENT '工点ID（引用project表，node_type必须为SITE）',
     process_catalog_id BIGINT NOT NULL COMMENT '工序字典ID（引用process_catalog表）',
     control_time INT NOT NULL COMMENT '控制时间（分钟）',
     default_order INT NOT NULL COMMENT '默认顺序（在该模板中的顺序）',
@@ -194,9 +195,11 @@ CREATE TABLE IF NOT EXISTS process_template (
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     INDEX idx_template_name (template_name),
+    INDEX idx_site_id (site_id),
     INDEX idx_process_catalog_id (process_catalog_id),
     INDEX idx_default_order (default_order),
-    UNIQUE KEY uk_template_process (template_name, process_catalog_id),
+    UNIQUE KEY uk_site_template_process (site_id, template_name, process_catalog_id),
+    FOREIGN KEY (site_id) REFERENCES project(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     FOREIGN KEY (process_catalog_id) REFERENCES process_catalog(id) ON DELETE RESTRICT ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工序模板表（模板与工序的关联表）';
 
@@ -397,37 +400,37 @@ INSERT INTO process_catalog (process_name, process_code, description, display_or
 ('喷射混凝土', 'PROCESS_013', '最终喷射混凝土', 13, 1, 0);
 
 -- 工序模板数据（模板与工序的关联，设置每个模板中工序的控制时间）
--- 标准模板（使用process_catalog_id引用工序字典）
-INSERT INTO process_template (template_name, process_catalog_id, control_time, default_order, description, deleted) VALUES
-('标准模板', 1, 120, 1, NULL, 0),  -- 扒渣（平整场地）
-('标准模板', 2, 60, 2, NULL, 0),   -- 测量放样
-('标准模板', 3, 120, 3, NULL, 0),  -- 炮孔打设
-('标准模板', 4, 60, 4, NULL, 0),   -- 装药爆破
-('标准模板', 5, 90, 5, NULL, 0),   -- 出渣排险
-('标准模板', 6, 30, 6, NULL, 0),   -- 断面扫描（报检）
-('标准模板', 7, 60, 7, NULL, 0),   -- 初喷
-('标准模板', 2, 60, 8, '二次测量放样', 0),  -- 测量放样（第二次，同一个工序字典ID）
-('标准模板', 8, 120, 9, NULL, 0),  -- 拱架安装
-('标准模板', 9, 90, 10, NULL, 0),  -- 锁脚打设
-('标准模板', 10, 90, 11, NULL, 0), -- 锚杆打设
-('标准模板', 11, 120, 12, NULL, 0), -- 超前打设
-('标准模板', 12, 30, 13, NULL, 0), -- 报检
-('标准模板', 13, 120, 14, NULL, 0); -- 喷射混凝土
+-- 标准模板（使用process_catalog_id引用工序字典，绑定到工点7：上行隧道入口工点）
+INSERT INTO process_template (template_name, site_id, process_catalog_id, control_time, default_order, description, deleted) VALUES
+('标准模板', 7, 1, 120, 1, NULL, 0),  -- 扒渣（平整场地）
+('标准模板', 7, 2, 60, 2, NULL, 0),   -- 测量放样
+('标准模板', 7, 3, 120, 3, NULL, 0),  -- 炮孔打设
+('标准模板', 7, 4, 60, 4, NULL, 0),   -- 装药爆破
+('标准模板', 7, 5, 90, 5, NULL, 0),   -- 出渣排险
+('标准模板', 7, 6, 30, 6, NULL, 0),   -- 断面扫描（报检）
+('标准模板', 7, 7, 60, 7, NULL, 0),   -- 初喷
+('标准模板', 7, 2, 60, 8, '二次测量放样', 0),  -- 测量放样（第二次，同一个工序字典ID）
+('标准模板', 7, 8, 120, 9, NULL, 0),  -- 拱架安装
+('标准模板', 7, 9, 90, 10, NULL, 0),  -- 锁脚打设
+('标准模板', 7, 10, 90, 11, NULL, 0), -- 锚杆打设
+('标准模板', 7, 11, 120, 12, NULL, 0), -- 超前打设
+('标准模板', 7, 12, 30, 13, NULL, 0), -- 报检
+('标准模板', 7, 13, 120, 14, NULL, 0); -- 喷射混凝土
 
--- 模板2
-INSERT INTO process_template (template_name, process_catalog_id, control_time, default_order, description, deleted) VALUES
-('模板2', 1, 100, 1, NULL, 0),  -- 扒渣（平整场地）
-('模板2', 2, 50, 2, NULL, 0),   -- 测量放样
-('模板2', 3, 100, 3, NULL, 0),  -- 炮孔打设
-('模板2', 4, 50, 4, NULL, 0),   -- 装药爆破
-('模板2', 5, 80, 5, NULL, 0),   -- 出渣排险
-('模板2', 6, 30, 6, NULL, 0),   -- 断面扫描（报检）
-('模板2', 7, 50, 7, NULL, 0),   -- 初喷
-('模板2', 2, 50, 8, '二次测量放样', 0),  -- 测量放样（第二次）
-('模板2', 8, 100, 9, NULL, 0),  -- 拱架安装
-('模板2', 9, 80, 10, NULL, 0),  -- 锁脚打设
-('模板2', 10, 80, 11, NULL, 0), -- 锚杆打设
-('模板2', 11, 100, 12, NULL, 0), -- 超前打设
-('模板2', 12, 30, 13, NULL, 0), -- 报检
-('模板2', 13, 100, 14, NULL, 0); -- 喷射混凝土
+-- 模板2（绑定到工点8：上行隧道中间工点）
+INSERT INTO process_template (template_name, site_id, process_catalog_id, control_time, default_order, description, deleted) VALUES
+('模板2', 8, 1, 100, 1, NULL, 0),  -- 扒渣（平整场地）
+('模板2', 8, 2, 50, 2, NULL, 0),   -- 测量放样
+('模板2', 8, 3, 100, 3, NULL, 0),  -- 炮孔打设
+('模板2', 8, 4, 50, 4, NULL, 0),   -- 装药爆破
+('模板2', 8, 5, 80, 5, NULL, 0),   -- 出渣排险
+('模板2', 8, 6, 30, 6, NULL, 0),   -- 断面扫描（报检）
+('模板2', 8, 7, 50, 7, NULL, 0),   -- 初喷
+('模板2', 8, 2, 50, 8, '二次测量放样', 0),  -- 测量放样（第二次）
+('模板2', 8, 8, 100, 9, NULL, 0),  -- 拱架安装
+('模板2', 8, 9, 80, 10, NULL, 0),  -- 锁脚打设
+('模板2', 8, 10, 80, 11, NULL, 0), -- 锚杆打设
+('模板2', 8, 11, 100, 12, NULL, 0), -- 超前打设
+('模板2', 8, 12, 30, 13, NULL, 0), -- 报检
+('模板2', 8, 13, 100, 14, NULL, 0); -- 喷射混凝土
 

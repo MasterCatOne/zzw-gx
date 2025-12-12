@@ -23,6 +23,11 @@ public class ProcessTemplate {
     private String templateName;
     
     /**
+     * 工点ID（引用project表，node_type必须为SITE）
+     */
+    private Long siteId;
+    
+    /**
      * 工序字典ID（引用process_catalog表）
      */
     private Long processCatalogId;

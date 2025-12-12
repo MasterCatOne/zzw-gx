@@ -6,6 +6,8 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * 管理员创建用户请求DTO
  */
@@ -42,5 +44,12 @@ public class CreateUserRequest {
     
     @Schema(description = "用户状态：0-禁用，1-启用，默认为1（启用）", example = "1")
     private Integer status;
+    
+    @Schema(description = "工点ID列表（可选，创建用户时可绑定工点）", example = "[1, 2]")
+    private List<Long> siteIds;
+    
+    @Schema(description = "隧道ID列表（可选，创建用户时可绑定隧道）", example = "[3, 4]")
+    @NotBlank(message = "隧道不能为空")
+    private List<Long> tunnelIds;
 }
 

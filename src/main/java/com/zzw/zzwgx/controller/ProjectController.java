@@ -3,6 +3,7 @@ package com.zzw.zzwgx.controller;
 import com.zzw.zzwgx.common.Result;
 import com.zzw.zzwgx.dto.request.ProjectRequest;
 import com.zzw.zzwgx.dto.response.ProjectTreeNodeResponse;
+import com.zzw.zzwgx.dto.response.SiteOptionResponse;
 import com.zzw.zzwgx.dto.response.TunnelOptionResponse;
 import com.zzw.zzwgx.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -63,6 +64,14 @@ public class ProjectController {
     public Result<List<TunnelOptionResponse>> listTunnels() {
         List<TunnelOptionResponse> tunnels = projectService.listTunnels();
         return Result.success(tunnels);
+    }
+    
+    @Operation(summary = "根据隧道获取工点列表", description = "根据隧道ID返回该隧道下的所有工点节点的ID和名称，用于下拉选择。")
+    @GetMapping("/tunnels/{tunnelId}/sites")
+    public Result<List<SiteOptionResponse>> listSitesByTunnel(
+            @Parameter(description = "隧道ID", required = true, example = "1") @PathVariable Long tunnelId) {
+        List<SiteOptionResponse> sites = projectService.listSitesByTunnelId(tunnelId);
+        return Result.success(sites);
     }
 }
 
