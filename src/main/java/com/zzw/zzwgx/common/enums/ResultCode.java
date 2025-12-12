@@ -39,7 +39,10 @@ public enum ResultCode {
     PROCESS_CATALOG_NOT_FOUND(2016, "工序字典不存在"),
     PROCESS_NAME_ALREADY_EXISTS(2017, "工序名称已存在"),
     PROCESS_CODE_ALREADY_EXISTS(2018, "工序编码已存在"),
-    USER_PROJECT_SAVE_FAILED(2019, "该用户已被分配到该项目");
+    USER_PROJECT_SAVE_FAILED(2019, "该用户已被分配到该项目"),
+    CYCLE_START_TIME_INVALID(2020, "循环开始时间不能是过去时间"),
+    PROCESS_START_TIME_INVALID(2021, "工序开始时间不能是过去时间"),
+    PROCESS_COMPLETED_CANNOT_UPDATE_ORDER(2022, "已完成的工序不能修改开始顺序");
 
     private final Integer code;
     private final String message;

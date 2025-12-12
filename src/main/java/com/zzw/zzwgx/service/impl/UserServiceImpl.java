@@ -122,10 +122,51 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (role == null) {
             throw new BusinessException(ResultCode.USER_ROLE_MISSING);
         }
-        UserRoleRelation relation = new UserRoleRelation();
-        relation.setUserId(userId);
-        relation.setRoleId(role.getId());
-        userRoleRelationMapper.insert(relation);
+        
+        // 检查该用户-角色关联是否已存在（未删除的）
+        UserRoleRelation existingRelation = userRoleRelationMapper.selectOne(
+                new LambdaQueryWrapper<UserRoleRelation>()
+                        .eq(UserRoleRelation::getUserId, userId)
+                        .eq(UserRoleRelation::getRoleId, role.getId())
+                        .eq(UserRoleRelation::getDeleted, 0)
+                        .last("LIMIT 1"));
+        
+        if (existingRelation != null) {
+            // 如果已存在且未删除，则不需要重复插入
+            log.debug("用户-角色关联已存在，跳过插入，用户ID: {}, 角色ID: {}", userId, role.getId());
+            return;
+        }
+        
+        // 尝试插入新记录，如果失败（唯一约束冲突），则尝试恢复已删除的记录
+        try {
+            UserRoleRelation relation = new UserRoleRelation();
+            relation.setUserId(userId);
+            relation.setRoleId(role.getId());
+            userRoleRelationMapper.insert(relation);
+            log.debug("创建用户-角色关联，用户ID: {}, 角色ID: {}", userId, role.getId());
+        } catch (Exception e) {
+            // 如果插入失败（可能是唯一约束冲突），尝试恢复已删除的记录
+            Throwable cause = e;
+            while (cause != null && !(cause instanceof java.sql.SQLIntegrityConstraintViolationException)) {
+                cause = cause.getCause();
+            }
+            
+            if (cause instanceof java.sql.SQLIntegrityConstraintViolationException) {
+                log.debug("检测到唯一约束冲突，尝试恢复已删除的用户-角色关联，用户ID: {}, 角色ID: {}", userId, role.getId());
+                // 使用原生 SQL 直接恢复已删除的记录
+                int updated = userRoleRelationMapper.restoreDeletedRelation(userId, role.getId());
+                if (updated > 0) {
+                    log.debug("恢复用户-角色关联成功，用户ID: {}, 角色ID: {}", userId, role.getId());
+                } else {
+                    // 如果没有恢复任何记录，说明是其他原因导致的异常，重新抛出
+                    log.error("恢复用户-角色关联失败，可能是其他原因，用户ID: {}, 角色ID: {}", userId, role.getId());
+                    throw new BusinessException("无法创建用户-角色关联，可能存在数据冲突");
+                }
+            } else {
+                // 其他异常，重新抛出
+                throw e;
+            }
+        }
     }
     
     /**
@@ -190,33 +231,67 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
         
         // 更新用户信息
+        boolean hasUpdate = false;
         if (StringUtils.hasText(request.getRealName())) {
             user.setRealName(request.getRealName());
+            hasUpdate = true;
+            log.debug("更新用户姓名，用户ID: {}, 新姓名: {}", userId, request.getRealName());
         }
         if (StringUtils.hasText(request.getIdCard())) {
             user.setIdCard(request.getIdCard());
+            hasUpdate = true;
+            log.debug("更新用户身份证号，用户ID: {}", userId);
         }
         if (StringUtils.hasText(request.getPhone())) {
             user.setPhone(request.getPhone());
+            hasUpdate = true;
+            log.debug("更新用户手机号，用户ID: {}, 新手机号: {}", userId, request.getPhone());
         }
         if (StringUtils.hasText(request.getPassword())) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
+            hasUpdate = true;
+            log.debug("更新用户密码，用户ID: {}", userId);
         }
         if (request.getStatus() != null) {
             user.setStatus(request.getStatus());
+            hasUpdate = true;
+            log.debug("更新用户状态，用户ID: {}, 新状态: {}", userId, request.getStatus());
         }
         
-        updateById(user);
+        // 如果有任何字段需要更新，则执行更新操作
+        if (hasUpdate) {
+            boolean updateResult = updateById(user);
+            if (!updateResult) {
+                log.error("更新用户信息失败，用户ID: {}", userId);
+                throw new BusinessException("更新用户信息失败");
+            }
+            log.info("用户信息更新成功，用户ID: {}", userId);
+            // 重新获取用户信息，确保返回最新数据
+            user = getById(userId);
+            if (user == null) {
+                log.error("更新后无法获取用户信息，用户ID: {}", userId);
+                throw new BusinessException(ResultCode.USER_NOT_FOUND);
+            }
+        } else {
+            log.debug("没有需要更新的用户信息字段，用户ID: {}", userId);
+        }
         
         // 更新角色（如果提供了角色代码）
         if (StringUtils.hasText(request.getRoleCode())) {
-            // 先删除原有角色关联
-            userRoleRelationMapper.delete(new LambdaQueryWrapper<UserRoleRelation>()
-                    .eq(UserRoleRelation::getUserId, userId)
-                    .eq(UserRoleRelation::getDeleted, 0));
-            // 绑定新角色
-            bindUserRole(userId, request.getRoleCode());
-            log.debug("更新用户角色，用户ID: {}, 新角色: {}", userId, request.getRoleCode());
+            // 获取用户当前角色
+            List<String> currentRoles = getUserRoleCodes(userId);
+            // 如果新角色与当前角色相同，则不需要更新
+            if (currentRoles.contains(request.getRoleCode())) {
+                log.debug("用户角色未变化，跳过更新，用户ID: {}, 角色: {}", userId, request.getRoleCode());
+            } else {
+                // 先删除原有角色关联（逻辑删除）
+                userRoleRelationMapper.delete(new LambdaQueryWrapper<UserRoleRelation>()
+                        .eq(UserRoleRelation::getUserId, userId)
+                        .eq(UserRoleRelation::getDeleted, 0));
+                // 绑定新角色（bindUserRole 方法会检查是否已存在，避免重复插入）
+                bindUserRole(userId, request.getRoleCode());
+                log.debug("更新用户角色，用户ID: {}, 新角色: {}", userId, request.getRoleCode());
+            }
         }
         
         log.info("管理员更新用户成功，用户ID: {}", userId);

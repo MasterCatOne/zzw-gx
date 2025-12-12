@@ -444,6 +444,21 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
         log.info("项目节点删除成功，ID: {}", projectId);
     }
     
+    @Override
+    public List<com.zzw.zzwgx.dto.response.TunnelOptionResponse> listTunnels() {
+        log.info("查询隧道列表（仅ID和名称）");
+        List<Project> tunnels = list(new LambdaQueryWrapper<Project>()
+                .eq(Project::getNodeType, "TUNNEL")
+                .eq(Project::getDeleted, 0)
+                .orderByAsc(Project::getId));
+        return tunnels.stream().map(p -> {
+            com.zzw.zzwgx.dto.response.TunnelOptionResponse resp = new com.zzw.zzwgx.dto.response.TunnelOptionResponse();
+            resp.setId(p.getId());
+            resp.setName(p.getProjectName());
+            return resp;
+        }).collect(Collectors.toList());
+    }
+    
     private void validateParent(Long parentId, Long currentId) {
         if (parentId == null) {
             return;

@@ -55,5 +55,10 @@ public interface ProjectService extends IService<Project> {
      * 获取工点施工状态（管理员查看）
      */
     SiteConstructionStatusResponse getSiteConstructionStatus(Long projectId);
+    
+    /**
+     * 获取全部隧道列表（仅返回ID和名称）
+     */
+    List<com.zzw.zzwgx.dto.response.TunnelOptionResponse> listTunnels();
 }
 

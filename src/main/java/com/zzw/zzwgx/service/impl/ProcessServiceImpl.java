@@ -172,6 +172,16 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         if (!hasInProgress && request.getActualStartTime() == null) {
             throw new BusinessException("实际开始时间不能为空");
         }
+        
+        // 验证实际开始时间不能是过去时间
+        if (request.getActualStartTime() != null) {
+            LocalDateTime now = LocalDateTime.now();
+            if (request.getActualStartTime().isBefore(now)) {
+                log.error("创建工序失败，实际开始时间不能是过去时间，实际开始时间: {}, 当前时间: {}", 
+                        request.getActualStartTime(), now);
+                throw new BusinessException(ResultCode.PROCESS_START_TIME_INVALID);
+            }
+        }
 
         // 处理 startOrder 冲突（调整后续工序顺序）
         boolean orderExists = existingProcesses.stream()
@@ -452,7 +462,40 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             process.setOperatorId(request.getOperatorId());
         }
         if (request.getStartOrder() != null) {
-            process.setStartOrder(request.getStartOrder());
+            // 检查工序是否已完成，已完成的工序不能修改开始顺序
+            if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus())) {
+                log.error("更新工序失败，已完成的工序不能修改开始顺序，工序ID: {}", processId);
+                throw new BusinessException(ResultCode.PROCESS_COMPLETED_CANNOT_UPDATE_ORDER);
+            }
+            
+            // 如果新顺序与当前顺序不同，检查是否有其他未开始工序占用该顺序
+            if (!Objects.equals(request.getStartOrder(), process.getStartOrder())) {
+                List<Process> allProcesses = getProcessesByCycleId(process.getCycleId());
+                Process targetProcess = allProcesses.stream()
+                        .filter(p -> Objects.equals(p.getStartOrder(), request.getStartOrder())
+                                && !p.getId().equals(processId))
+                        .findFirst()
+                        .orElse(null);
+                
+                if (targetProcess != null) {
+                    // 如果目标顺序被另一个未开始工序占用，则交换两个工序的顺序
+                    if (ProcessStatus.NOT_STARTED.getCode().equals(targetProcess.getProcessStatus())) {
+                        Integer tempOrder = process.getStartOrder();
+                        process.setStartOrder(request.getStartOrder());
+                        targetProcess.setStartOrder(tempOrder);
+                        updateById(targetProcess);
+                        log.info("交换工序顺序，工序ID: {} 和工序ID: {} 交换顺序", processId, targetProcess.getId());
+                    } else {
+                        // 如果目标顺序被已完成或进行中的工序占用，抛出异常
+                        log.error("更新工序失败，目标顺序已被{}工序占用，工序ID: {}", 
+                                targetProcess.getProcessStatus(), targetProcess.getId());
+                        throw new BusinessException("目标顺序已被其他工序占用，无法修改");
+                    }
+                } else {
+                    // 目标顺序未被占用，直接设置
+                    process.setStartOrder(request.getStartOrder());
+                }
+            }
         }
         if (request.getAdvanceLength() != null) {
             process.setAdvanceLength(request.getAdvanceLength());
@@ -890,7 +933,8 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             throw new BusinessException("工序顺序列表不能为空");
         }
         
-        // 验证所有工序都属于该循环
+        // 验证所有工序都属于该循环，且不能是已完成的工序
+        List<Process> processesToUpdate = new ArrayList<>();
         for (UpdateProcessOrderRequest.ProcessOrderItem item : request.getProcessOrders()) {
             Process process = getById(item.getProcessId());
             if (process == null) {
@@ -899,16 +943,92 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             if (!process.getCycleId().equals(cycleId)) {
                 throw new BusinessException("工序不属于该循环，工序ID: " + item.getProcessId());
             }
+            // 检查工序是否已完成，已完成的工序不能修改开始顺序
+            if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus())) {
+                log.error("批量更新工序顺序失败，已完成的工序不能修改开始顺序，工序ID: {}", item.getProcessId());
+                throw new BusinessException(ResultCode.PROCESS_COMPLETED_CANNOT_UPDATE_ORDER);
+            }
+            processesToUpdate.add(process);
         }
         
-        // 批量更新工序顺序
+        // 获取该循环下的所有工序
+        List<Process> allProcesses = getProcessesByCycleId(cycleId);
+        
+        // 构建工序ID到新顺序的映射
+        Map<Long, Integer> newOrderMap = request.getProcessOrders().stream()
+                .collect(Collectors.toMap(
+                        UpdateProcessOrderRequest.ProcessOrderItem::getProcessId,
+                        UpdateProcessOrderRequest.ProcessOrderItem::getStartOrder));
+        
+        // 构建工序ID到旧顺序的映射（用于交换）
+        Map<Long, Integer> oldOrderMap = processesToUpdate.stream()
+                .collect(Collectors.toMap(Process::getId, Process::getStartOrder));
+        
+        // 批量更新工序顺序，处理交换逻辑
         for (UpdateProcessOrderRequest.ProcessOrderItem item : request.getProcessOrders()) {
             Process process = getById(item.getProcessId());
-            if (process != null) {
-                process.setStartOrder(item.getStartOrder());
-                updateById(process);
-                log.debug("更新工序顺序，工序ID: {}, 新顺序: {}", item.getProcessId(), item.getStartOrder());
+            if (process == null) {
+                continue;
             }
+            
+            Integer newOrder = item.getStartOrder();
+            Integer oldOrder = oldOrderMap.get(process.getId());
+            
+            // 如果新顺序与当前顺序不同
+            if (!Objects.equals(newOrder, oldOrder)) {
+                // 检查是否有其他工序占用该顺序
+                Process targetProcess = allProcesses.stream()
+                        .filter(p -> Objects.equals(p.getStartOrder(), newOrder)
+                                && !p.getId().equals(process.getId()))
+                        .findFirst()
+                        .orElse(null);
+                
+                if (targetProcess != null) {
+                    // 检查目标工序是否在本次更新列表中
+                    boolean targetInUpdateList = newOrderMap.containsKey(targetProcess.getId());
+                    
+                    if (targetInUpdateList) {
+                        // 目标工序也在更新列表中，检查是否要交换
+                        Integer targetNewOrder = newOrderMap.get(targetProcess.getId());
+                        if (Objects.equals(targetNewOrder, oldOrder)) {
+                            // 两个工序要交换顺序，直接交换
+                            process.setStartOrder(newOrder);
+                            updateById(process);
+                            log.debug("交换工序顺序（批量更新），工序ID: {} ({} -> {}) 和工序ID: {} ({} -> {})", 
+                                    process.getId(), oldOrder, newOrder, 
+                                    targetProcess.getId(), newOrder, oldOrder);
+                        } else {
+                            // 目标工序也要更新到其他顺序，检查冲突
+                            log.error("批量更新工序顺序失败，目标顺序 {} 已被工序占用，工序ID: {}", 
+                                    newOrder, targetProcess.getId());
+                            throw new BusinessException("目标顺序 " + newOrder + " 已被其他工序占用，无法修改");
+                        }
+                    } else {
+                        // 目标工序不在更新列表中
+                        if (ProcessStatus.NOT_STARTED.getCode().equals(targetProcess.getProcessStatus())) {
+                            // 如果目标顺序被另一个未开始工序占用，则交换两个工序的顺序
+                            targetProcess.setStartOrder(oldOrder);
+                            updateById(targetProcess);
+                            process.setStartOrder(newOrder);
+                            updateById(process);
+                            log.info("交换工序顺序，工序ID: {} ({} -> {}) 和工序ID: {} ({} -> {})", 
+                                    process.getId(), oldOrder, newOrder, 
+                                    targetProcess.getId(), newOrder, oldOrder);
+                        } else {
+                            // 如果目标顺序被已完成或进行中的工序占用，抛出异常
+                            log.error("批量更新工序顺序失败，目标顺序 {} 已被{}工序占用，工序ID: {}", 
+                                    newOrder, targetProcess.getProcessStatus(), targetProcess.getId());
+                            throw new BusinessException("目标顺序 " + newOrder + " 已被其他工序占用，无法修改");
+                        }
+                    }
+                } else {
+                    // 目标顺序未被占用，直接设置
+                    process.setStartOrder(newOrder);
+                    updateById(process);
+                }
+            }
+            
+            log.debug("更新工序顺序，工序ID: {}, 新顺序: {}", item.getProcessId(), item.getStartOrder());
         }
         
         log.info("批量更新工序顺序完成，循环ID: {}, 更新数量: {}", cycleId, request.getProcessOrders().size());

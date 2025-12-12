@@ -102,6 +102,14 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
 //            throw new BusinessException(ResultCode.CYCLE_IN_PROGRESS_EXISTS);
 //        }
         
+        // 验证开始时间不能是过去时间
+        LocalDateTime now = LocalDateTime.now();
+        if (request.getStartDate() != null && request.getStartDate().isBefore(now)) {
+            log.error("创建循环失败，开始时间不能是过去时间，开始时间: {}, 当前时间: {}", 
+                    request.getStartDate(), now);
+            throw new BusinessException(ResultCode.CYCLE_START_TIME_INVALID);
+        }
+        
         // 获取当前循环次数
         Cycle latestCycle = getLatestCycleByProjectId(request.getProjectId());
         int cycleNumber = latestCycle != null ? latestCycle.getCycleNumber() + 1 : 1;

@@ -3,6 +3,7 @@ package com.zzw.zzwgx.controller;
 import com.zzw.zzwgx.common.Result;
 import com.zzw.zzwgx.dto.request.ProjectRequest;
 import com.zzw.zzwgx.dto.response.ProjectTreeNodeResponse;
+import com.zzw.zzwgx.dto.response.TunnelOptionResponse;
 import com.zzw.zzwgx.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -55,6 +56,13 @@ public class ProjectController {
             @Parameter(description = "项目节点ID", required = true, example = "1") @PathVariable Long projectId) {
         projectService.deleteProject(projectId);
         return Result.success();
+    }
+    
+    @Operation(summary = "获取隧道列表", description = "返回所有隧道节点的ID和名称，用于下拉选择。")
+    @GetMapping("/tunnels")
+    public Result<List<TunnelOptionResponse>> listTunnels() {
+        List<TunnelOptionResponse> tunnels = projectService.listTunnels();
+        return Result.success(tunnels);
     }
 }
 
