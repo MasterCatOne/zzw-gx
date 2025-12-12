@@ -209,6 +209,11 @@ public class CycleReportDataResponse {
          * 是否超时（actualMinutes > controlTime 时为 true）
          */
         private Boolean overtime;
+
+        /**
+         * 工序所属大类（来自工序字典的 category，如 开挖 等）
+         */
+        private String category;
     }
     
     @Data

@@ -692,6 +692,9 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             
             // O列：工序状态
             processRow.setStatus(getStatusDesc(process.getProcessStatus()));
+
+            // 工序类别（来自工序字典的 category）
+            processRow.setCategory(process.getCategory());
             
             processList.add(processRow);
         }
