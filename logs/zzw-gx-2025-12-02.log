@@ -114,7 +114,7 @@
 2025-12-02 11:32:36.366 [http-nio-8080-exec-2] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /v3/api-docs
 2025-12-02 11:32:36.649 [http-nio-8080-exec-2] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.WorkerController
 2025-12-02 11:32:36.783 [http-nio-8080-exec-2] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AuthController
-2025-12-02 11:32:36.834 [http-nio-8080-exec-2] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AdminController
+2025-12-02 11:32:36.834 [http-nio-8080-exec-2] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.admin.AdminController
 2025-12-02 11:32:36.952 [http-nio-8080-exec-2] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.StatisticsController
 2025-12-02 11:32:37.027 [http-nio-8080-exec-2] INFO  org.springdoc.api.AbstractOpenApiResource - Init duration for springdoc-openapi is: 650 ms
 2025-12-02 11:32:37.135 [http-nio-8080-exec-10] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /webjars/js/chunk-d7d5f59c.e61130f3.js
@@ -331,7 +331,7 @@ io.jsonwebtoken.security.WeakKeyException: The signing key's size is 480 bits wh
 2025-12-02 11:33:55.127 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /v3/api-docs
 2025-12-02 11:33:55.374 [http-nio-8080-exec-1] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.WorkerController
 2025-12-02 11:33:55.497 [http-nio-8080-exec-1] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AuthController
-2025-12-02 11:33:55.553 [http-nio-8080-exec-1] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AdminController
+2025-12-02 11:33:55.553 [http-nio-8080-exec-1] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.admin.AdminController
 2025-12-02 11:33:55.700 [http-nio-8080-exec-1] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.StatisticsController
 2025-12-02 11:33:55.772 [http-nio-8080-exec-1] INFO  org.springdoc.api.AbstractOpenApiResource - Init duration for springdoc-openapi is: 636 ms
 2025-12-02 11:33:55.858 [http-nio-8080-exec-9] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /webjars/css/chunk-d7d5f59c.a9ffbfcb.css
@@ -652,7 +652,7 @@ io.jsonwebtoken.security.WeakKeyException: The signing key's size is 480 bits wh
 2025-12-02 11:39:37.567 [http-nio-8080-exec-8] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /v3/api-docs
 2025-12-02 11:39:37.760 [http-nio-8080-exec-8] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.WorkerController
 2025-12-02 11:39:37.887 [http-nio-8080-exec-8] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AuthController
-2025-12-02 11:39:37.932 [http-nio-8080-exec-8] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AdminController
+2025-12-02 11:39:37.932 [http-nio-8080-exec-8] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.admin.AdminController
 2025-12-02 11:39:38.081 [http-nio-8080-exec-8] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.StatisticsController
 2025-12-02 11:39:38.156 [http-nio-8080-exec-8] INFO  org.springdoc.api.AbstractOpenApiResource - Init duration for springdoc-openapi is: 584 ms
 2025-12-02 11:39:40.785 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /webjars/js/chunk-d7d5f59c.e61130f3.js
@@ -812,8 +812,8 @@ io.jsonwebtoken.security.WeakKeyException: The signing key's size is 480 bits wh
 2025-12-02 11:40:40.109 [http-nio-8080-exec-7] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@46efad81]
 2025-12-02 11:40:40.110 [http-nio-8080-exec-7] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 11:40:40.110 [http-nio-8080-exec-7] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/processes/1
-2025-12-02 11:40:40.112 [http-nio-8080-exec-7] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AdminController
-2025-12-02 11:40:40.113 [http-nio-8080-exec-7] INFO  com.zzw.zzwgx.controller.AdminController - 查询工序详情，工序ID: 1
+2025-12-02 11:40:40.112 [http-nio-8080-exec-7] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.admin.AdminController
+2025-12-02 11:40:40.113 [http-nio-8080-exec-7] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询工序详情，工序ID: 1
 2025-12-02 11:40:40.113 [http-nio-8080-exec-7] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 11:40:40.114 [http-nio-8080-exec-7] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@237c4c0] was not registered for synchronization because synchronization is not active
 2025-12-02 11:40:40.115 [http-nio-8080-exec-7] DEBUG o.m.spring.transaction.SpringManagedTransaction - JDBC Connection [HikariProxyConnection@1693876121 wrapping com.mysql.cj.jdbc.ConnectionImpl@5f9a8ddc] will not be managed by Spring
@@ -828,7 +828,7 @@ io.jsonwebtoken.security.WeakKeyException: The signing key's size is 480 bits wh
 2025-12-02 11:40:40.127 [http-nio-8080-exec-7] DEBUG com.zzw.zzwgx.mapper.UserMapper.selectById - ==> Parameters: 2(Long)
 2025-12-02 11:40:40.129 [http-nio-8080-exec-7] DEBUG com.zzw.zzwgx.mapper.UserMapper.selectById - <==      Total: 1
 2025-12-02 11:40:40.129 [http-nio-8080-exec-7] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@7a826488]
-2025-12-02 11:40:40.130 [http-nio-8080-exec-7] INFO  com.zzw.zzwgx.controller.AdminController - 查询工序详情成功，工序ID: 1, 工序名称: 扒渣
+2025-12-02 11:40:40.130 [http-nio-8080-exec-7] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询工序详情成功，工序ID: 1, 工序名称: 扒渣
 2025-12-02 11:40:40.150 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /webjars/js/chunk-735c675c.5b409314.js
 2025-12-02 11:42:29.320 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...
 2025-12-02 11:42:29.325 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown completed.
@@ -942,8 +942,8 @@ io.jsonwebtoken.security.WeakKeyException: The signing key's size is 480 bits wh
 2025-12-02 11:42:50.925 [http-nio-8080-exec-2] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@427949b8]
 2025-12-02 11:42:50.925 [http-nio-8080-exec-2] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 11:42:50.927 [http-nio-8080-exec-2] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects/1/progress
-2025-12-02 11:42:50.969 [http-nio-8080-exec-2] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AdminController
-2025-12-02 11:42:50.974 [http-nio-8080-exec-2] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目进度详情，项目ID: 1
+2025-12-02 11:42:50.969 [http-nio-8080-exec-2] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.admin.AdminController
+2025-12-02 11:42:50.974 [http-nio-8080-exec-2] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目进度详情，项目ID: 1
 2025-12-02 11:42:50.976 [http-nio-8080-exec-2] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 11:42:50.976 [http-nio-8080-exec-2] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@159ef7c5] was not registered for synchronization because synchronization is not active
 2025-12-02 11:42:50.976 [http-nio-8080-exec-2] DEBUG o.m.spring.transaction.SpringManagedTransaction - JDBC Connection [HikariProxyConnection@608510503 wrapping com.mysql.cj.jdbc.ConnectionImpl@7a34c1f6] will not be managed by Spring
@@ -972,7 +972,7 @@ io.jsonwebtoken.security.WeakKeyException: The signing key's size is 480 bits wh
 2025-12-02 11:42:51.002 [http-nio-8080-exec-2] DEBUG com.zzw.zzwgx.mapper.ProcessMapper.selectList - ==> Parameters: 2(Long)
 2025-12-02 11:42:51.007 [http-nio-8080-exec-2] DEBUG com.zzw.zzwgx.mapper.ProcessMapper.selectList - <==      Total: 4
 2025-12-02 11:42:51.007 [http-nio-8080-exec-2] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@6ba7624e]
-2025-12-02 11:42:51.010 [http-nio-8080-exec-2] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目进度详情成功，项目ID: 1, 循环ID: 2, 工序数量: 4
+2025-12-02 11:42:51.010 [http-nio-8080-exec-2] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目进度详情成功，项目ID: 1, 循环ID: 2, 工序数量: 4
 2025-12-02 11:43:15.793 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 从请求中获取到Token，请求路径: /api/admin/projects/2/progress
 2025-12-02 11:43:15.799 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - Token验证成功，用户名: admin, 请求路径: /api/admin/projects/2/progress
 2025-12-02 11:43:15.800 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 加载用户信息，用户名: admin
@@ -985,7 +985,7 @@ io.jsonwebtoken.security.WeakKeyException: The signing key's size is 480 bits wh
 2025-12-02 11:43:15.806 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@742c1e36]
 2025-12-02 11:43:15.808 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 11:43:15.809 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects/2/progress
-2025-12-02 11:43:15.816 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目进度详情，项目ID: 2
+2025-12-02 11:43:15.816 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目进度详情，项目ID: 2
 2025-12-02 11:43:15.817 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 11:43:15.817 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@3c18ef39] was not registered for synchronization because synchronization is not active
 2025-12-02 11:43:15.818 [http-nio-8080-exec-1] DEBUG o.m.spring.transaction.SpringManagedTransaction - JDBC Connection [HikariProxyConnection@1965575572 wrapping com.mysql.cj.jdbc.ConnectionImpl@7a34c1f6] will not be managed by Spring
@@ -1014,7 +1014,7 @@ io.jsonwebtoken.security.WeakKeyException: The signing key's size is 480 bits wh
 2025-12-02 11:43:15.838 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.mapper.ProcessMapper.selectList - ==> Parameters: 3(Long)
 2025-12-02 11:43:15.841 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.mapper.ProcessMapper.selectList - <==      Total: 4
 2025-12-02 11:43:15.841 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@41092edd]
-2025-12-02 11:43:15.841 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目进度详情成功，项目ID: 2, 循环ID: 3, 工序数量: 4
+2025-12-02 11:43:15.841 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目进度详情成功，项目ID: 2, 循环ID: 3, 工序数量: 4
 2025-12-02 11:43:19.536 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 从请求中获取到Token，请求路径: /api/admin/projects/3/progress
 2025-12-02 11:43:19.540 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - Token验证成功，用户名: admin, 请求路径: /api/admin/projects/3/progress
 2025-12-02 11:43:19.541 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 加载用户信息，用户名: admin
@@ -1027,7 +1027,7 @@ io.jsonwebtoken.security.WeakKeyException: The signing key's size is 480 bits wh
 2025-12-02 11:43:19.544 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@75e3c63]
 2025-12-02 11:43:19.544 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 11:43:19.545 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects/3/progress
-2025-12-02 11:43:19.551 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目进度详情，项目ID: 3
+2025-12-02 11:43:19.551 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目进度详情，项目ID: 3
 2025-12-02 11:43:19.551 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 11:43:19.551 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@153e736d] was not registered for synchronization because synchronization is not active
 2025-12-02 11:43:19.551 [http-nio-8080-exec-3] DEBUG o.m.spring.transaction.SpringManagedTransaction - JDBC Connection [HikariProxyConnection@1677060237 wrapping com.mysql.cj.jdbc.ConnectionImpl@7a34c1f6] will not be managed by Spring
@@ -1055,7 +1055,7 @@ io.jsonwebtoken.security.WeakKeyException: The signing key's size is 480 bits wh
 2025-12-02 11:43:22.531 [http-nio-8080-exec-4] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@6bfae51a]
 2025-12-02 11:43:22.532 [http-nio-8080-exec-4] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 11:43:22.532 [http-nio-8080-exec-4] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects/2/progress
-2025-12-02 11:43:22.536 [http-nio-8080-exec-4] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目进度详情，项目ID: 2
+2025-12-02 11:43:22.536 [http-nio-8080-exec-4] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目进度详情，项目ID: 2
 2025-12-02 11:43:22.536 [http-nio-8080-exec-4] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 11:43:22.537 [http-nio-8080-exec-4] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@42cc25e0] was not registered for synchronization because synchronization is not active
 2025-12-02 11:43:22.537 [http-nio-8080-exec-4] DEBUG o.m.spring.transaction.SpringManagedTransaction - JDBC Connection [HikariProxyConnection@2116213398 wrapping com.mysql.cj.jdbc.ConnectionImpl@7a34c1f6] will not be managed by Spring
@@ -1084,7 +1084,7 @@ io.jsonwebtoken.security.WeakKeyException: The signing key's size is 480 bits wh
 2025-12-02 11:43:22.549 [http-nio-8080-exec-4] DEBUG com.zzw.zzwgx.mapper.ProcessMapper.selectList - ==> Parameters: 3(Long)
 2025-12-02 11:43:22.551 [http-nio-8080-exec-4] DEBUG com.zzw.zzwgx.mapper.ProcessMapper.selectList - <==      Total: 4
 2025-12-02 11:43:22.551 [http-nio-8080-exec-4] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@68a84dde]
-2025-12-02 11:43:22.551 [http-nio-8080-exec-4] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目进度详情成功，项目ID: 2, 循环ID: 3, 工序数量: 4
+2025-12-02 11:43:22.551 [http-nio-8080-exec-4] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目进度详情成功，项目ID: 2, 循环ID: 3, 工序数量: 4
 2025-12-02 11:53:50.296 [http-nio-8080-exec-6] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /doc.html
 2025-12-02 11:53:50.326 [http-nio-8080-exec-8] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /webjars/css/chunk-vendors.f24a310a.css
 2025-12-02 11:53:50.327 [http-nio-8080-exec-7] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /webjars/css/app.8a48e86b.css
@@ -1626,7 +1626,7 @@ Relying upon circular references is discouraged and they are prohibited by defau
 2025-12-02 11:58:40.844 [http-nio-8080-exec-6] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /v3/api-docs
 2025-12-02 11:58:41.041 [http-nio-8080-exec-6] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.WorkerController
 2025-12-02 11:58:41.140 [http-nio-8080-exec-6] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AuthController
-2025-12-02 11:58:41.184 [http-nio-8080-exec-6] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AdminController
+2025-12-02 11:58:41.184 [http-nio-8080-exec-6] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.admin.AdminController
 2025-12-02 11:58:41.292 [http-nio-8080-exec-6] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.StatisticsController
 2025-12-02 11:58:41.363 [http-nio-8080-exec-6] INFO  org.springdoc.api.AbstractOpenApiResource - Init duration for springdoc-openapi is: 512 ms
 2025-12-02 11:58:41.469 [http-nio-8080-exec-10] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /webjars/js/chunk-069eb437.355c4fb0.js
@@ -2118,8 +2118,8 @@ java.io.IOException: The server sockets created using the LocalRMIServerSocketFa
 2025-12-02 13:32:56.652 [http-nio-8080-exec-5] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2b5714f9]
 2025-12-02 13:32:56.653 [http-nio-8080-exec-5] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 13:32:56.653 [http-nio-8080-exec-5] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects
-2025-12-02 13:32:56.657 [http-nio-8080-exec-5] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AdminController
-2025-12-02 13:32:56.658 [http-nio-8080-exec-5] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
+2025-12-02 13:32:56.657 [http-nio-8080-exec-5] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.admin.AdminController
+2025-12-02 13:32:56.658 [http-nio-8080-exec-5] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:32:56.658 [http-nio-8080-exec-5] INFO  com.zzw.zzwgx.service.impl.ProjectServiceImpl - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:32:56.660 [http-nio-8080-exec-5] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 13:32:56.660 [http-nio-8080-exec-5] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@b981266] was not registered for synchronization because synchronization is not active
@@ -2144,7 +2144,7 @@ java.io.IOException: The server sockets created using the LocalRMIServerSocketFa
 2025-12-02 13:32:58.631 [http-nio-8080-exec-6] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@3d6a20cb]
 2025-12-02 13:32:58.631 [http-nio-8080-exec-6] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 13:32:58.632 [http-nio-8080-exec-6] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects
-2025-12-02 13:32:58.634 [http-nio-8080-exec-6] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
+2025-12-02 13:32:58.634 [http-nio-8080-exec-6] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:32:58.634 [http-nio-8080-exec-6] INFO  com.zzw.zzwgx.service.impl.ProjectServiceImpl - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:32:58.635 [http-nio-8080-exec-6] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 13:32:58.635 [http-nio-8080-exec-6] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@71140ce1] was not registered for synchronization because synchronization is not active
@@ -2169,7 +2169,7 @@ java.io.IOException: The server sockets created using the LocalRMIServerSocketFa
 2025-12-02 13:33:43.884 [http-nio-8080-exec-7] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2e1bc81b]
 2025-12-02 13:33:43.884 [http-nio-8080-exec-7] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 13:33:43.884 [http-nio-8080-exec-7] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects
-2025-12-02 13:33:43.885 [http-nio-8080-exec-7] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
+2025-12-02 13:33:43.885 [http-nio-8080-exec-7] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:33:43.886 [http-nio-8080-exec-7] INFO  com.zzw.zzwgx.service.impl.ProjectServiceImpl - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:33:43.886 [http-nio-8080-exec-7] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 13:33:43.886 [http-nio-8080-exec-7] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@6a35bc54] was not registered for synchronization because synchronization is not active
@@ -2194,7 +2194,7 @@ java.io.IOException: The server sockets created using the LocalRMIServerSocketFa
 2025-12-02 13:33:46.835 [http-nio-8080-exec-8] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@431bd44d]
 2025-12-02 13:33:46.835 [http-nio-8080-exec-8] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 13:33:46.835 [http-nio-8080-exec-8] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects
-2025-12-02 13:33:46.836 [http-nio-8080-exec-8] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
+2025-12-02 13:33:46.836 [http-nio-8080-exec-8] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:33:46.836 [http-nio-8080-exec-8] INFO  com.zzw.zzwgx.service.impl.ProjectServiceImpl - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:33:46.837 [http-nio-8080-exec-8] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 13:33:46.837 [http-nio-8080-exec-8] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@32d60005] was not registered for synchronization because synchronization is not active
@@ -2219,7 +2219,7 @@ java.io.IOException: The server sockets created using the LocalRMIServerSocketFa
 2025-12-02 13:33:51.114 [http-nio-8080-exec-9] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@5f68b257]
 2025-12-02 13:33:51.115 [http-nio-8080-exec-9] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 13:33:51.116 [http-nio-8080-exec-9] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects
-2025-12-02 13:33:51.119 [http-nio-8080-exec-9] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
+2025-12-02 13:33:51.119 [http-nio-8080-exec-9] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:33:51.119 [http-nio-8080-exec-9] INFO  com.zzw.zzwgx.service.impl.ProjectServiceImpl - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:33:51.119 [http-nio-8080-exec-9] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 13:33:51.120 [http-nio-8080-exec-9] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@7476923c] was not registered for synchronization because synchronization is not active
@@ -2244,7 +2244,7 @@ java.io.IOException: The server sockets created using the LocalRMIServerSocketFa
 2025-12-02 13:34:07.191 [http-nio-8080-exec-10] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@70ad5767]
 2025-12-02 13:34:07.191 [http-nio-8080-exec-10] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 13:34:07.191 [http-nio-8080-exec-10] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects
-2025-12-02 13:34:07.193 [http-nio-8080-exec-10] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
+2025-12-02 13:34:07.193 [http-nio-8080-exec-10] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:34:07.193 [http-nio-8080-exec-10] INFO  com.zzw.zzwgx.service.impl.ProjectServiceImpl - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:34:07.194 [http-nio-8080-exec-10] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 13:34:07.194 [http-nio-8080-exec-10] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@7c2ec5be] was not registered for synchronization because synchronization is not active
@@ -2269,7 +2269,7 @@ java.io.IOException: The server sockets created using the LocalRMIServerSocketFa
 2025-12-02 13:34:31.981 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@4e82102e]
 2025-12-02 13:34:31.981 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 13:34:31.981 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects
-2025-12-02 13:34:31.983 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
+2025-12-02 13:34:31.983 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:34:31.983 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.service.impl.ProjectServiceImpl - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:34:31.984 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 13:34:31.984 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1cf161a9] was not registered for synchronization because synchronization is not active
@@ -2294,7 +2294,7 @@ java.io.IOException: The server sockets created using the LocalRMIServerSocketFa
 2025-12-02 13:37:48.594 [http-nio-8080-exec-4] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2b40b309]
 2025-12-02 13:37:48.594 [http-nio-8080-exec-4] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 13:37:48.594 [http-nio-8080-exec-4] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects
-2025-12-02 13:37:48.595 [http-nio-8080-exec-4] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
+2025-12-02 13:37:48.595 [http-nio-8080-exec-4] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:37:48.595 [http-nio-8080-exec-4] INFO  com.zzw.zzwgx.service.impl.ProjectServiceImpl - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:37:48.595 [http-nio-8080-exec-4] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 13:37:48.595 [http-nio-8080-exec-4] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@25128b87] was not registered for synchronization because synchronization is not active
@@ -2319,7 +2319,7 @@ java.io.IOException: The server sockets created using the LocalRMIServerSocketFa
 2025-12-02 13:37:50.553 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1c0891d0]
 2025-12-02 13:37:50.553 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 13:37:50.553 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects
-2025-12-02 13:37:50.554 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
+2025-12-02 13:37:50.554 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:37:50.554 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.service.impl.ProjectServiceImpl - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:37:50.554 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 13:37:50.554 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@6ded3e5d] was not registered for synchronization because synchronization is not active
@@ -2357,7 +2357,7 @@ java.io.IOException: The server sockets created using the LocalRMIServerSocketFa
 2025-12-02 13:37:53.002 [http-nio-8080-exec-2] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /v3/api-docs
 2025-12-02 13:37:53.112 [http-nio-8080-exec-2] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.WorkerController
 2025-12-02 13:37:53.167 [http-nio-8080-exec-2] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AuthController
-2025-12-02 13:37:53.192 [http-nio-8080-exec-2] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AdminController
+2025-12-02 13:37:53.192 [http-nio-8080-exec-2] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.admin.AdminController
 2025-12-02 13:37:53.251 [http-nio-8080-exec-2] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.StatisticsController
 2025-12-02 13:37:53.285 [http-nio-8080-exec-2] INFO  org.springdoc.api.AbstractOpenApiResource - Init duration for springdoc-openapi is: 279 ms
 2025-12-02 13:37:53.353 [http-nio-8080-exec-6] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /webjars/css/chunk-d7d5f59c.a9ffbfcb.css
@@ -2385,7 +2385,7 @@ java.io.IOException: The server sockets created using the LocalRMIServerSocketFa
 2025-12-02 13:37:57.334 [http-nio-8080-exec-8] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2dbf939f]
 2025-12-02 13:37:57.334 [http-nio-8080-exec-8] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 13:37:57.334 [http-nio-8080-exec-8] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects
-2025-12-02 13:37:57.335 [http-nio-8080-exec-8] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
+2025-12-02 13:37:57.335 [http-nio-8080-exec-8] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:37:57.335 [http-nio-8080-exec-8] INFO  com.zzw.zzwgx.service.impl.ProjectServiceImpl - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 13:37:57.335 [http-nio-8080-exec-8] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 13:37:57.335 [http-nio-8080-exec-8] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1ccf223d] was not registered for synchronization because synchronization is not active
@@ -2919,7 +2919,7 @@ Caused by: java.time.format.DateTimeParseException: Text '2025-11-05 08:00:00' c
 2025-12-02 13:46:17.875 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@7c0313b8]
 2025-12-02 13:46:17.875 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 13:46:17.876 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/processes
-2025-12-02 13:46:17.956 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
+2025-12-02 13:46:17.956 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.admin.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 13:46:17.960 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.service.impl.ProcessServiceImpl - 开始创建工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 13:46:17.961 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 13:46:17.961 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Registering transaction synchronization for SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@5cc6a620]
@@ -3054,7 +3054,7 @@ Caused by: java.time.format.DateTimeParseException: Text '2025-11-05 08:00:00' c
 2025-12-02 14:00:46.755 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@6f3eab94]
 2025-12-02 14:00:46.755 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:00:46.756 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/processes
-2025-12-02 14:00:46.938 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
+2025-12-02 14:00:46.938 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.admin.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:00:46.944 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.service.impl.ProcessServiceImpl - 开始创建工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:00:46.945 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:00:46.945 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Registering transaction synchronization for SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@40668605]
@@ -3089,7 +3089,7 @@ Caused by: java.time.format.DateTimeParseException: Text '2025-11-05 08:00:00' c
 2025-12-02 14:00:55.769 [http-nio-8080-exec-2] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@51d1432d]
 2025-12-02 14:00:55.770 [http-nio-8080-exec-2] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:00:55.770 [http-nio-8080-exec-2] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/processes
-2025-12-02 14:00:55.775 [http-nio-8080-exec-2] INFO  com.zzw.zzwgx.controller.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
+2025-12-02 14:00:55.775 [http-nio-8080-exec-2] INFO  com.zzw.zzwgx.controller.admin.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:00:55.776 [http-nio-8080-exec-2] INFO  com.zzw.zzwgx.service.impl.ProcessServiceImpl - 开始创建工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:00:55.776 [http-nio-8080-exec-2] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:00:55.776 [http-nio-8080-exec-2] DEBUG org.mybatis.spring.SqlSessionUtils - Registering transaction synchronization for SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@3a8049ac]
@@ -3124,7 +3124,7 @@ Caused by: java.time.format.DateTimeParseException: Text '2025-11-05 08:00:00' c
 2025-12-02 14:00:56.662 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@2003b424]
 2025-12-02 14:00:56.662 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:00:56.662 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/processes
-2025-12-02 14:00:56.665 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.controller.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
+2025-12-02 14:00:56.665 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.controller.admin.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:00:56.666 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.service.impl.ProcessServiceImpl - 开始创建工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:00:56.666 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:00:56.666 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - Registering transaction synchronization for SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@136460e6]
@@ -3159,7 +3159,7 @@ Caused by: java.time.format.DateTimeParseException: Text '2025-11-05 08:00:00' c
 2025-12-02 14:00:57.228 [http-nio-8080-exec-4] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@6470c30a]
 2025-12-02 14:00:57.228 [http-nio-8080-exec-4] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:00:57.228 [http-nio-8080-exec-4] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/processes
-2025-12-02 14:00:57.232 [http-nio-8080-exec-4] INFO  com.zzw.zzwgx.controller.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
+2025-12-02 14:00:57.232 [http-nio-8080-exec-4] INFO  com.zzw.zzwgx.controller.admin.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:00:57.233 [http-nio-8080-exec-4] INFO  com.zzw.zzwgx.service.impl.ProcessServiceImpl - 开始创建工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:00:57.233 [http-nio-8080-exec-4] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:00:57.233 [http-nio-8080-exec-4] DEBUG org.mybatis.spring.SqlSessionUtils - Registering transaction synchronization for SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@6590b4b7]
@@ -3294,7 +3294,7 @@ Caused by: java.time.format.DateTimeParseException: Text '2025-11-05 08:00:00' c
 2025-12-02 14:08:35.437 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@53b028f9]
 2025-12-02 14:08:35.437 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:08:35.438 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/processes
-2025-12-02 14:08:35.592 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
+2025-12-02 14:08:35.592 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.admin.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:08:35.599 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.service.impl.ProcessServiceImpl - 开始创建工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:08:35.600 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:08:35.600 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Registering transaction synchronization for SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@5b7d8b03]
@@ -3329,7 +3329,7 @@ Caused by: java.time.format.DateTimeParseException: Text '2025-11-05 08:00:00' c
 2025-12-02 14:10:18.941 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@4bfa1e2f]
 2025-12-02 14:10:18.941 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:10:18.941 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/processes
-2025-12-02 14:10:18.944 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.controller.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
+2025-12-02 14:10:18.944 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.controller.admin.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:10:18.945 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.service.impl.ProcessServiceImpl - 开始创建工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:10:18.945 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:10:18.945 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - Registering transaction synchronization for SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@275576bf]
@@ -3364,7 +3364,7 @@ Caused by: java.time.format.DateTimeParseException: Text '2025-11-05 08:00:00' c
 2025-12-02 14:10:20.152 [http-nio-8080-exec-5] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@66781f75]
 2025-12-02 14:10:20.152 [http-nio-8080-exec-5] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:10:20.152 [http-nio-8080-exec-5] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/processes
-2025-12-02 14:10:20.155 [http-nio-8080-exec-5] INFO  com.zzw.zzwgx.controller.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
+2025-12-02 14:10:20.155 [http-nio-8080-exec-5] INFO  com.zzw.zzwgx.controller.admin.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:10:20.155 [http-nio-8080-exec-5] INFO  com.zzw.zzwgx.service.impl.ProcessServiceImpl - 开始创建工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:10:20.156 [http-nio-8080-exec-5] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:10:20.156 [http-nio-8080-exec-5] DEBUG org.mybatis.spring.SqlSessionUtils - Registering transaction synchronization for SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@225e2d71]
@@ -3399,7 +3399,7 @@ Caused by: java.time.format.DateTimeParseException: Text '2025-11-05 08:00:00' c
 2025-12-02 14:10:21.161 [http-nio-8080-exec-10] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@6b02ef3e]
 2025-12-02 14:10:21.161 [http-nio-8080-exec-10] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:10:21.161 [http-nio-8080-exec-10] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/processes
-2025-12-02 14:10:21.164 [http-nio-8080-exec-10] INFO  com.zzw.zzwgx.controller.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
+2025-12-02 14:10:21.164 [http-nio-8080-exec-10] INFO  com.zzw.zzwgx.controller.admin.AdminController - 创建新工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:10:21.165 [http-nio-8080-exec-10] INFO  com.zzw.zzwgx.service.impl.ProcessServiceImpl - 开始创建工序，循环ID: 1, 工序名称: 扒渣, 施工人员ID: 2
 2025-12-02 14:10:21.166 [http-nio-8080-exec-10] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:10:21.166 [http-nio-8080-exec-10] DEBUG org.mybatis.spring.SqlSessionUtils - Registering transaction synchronization for SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@30b76c71]
@@ -3738,7 +3738,7 @@ Caused by: java.time.format.DateTimeParseException: Text '2025-11-05 08:00:00' c
 2025-12-02 14:19:31.079 [http-nio-8080-exec-9] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /v3/api-docs
 2025-12-02 14:19:31.272 [http-nio-8080-exec-9] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.WorkerController
 2025-12-02 14:19:31.373 [http-nio-8080-exec-9] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AuthController
-2025-12-02 14:19:31.419 [http-nio-8080-exec-9] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AdminController
+2025-12-02 14:19:31.419 [http-nio-8080-exec-9] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.admin.AdminController
 2025-12-02 14:19:31.539 [http-nio-8080-exec-9] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.StatisticsController
 2025-12-02 14:19:31.618 [http-nio-8080-exec-9] INFO  org.springdoc.api.AbstractOpenApiResource - Init duration for springdoc-openapi is: 531 ms
 2025-12-02 14:22:51.876 [http-nio-8080-exec-4] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 从请求中获取到Token，请求路径: /api/admin/cycles
@@ -3923,7 +3923,7 @@ Caused by: java.time.format.DateTimeParseException: Text 'IN_PROGRESS' could not
 2025-12-02 14:24:21.425 [http-nio-8080-exec-6] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1852626a]
 2025-12-02 14:24:21.425 [http-nio-8080-exec-6] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:24:21.425 [http-nio-8080-exec-6] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/cycles
-2025-12-02 14:24:21.427 [http-nio-8080-exec-6] INFO  com.zzw.zzwgx.controller.AdminController - 创建新循环，项目ID: 1, 模板ID: 1, 控制时长: 360分钟
+2025-12-02 14:24:21.427 [http-nio-8080-exec-6] INFO  com.zzw.zzwgx.controller.admin.AdminController - 创建新循环，项目ID: 1, 模板ID: 1, 控制时长: 360分钟
 2025-12-02 14:24:21.436 [http-nio-8080-exec-6] INFO  com.zzw.zzwgx.service.impl.CycleServiceImpl - 开始创建循环，项目ID: 1, 模板ID: 1
 2025-12-02 14:24:21.437 [http-nio-8080-exec-6] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:24:21.437 [http-nio-8080-exec-6] DEBUG org.mybatis.spring.SqlSessionUtils - Registering transaction synchronization for SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@296371f7]
@@ -3989,7 +3989,7 @@ Caused by: java.time.format.DateTimeParseException: Text 'IN_PROGRESS' could not
 2025-12-02 14:24:22.500 [http-nio-8080-exec-8] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@5615c54f]
 2025-12-02 14:24:22.500 [http-nio-8080-exec-8] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:24:22.500 [http-nio-8080-exec-8] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/cycles
-2025-12-02 14:24:22.502 [http-nio-8080-exec-8] INFO  com.zzw.zzwgx.controller.AdminController - 创建新循环，项目ID: 1, 模板ID: 1, 控制时长: 360分钟
+2025-12-02 14:24:22.502 [http-nio-8080-exec-8] INFO  com.zzw.zzwgx.controller.admin.AdminController - 创建新循环，项目ID: 1, 模板ID: 1, 控制时长: 360分钟
 2025-12-02 14:24:22.502 [http-nio-8080-exec-8] INFO  com.zzw.zzwgx.service.impl.CycleServiceImpl - 开始创建循环，项目ID: 1, 模板ID: 1
 2025-12-02 14:24:22.502 [http-nio-8080-exec-8] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:24:22.503 [http-nio-8080-exec-8] DEBUG org.mybatis.spring.SqlSessionUtils - Registering transaction synchronization for SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1c688c1f]
@@ -4155,7 +4155,7 @@ Caused by: java.time.format.DateTimeParseException: Text 'IN_PROGRESS' could not
 2025-12-02 14:33:07.748 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@802154f]
 2025-12-02 14:33:07.748 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:33:07.749 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/cycles
-2025-12-02 14:33:07.826 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.AdminController - 创建新循环，项目ID: 1, 模板ID: 1, 控制时长: 360分钟
+2025-12-02 14:33:07.826 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.admin.AdminController - 创建新循环，项目ID: 1, 模板ID: 1, 控制时长: 360分钟
 2025-12-02 14:33:07.831 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.service.impl.CycleServiceImpl - 开始创建循环，项目ID: 1, 模板ID: 1
 2025-12-02 14:33:07.831 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:33:07.832 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Registering transaction synchronization for SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@efe3f9]
@@ -4750,7 +4750,7 @@ Caused by: java.lang.ClassNotFoundException: CycleService
 2025-12-02 14:53:34.437 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@11f698b0]
 2025-12-02 14:53:34.437 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:53:34.438 [http-nio-8080-exec-1] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/cycles
-2025-12-02 14:53:34.595 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.AdminController - 创建新循环，项目ID: 1, 模板ID: 1, 控制时长: 360分钟
+2025-12-02 14:53:34.595 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.controller.admin.AdminController - 创建新循环，项目ID: 1, 模板ID: 1, 控制时长: 360分钟
 2025-12-02 14:53:34.603 [http-nio-8080-exec-1] INFO  com.zzw.zzwgx.service.impl.CycleServiceImpl - 开始创建循环，项目ID: 1, 模板ID: 1
 2025-12-02 14:53:34.604 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:53:34.606 [http-nio-8080-exec-1] DEBUG org.mybatis.spring.SqlSessionUtils - Registering transaction synchronization for SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@386e8467]
@@ -4816,8 +4816,8 @@ Caused by: java.lang.ClassNotFoundException: CycleService
 2025-12-02 14:54:37.706 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@5561994a]
 2025-12-02 14:54:37.706 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:54:37.706 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects
-2025-12-02 14:54:37.710 [http-nio-8080-exec-3] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AdminController
-2025-12-02 14:54:37.710 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
+2025-12-02 14:54:37.710 [http-nio-8080-exec-3] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.admin.AdminController
+2025-12-02 14:54:37.710 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 14:54:37.710 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.service.impl.ProjectServiceImpl - 查询项目列表，页码: 1, 每页大小: 10, 搜索关键词: null
 2025-12-02 14:54:37.711 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:54:37.711 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@31279548] was not registered for synchronization because synchronization is not active
@@ -4842,7 +4842,7 @@ Caused by: java.lang.ClassNotFoundException: CycleService
 2025-12-02 14:55:01.844 [http-nio-8080-exec-4] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@26b912]
 2025-12-02 14:55:01.844 [http-nio-8080-exec-4] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:55:01.844 [http-nio-8080-exec-4] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/processes/1
-2025-12-02 14:55:01.849 [http-nio-8080-exec-4] INFO  com.zzw.zzwgx.controller.AdminController - 查询工序详情，工序ID: 1
+2025-12-02 14:55:01.849 [http-nio-8080-exec-4] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询工序详情，工序ID: 1
 2025-12-02 14:55:01.849 [http-nio-8080-exec-4] INFO  com.zzw.zzwgx.service.impl.ProcessServiceImpl - 查询工序详情，工序ID: 1
 2025-12-02 14:55:01.849 [http-nio-8080-exec-4] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:55:01.849 [http-nio-8080-exec-4] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@24534877] was not registered for synchronization because synchronization is not active
@@ -4871,7 +4871,7 @@ Caused by: java.lang.ClassNotFoundException: CycleService
 2025-12-02 14:55:03.875 [http-nio-8080-exec-10] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@3328cb95]
 2025-12-02 14:55:03.875 [http-nio-8080-exec-10] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:55:03.876 [http-nio-8080-exec-10] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/processes/2
-2025-12-02 14:55:03.877 [http-nio-8080-exec-10] INFO  com.zzw.zzwgx.controller.AdminController - 查询工序详情，工序ID: 2
+2025-12-02 14:55:03.877 [http-nio-8080-exec-10] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询工序详情，工序ID: 2
 2025-12-02 14:55:03.877 [http-nio-8080-exec-10] INFO  com.zzw.zzwgx.service.impl.ProcessServiceImpl - 查询工序详情，工序ID: 2
 2025-12-02 14:55:03.877 [http-nio-8080-exec-10] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:55:03.878 [http-nio-8080-exec-10] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@4d4a79e2] was not registered for synchronization because synchronization is not active
@@ -4900,7 +4900,7 @@ Caused by: java.lang.ClassNotFoundException: CycleService
 2025-12-02 14:55:06.754 [http-nio-8080-exec-6] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@5268fb09]
 2025-12-02 14:55:06.754 [http-nio-8080-exec-6] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:55:06.755 [http-nio-8080-exec-6] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/processes/3
-2025-12-02 14:55:06.756 [http-nio-8080-exec-6] INFO  com.zzw.zzwgx.controller.AdminController - 查询工序详情，工序ID: 3
+2025-12-02 14:55:06.756 [http-nio-8080-exec-6] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询工序详情，工序ID: 3
 2025-12-02 14:55:06.756 [http-nio-8080-exec-6] INFO  com.zzw.zzwgx.service.impl.ProcessServiceImpl - 查询工序详情，工序ID: 3
 2025-12-02 14:55:06.757 [http-nio-8080-exec-6] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:55:06.757 [http-nio-8080-exec-6] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@5be912a4] was not registered for synchronization because synchronization is not active
@@ -4948,7 +4948,7 @@ Caused by: java.lang.ClassNotFoundException: CycleService
 2025-12-02 14:58:20.640 [http-nio-8080-exec-8] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@4aa29c3d]
 2025-12-02 14:58:20.640 [http-nio-8080-exec-8] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:58:20.640 [http-nio-8080-exec-8] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects/2/progress
-2025-12-02 14:58:20.640 [http-nio-8080-exec-8] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目进度详情，项目ID: 2
+2025-12-02 14:58:20.640 [http-nio-8080-exec-8] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目进度详情，项目ID: 2
 2025-12-02 14:58:20.640 [http-nio-8080-exec-8] INFO  com.zzw.zzwgx.service.impl.ProjectServiceImpl - 查询项目进度详情，项目ID: 2
 2025-12-02 14:58:20.640 [http-nio-8080-exec-8] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:58:20.641 [http-nio-8080-exec-8] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@70e6bfc] was not registered for synchronization because synchronization is not active
@@ -4991,7 +4991,7 @@ Caused by: java.lang.ClassNotFoundException: CycleService
 2025-12-02 14:58:29.454 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@6eeaa5ba]
 2025-12-02 14:58:29.454 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:58:29.454 [http-nio-8080-exec-3] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects/1/progress
-2025-12-02 14:58:29.455 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目进度详情，项目ID: 1
+2025-12-02 14:58:29.455 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目进度详情，项目ID: 1
 2025-12-02 14:58:29.455 [http-nio-8080-exec-3] INFO  com.zzw.zzwgx.service.impl.ProjectServiceImpl - 查询项目进度详情，项目ID: 1
 2025-12-02 14:58:29.455 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:58:29.455 [http-nio-8080-exec-3] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@236eea9c] was not registered for synchronization because synchronization is not active
@@ -5034,7 +5034,7 @@ Caused by: java.lang.ClassNotFoundException: CycleService
 2025-12-02 14:58:38.421 [http-nio-8080-exec-5] DEBUG org.mybatis.spring.SqlSessionUtils - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@25c65e28]
 2025-12-02 14:58:38.421 [http-nio-8080-exec-5] DEBUG com.zzw.zzwgx.security.UserDetailsServiceImpl - 用户信息加载成功，用户ID: 1, 用户名: admin, 角色: ADMIN
 2025-12-02 14:58:38.421 [http-nio-8080-exec-5] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 设置认证信息成功，用户名: admin, 角色: [ROLE_ADMIN], 请求路径: /api/admin/projects/2/progress
-2025-12-02 14:58:38.422 [http-nio-8080-exec-5] INFO  com.zzw.zzwgx.controller.AdminController - 查询项目进度详情，项目ID: 2
+2025-12-02 14:58:38.422 [http-nio-8080-exec-5] INFO  com.zzw.zzwgx.controller.admin.AdminController - 查询项目进度详情，项目ID: 2
 2025-12-02 14:58:38.422 [http-nio-8080-exec-5] INFO  com.zzw.zzwgx.service.impl.ProjectServiceImpl - 查询项目进度详情，项目ID: 2
 2025-12-02 14:58:38.422 [http-nio-8080-exec-5] DEBUG org.mybatis.spring.SqlSessionUtils - Creating a new SqlSession
 2025-12-02 14:58:38.422 [http-nio-8080-exec-5] DEBUG org.mybatis.spring.SqlSessionUtils - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@43283de7] was not registered for synchronization because synchronization is not active
@@ -5199,7 +5199,7 @@ Caused by: java.lang.ClassNotFoundException: CycleService
 2025-12-02 15:02:03.567 [http-nio-8080-exec-8] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /v3/api-docs
 2025-12-02 15:02:03.720 [http-nio-8080-exec-8] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.WorkerController
 2025-12-02 15:02:03.819 [http-nio-8080-exec-8] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AuthController
-2025-12-02 15:02:03.858 [http-nio-8080-exec-8] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.AdminController
+2025-12-02 15:02:03.858 [http-nio-8080-exec-8] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.admin.AdminController
 2025-12-02 15:02:03.991 [http-nio-8080-exec-8] WARN  o.s.core.LocalVariableTableParameterNameDiscoverer - Using deprecated '-debug' fallback for parameter name resolution. Compile the affected code with '-parameters' instead or avoid its introspection: com.zzw.zzwgx.controller.StatisticsController
 2025-12-02 15:02:04.065 [http-nio-8080-exec-8] INFO  org.springdoc.api.AbstractOpenApiResource - Init duration for springdoc-openapi is: 494 ms
 2025-12-02 15:02:06.604 [http-nio-8080-exec-4] DEBUG com.zzw.zzwgx.security.JwtAuthenticationFilter - 请求中未包含Token，请求路径: /webjars/js/chunk-d7d5f59c.e61130f3.js

@@ -7,14 +7,12 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * 工序模板实体类
- * 映射到 template_process 表，为了向后兼容保留 templateName 和 siteId 字段
- * 这些字段需要通过关联查询获取
+ * 模板-工序关联实体类
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @TableName("template_process")
-public class ProcessTemplate {
+public class TemplateProcess {
     
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
@@ -25,27 +23,9 @@ public class ProcessTemplate {
     private Long templateId;
     
     /**
-     * 模板名称（通过关联查询获取，不存储在表中）
-     */
-    @TableField(exist = false)
-    private String templateName;
-    
-    /**
-     * 工点ID（通过关联查询获取，不存储在表中）
-     */
-    @TableField(exist = false)
-    private Long siteId;
-    
-    /**
      * 工序字典ID（引用process_catalog表）
      */
     private Long processCatalogId;
-    
-    /**
-     * 工序名称（保留字段，用于向后兼容，实际应从process_catalog表关联获取）
-     */
-    @TableField(exist = false)
-    private String processName;
     
     /**
      * 控制时间（分钟）
@@ -53,12 +33,12 @@ public class ProcessTemplate {
     private Integer controlTime;
     
     /**
-     * 默认顺序
+     * 默认顺序（在该模板中的顺序，唯一）
      */
     private Integer defaultOrder;
     
     /**
-     * 工序描述
+     * 工序描述（可选，如果为空则使用工序字典中的描述）
      */
     private String description;
     

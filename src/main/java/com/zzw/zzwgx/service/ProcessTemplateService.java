@@ -87,5 +87,23 @@ public interface ProcessTemplateService extends IService<ProcessTemplate> {
      * @return 模板及其工序列表
      */
     List<com.zzw.zzwgx.dto.response.TemplateWithProcessesResponse> getTemplatesWithProcesses();
+    
+    /**
+     * 创建工序模板
+     * 如果模板不存在则创建，如果工点-模板关联不存在则创建关联，最后创建模板-工序关联
+     * 
+     * @param request 创建请求
+     * @return 创建后的工序模板响应
+     */
+    ProcessTemplateResponse createProcessTemplate(com.zzw.zzwgx.dto.request.CreateProcessTemplateRequest request);
+    
+    /**
+     * 批量创建工序模板
+     * 一次性为同一个模板名称创建多条工序模板，避免逐条新增
+     * 
+     * @param request 批量创建请求
+     * @return 创建后的工序模板响应列表
+     */
+    List<ProcessTemplateResponse> createProcessTemplatesBatch(com.zzw.zzwgx.dto.request.CreateProcessTemplateBatchRequest request);
 }
 

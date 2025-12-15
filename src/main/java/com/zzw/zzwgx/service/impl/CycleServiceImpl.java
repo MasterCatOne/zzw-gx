@@ -18,6 +18,7 @@ import com.zzw.zzwgx.dto.request.CreateCycleRequest;
 import com.zzw.zzwgx.dto.request.UpdateCycleRequest;
 import com.zzw.zzwgx.dto.response.CycleReportDataResponse;
 import com.zzw.zzwgx.dto.response.CycleResponse;
+import com.zzw.zzwgx.dto.response.TemplateControlDurationResponse;
 import com.zzw.zzwgx.entity.Cycle;
 import com.zzw.zzwgx.entity.Process;
 import com.zzw.zzwgx.entity.ProcessCatalog;
@@ -25,6 +26,12 @@ import com.zzw.zzwgx.entity.ProcessTemplate;
 import com.zzw.zzwgx.entity.Project;
 import com.zzw.zzwgx.mapper.CycleMapper;
 import com.zzw.zzwgx.mapper.ProjectMapper;
+import com.zzw.zzwgx.mapper.TemplateMapper;
+import com.zzw.zzwgx.mapper.TemplateProcessMapper;
+import com.zzw.zzwgx.mapper.ProjectTemplateMapper;
+import com.zzw.zzwgx.entity.Template;
+import com.zzw.zzwgx.entity.TemplateProcess;
+import com.zzw.zzwgx.entity.ProjectTemplate;
 import com.zzw.zzwgx.security.SecurityUtils;
 import com.zzw.zzwgx.service.CycleService;
 import com.zzw.zzwgx.service.ProcessCatalogService;
@@ -65,6 +72,9 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
     private final ProcessCatalogService processCatalogService;
     private final ProcessService processService;
     private final ResourceLoader resourceLoader;
+    private final TemplateMapper templateMapper;
+    private final TemplateProcessMapper templateProcessMapper;
+    private final ProjectTemplateMapper projectTemplateMapper;
 
     private static final BigDecimal PROJECT_START_MILEAGE = new BigDecimal("84000");
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -80,27 +90,54 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             throw new BusinessException(ResultCode.PROJECT_NOT_FOUND);
         }
 
-        // 根据templateId获取模板，然后根据工点ID和模板名称获取该模板下的所有工序模板
-        ProcessTemplate template = processTemplateService.getById(request.getTemplateId());
+        // 根据templateId获取模板工序（template_process表）
+        // templateId 现在是 template_process 表的 id
+        TemplateProcess templateProcess = templateProcessMapper.selectById(request.getTemplateId());
+        if (templateProcess == null) {
+            log.error("创建循环失败，模板工序不存在，模板ID: {}", request.getTemplateId());
+            throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
+        }
+        
+        // 根据 template_id 查询模板信息
+        Template template = templateMapper.selectById(templateProcess.getTemplateId());
         if (template == null) {
-            log.error("创建循环失败，工序模板不存在，模板ID: {}", request.getTemplateId());
+            log.error("创建循环失败，模板不存在，模板ID: {}", templateProcess.getTemplateId());
             throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
         }
         
-        // 验证模板是否属于该工点
-        if (!request.getProjectId().equals(template.getSiteId())) {
-            log.error("创建循环失败，模板不属于该工点，工点ID: {}, 模板所属工点ID: {}", 
-                    request.getProjectId(), template.getSiteId());
-            throw new BusinessException("模板不属于该工点");
+        // 验证该工点是否关联了该模板
+        ProjectTemplate projectTemplate = projectTemplateMapper.selectOne(new LambdaQueryWrapper<ProjectTemplate>()
+                .eq(ProjectTemplate::getProjectId, request.getProjectId())
+                .eq(ProjectTemplate::getTemplateId, template.getId())
+                .eq(ProjectTemplate::getDeleted, 0)
+                .last("LIMIT 1"));
+        
+        if (projectTemplate == null) {
+            log.error("创建循环失败，该工点未关联该模板，工点ID: {}, 模板ID: {}", 
+                    request.getProjectId(), template.getId());
+            throw new BusinessException("该工点未关联该模板");
         }
         
-        // 根据工点ID和模板名称获取该模板下的所有工序模板
-        List<ProcessTemplate> templates = processTemplateService.getTemplatesByNameAndSiteId(
-                template.getTemplateName(), request.getProjectId());
+        // 根据模板名称获取该模板下的所有工序模板
+        List<ProcessTemplate> templates = processTemplateService.getTemplatesByName(template.getTemplateName());
         if (templates.isEmpty()) {
-            log.error("创建循环失败，该工点下模板没有工序定义，工点ID: {}, 模板名称: {}", 
-                    request.getProjectId(), template.getTemplateName());
+            log.error("创建循环失败，模板没有工序定义，模板ID: {}, 模板名称: {}", 
+                    template.getId(), template.getTemplateName());
             throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
+        }
+
+        // 计算控制时长：始终根据模板中所有工序的控制时间总和
+        Integer controlDuration = templates.stream()
+                .filter(t -> t.getControlTime() != null && t.getControlTime() > 0)
+                .mapToInt(ProcessTemplate::getControlTime)
+                .sum();
+        log.info("自动计算控制时长，模板名称: {}, 工序数量: {}, 控制时长总和: {}分钟",
+                template.getTemplateName(), templates.size(), controlDuration);
+        
+        if (controlDuration == null || controlDuration <= 0) {
+            log.error("创建循环失败，控制时长无效，工点ID: {}, 模板名称: {}, 控制时长: {}", 
+                    request.getProjectId(), template.getTemplateName(), controlDuration);
+            throw new BusinessException("模板中工序的控制时间总和无效，无法创建循环");
         }
 
         // 业务校验：检查该工点是否已有进行中的循环
@@ -111,10 +148,10 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
 //            throw new BusinessException(ResultCode.CYCLE_IN_PROGRESS_EXISTS);
 //        }
         
-        // 验证开始时间不能是过去时间
+        // 验证开始时间不能是过去时间（允许3分钟内的误差）
         LocalDateTime now = LocalDateTime.now();
-        if (request.getStartDate() != null && request.getStartDate().isBefore(now)) {
-            log.error("创建循环失败，开始时间不能是过去时间，开始时间: {}, 当前时间: {}", 
+        if (request.getStartDate() != null && request.getStartDate().isBefore(now.minusMinutes(3))) {
+            log.error("创建循环失败，开始时间不能是过去时间（超过3分钟误差），开始时间: {}, 当前时间: {}", 
                     request.getStartDate(), now);
             throw new BusinessException(ResultCode.CYCLE_START_TIME_INVALID);
         }
@@ -128,7 +165,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         Cycle cycle = new Cycle();
         cycle.setProjectId(request.getProjectId());
         cycle.setCycleNumber(cycleNumber);
-        cycle.setControlDuration(request.getControlDuration());
+        cycle.setControlDuration(controlDuration);
         cycle.setRockLevel(RockLevel.LEVEL_I.getCode());
         cycle.setStartDate(request.getStartDate());
         cycle.setEndDate(request.getEndDate());
@@ -142,11 +179,11 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         if (request.getEstimatedEndDate() != null) {
             // 如果请求中已提供预计结束时间，使用提供的值
             cycle.setEstimatedEndDate(request.getEstimatedEndDate());
-        } else if (request.getStartDate() != null && request.getControlDuration() != null) {
+        } else if (request.getStartDate() != null && controlDuration != null) {
             // 如果没有提供预计结束时间，根据实际开始时间 + 控制时长（分钟）计算
-            cycle.setEstimatedEndDate(request.getStartDate().plusMinutes(request.getControlDuration()));
+            cycle.setEstimatedEndDate(request.getStartDate().plusMinutes(controlDuration));
             log.debug("自动计算预计结束时间，开始时间: {}, 控制时长: {}分钟, 预计结束时间: {}", 
-                    request.getStartDate(), request.getControlDuration(), cycle.getEstimatedEndDate());
+                    request.getStartDate(), controlDuration, cycle.getEstimatedEndDate());
         } else {
             // 如果都没有提供，设置为null
             cycle.setEstimatedEndDate(request.getEstimatedEndDate());
@@ -295,14 +332,14 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
     }
     
     /**
-     * 根据工点ID和模板名称创建工序
+     * 根据模板名称创建工序
      * 此方法假设模板已验证存在，不再进行重复验证
      */
     private void createProcessesFromTemplate(Long cycleId, Long siteId, String templateName, LocalDateTime cycleStartTime, Long firstOperatorId) {
         log.info("根据模板创建工序，循环ID: {}, 工点ID: {}, 模板名称: {}", cycleId, siteId, templateName);
         
-        // 获取该工点下该模板的所有工序模板（已在createCycle中验证，这里直接获取）
-        List<ProcessTemplate> templates = processTemplateService.getTemplatesByNameAndSiteId(templateName, siteId).stream()
+        // 获取该模板的所有工序模板（模板是全局的，不区分工点）
+        List<ProcessTemplate> templates = processTemplateService.getTemplatesByName(templateName).stream()
                 .sorted(Comparator.comparing(ProcessTemplate::getDefaultOrder, Comparator.nullsLast(Integer::compareTo)))
                 .collect(Collectors.toList());
         
@@ -335,7 +372,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             process.setControlTime(processTemplate.getControlTime());
             process.setStartOrder(processTemplate.getDefaultOrder());
             process.setAdvanceLength(BigDecimal.ZERO);
-            // 记录工序来源模板ID
+            // 记录工序来源模板ID（template_process表的id）
             process.setTemplateId(processTemplate.getId());
 
             // 首个工序直接开工，操作员为当前用户；其余保持未开始
@@ -1592,6 +1629,61 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             return null;
         }
         return BeanUtil.copyProperties(cycle, CycleResponse.class);
+    }
+    
+    @Override
+    public TemplateControlDurationResponse getTemplateControlDuration(Long templateId) {
+        log.info("获取模板控制时长，模板ID: {}", templateId);
+        
+        // 根据templateId获取模板工序（template_process表）
+        TemplateProcess templateProcess = templateProcessMapper.selectById(templateId);
+        if (templateProcess == null) {
+            log.error("获取模板控制时长失败，模板工序不存在，模板ID: {}", templateId);
+            throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
+        }
+        
+        // 根据 template_id 查询模板信息
+        Template template = templateMapper.selectById(templateProcess.getTemplateId());
+        if (template == null) {
+            log.error("获取模板控制时长失败，模板不存在，模板ID: {}", templateProcess.getTemplateId());
+            throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
+        }
+        
+        // 根据模板ID获取该模板下的所有工序模板
+        List<TemplateProcess> templateProcesses = templateProcessMapper.selectList(new LambdaQueryWrapper<TemplateProcess>()
+                .eq(TemplateProcess::getTemplateId, template.getId())
+                .eq(TemplateProcess::getDeleted, 0)
+                .orderByAsc(TemplateProcess::getDefaultOrder));
+        
+        if (templateProcesses.isEmpty()) {
+            log.error("获取模板控制时长失败，模板没有工序定义，模板ID: {}, 模板名称: {}", 
+                    template.getId(), template.getTemplateName());
+            throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
+        }
+        
+        // 计算控制时长：模板中所有工序的控制时间总和
+        Integer controlDuration = templateProcesses.stream()
+                .filter(tp -> tp.getControlTime() != null && tp.getControlTime() > 0)
+                .mapToInt(TemplateProcess::getControlTime)
+                .sum();
+        
+        log.info("计算模板控制时长，模板名称: {}, 工序数量: {}, 控制时长总和: {}分钟", 
+                template.getTemplateName(), templateProcesses.size(), controlDuration);
+        
+        // 如果控制时长为0或null，设置为0（前端可以显示，但创建循环时会校验）
+        if (controlDuration == null || controlDuration <= 0) {
+            controlDuration = 0;
+            log.warn("模板控制时长为0或无效，模板ID: {}, 模板名称: {}, 工序数量: {}", 
+                    templateId, template.getTemplateName(), templateProcesses.size());
+        }
+        
+        // 构建响应
+        TemplateControlDurationResponse response = new TemplateControlDurationResponse();
+        response.setTemplateId(templateId);
+        response.setTemplateName(template.getTemplateName());
+        response.setControlDuration(controlDuration);
+        
+        return response;
     }
 }
 

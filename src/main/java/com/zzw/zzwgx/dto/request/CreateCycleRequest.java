@@ -17,8 +17,7 @@ public class CreateCycleRequest {
     @NotNull(message = "项目ID不能为空")
     private Long projectId;
     
-    @Schema(description = "控制时长标准（分钟）", requiredMode = Schema.RequiredMode.REQUIRED, example = "480")
-    @NotNull(message = "控制时长标准不能为空")
+    @Schema(description = "控制时长标准（分钟），已由系统根据模板工序总和自动计算，前端可不填", example = "480")
     private Integer controlDuration;
     
     @Schema(description = "实际开始时间", requiredMode = Schema.RequiredMode.REQUIRED, example = "2024-01-01T08:00:00")

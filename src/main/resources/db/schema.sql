@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS process (
     INDEX idx_process_catalog_id (process_catalog_id),
     FOREIGN KEY (cycle_id) REFERENCES cycle(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     FOREIGN KEY (operator_id) REFERENCES sys_user(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    FOREIGN KEY (template_id) REFERENCES process_template(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    FOREIGN KEY (template_id) REFERENCES template_process(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     FOREIGN KEY (process_catalog_id) REFERENCES process_catalog(id) ON DELETE RESTRICT ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工序表';
 
@@ -202,27 +202,6 @@ CREATE TABLE IF NOT EXISTS process_template (
     FOREIGN KEY (site_id) REFERENCES project(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     FOREIGN KEY (process_catalog_id) REFERENCES process_catalog(id) ON DELETE RESTRICT ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工序模板表（模板与工序的关联表）';
-
--- 任务表
-CREATE TABLE IF NOT EXISTS task (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
-    process_id BIGINT NOT NULL COMMENT '工序ID',
-    worker_id BIGINT NOT NULL COMMENT '施工人员ID',
-    task_status VARCHAR(20) DEFAULT 'PENDING' COMMENT '任务状态：PENDING-待完成，IN_PROGRESS-进行中，COMPLETED-已完成',
-    estimated_start_time DATETIME COMMENT '预计开始时间',
-    estimated_end_time DATETIME COMMENT '预计结束时间',
-    actual_start_time DATETIME COMMENT '实际开始时间',
-    actual_end_time DATETIME COMMENT '实际结束时间',
-    overtime_reason TEXT COMMENT '超时原因',
-    deleted TINYINT DEFAULT 0 COMMENT '删除标志：0-未删除，1-已删除',
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    INDEX idx_process_id (process_id),
-    INDEX idx_worker_id (worker_id),
-    INDEX idx_task_status (task_status),
-    FOREIGN KEY (process_id) REFERENCES process(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    FOREIGN KEY (worker_id) REFERENCES sys_user(id) ON DELETE RESTRICT ON UPDATE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='任务表';
 
 -- ============================================
 -- 初始化数据
@@ -366,15 +345,19 @@ INSERT INTO process (cycle_id, process_name, control_time, actual_start_time, ac
 (2, '装药爆破', 60, '2025-11-05 08:00:00', NULL, 'IN_PROGRESS', 5, 3, 0.2, 0),
 (2, '测量放样', 60, NULL, NULL, 'NOT_STARTED', 6, 4, 0.1, 0);
 
--- 任务数据
-INSERT INTO task (process_id, worker_id, task_status, actual_start_time, actual_end_time, deleted) VALUES
-                                                                                                       (1, 3, 'COMPLETED', '2025-11-01 08:00:00', '2025-11-01 09:40:00', 0),
-                                                                                                       (2, 4, 'COMPLETED', '2025-11-01 09:40:00', '2025-11-01 11:50:00', 0),
-                                                                                                       (3, 5, 'COMPLETED', '2025-11-01 11:50:00', '2025-11-01 12:50:00', 0),
-                                                                                                       (4, 6, 'COMPLETED', '2025-11-01 12:50:00', '2025-11-01 13:50:00', 0),
-                                                                                                       (5, 3, 'COMPLETED', '2025-11-04 08:00:00', '2025-11-04 09:40:00', 0),
-                                                                                                       (6, 4, 'COMPLETED', '2025-11-04 09:40:00', '2025-11-04 11:50:00', 0),
-                                                                                                       (7, 5, 'IN_PROGRESS', '2025-11-05 08:00:00', NULL, 0);
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 -- 用户工点关联表数据（为管理员分配管理的工点）
 -- 系统管理员（user_id=1）不需要关联记录，可以查看所有工点

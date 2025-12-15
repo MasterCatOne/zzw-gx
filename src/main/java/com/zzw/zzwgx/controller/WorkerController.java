@@ -131,15 +131,5 @@ public class WorkerController {
         return Result.success(stats);
     }
 
-//    @Operation(summary = "填报超时原因", description = "施工人员填报工序超时原因。仅限已完成的超时工序，且只能在循环完成前填报。")
-//    @PostMapping("/processes/{processId}/overtime-reason")
-//    public Result<Void> submitOvertimeReason(
-//            @Parameter(description = "工序ID", required = true, example = "1001") @PathVariable Long processId,
-//            @Valid @RequestBody SubmitOvertimeReasonRequest request) {
-//        Long userId = SecurityUtils.getCurrentUserId();
-//        log.info("施工人员填报超时原因，用户ID: {}, 工序ID: {}", userId, processId);
-//        processService.submitOvertimeReason(processId, userId, request.getOvertimeReason());
-//        return Result.success("超时原因填报成功", null);
-//    }
 }
 

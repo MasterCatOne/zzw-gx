@@ -15,5 +15,8 @@ public class TemplateListResponse {
 
     @Schema(description = "模板名称（用于显示）", example = "标准模板")
     private String templateName;
+    
+    @Schema(description = "控制时长标准（分钟），该模板下所有工序的控制时间总和", example = "1200")
+    private Integer controlDuration;
 }
 

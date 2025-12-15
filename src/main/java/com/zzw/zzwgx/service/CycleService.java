@@ -6,6 +6,7 @@ import com.zzw.zzwgx.dto.request.CreateCycleRequest;
 import com.zzw.zzwgx.dto.request.UpdateCycleRequest;
 import com.zzw.zzwgx.dto.response.CycleReportDataResponse;
 import com.zzw.zzwgx.dto.response.CycleResponse;
+import com.zzw.zzwgx.dto.response.TemplateControlDurationResponse;
 import com.zzw.zzwgx.entity.Cycle;
 
 /**
@@ -63,5 +64,15 @@ public interface CycleService extends IService<Cycle> {
      * @return 报表数据
      */
     CycleReportDataResponse getCycleReportData(Long cycleId);
+    
+    /**
+     * 根据模板ID和工点ID获取模板的控制时长（所有工序的控制时间总和）
+     * 用于创建循环页面，在创建循环前显示控制时长
+     *
+     * @param templateId 模板ID（该模板下任意一个工序模板的ID）
+     * @param projectId 工点ID
+     * @return 模板控制时长响应
+     */
+    TemplateControlDurationResponse getTemplateControlDuration(Long templateId);
 }
 

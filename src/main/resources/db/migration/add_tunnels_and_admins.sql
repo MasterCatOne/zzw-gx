@@ -5,22 +5,22 @@
 -- 谭涛 - 列屿隧道进口
 INSERT IGNORE INTO sys_user (username, password, real_name, status, deleted) 
 VALUES ('tantao', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '谭涛', 1, 0);
-SET @tantao_user_id = (SELECT id FROM sys_user WHERE username = 'tantao' LIMIT 1);
+SELECT id INTO @tantao_user_id FROM sys_user WHERE username = 'tantao';
 
 -- 惠勇 - 列屿隧道出口
 INSERT IGNORE INTO sys_user (username, password, real_name, status, deleted) 
 VALUES ('huiyong', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '惠勇', 1, 0);
-SET @huiyong_user_id = (SELECT id FROM sys_user WHERE username = 'huiyong' LIMIT 1);
+SELECT id INTO @huiyong_user_id FROM sys_user WHERE username = 'huiyong';
 
 -- 曹智明 - 林坪隧道进口、出口
 INSERT IGNORE INTO sys_user (username, password, real_name, status, deleted) 
 VALUES ('caozhiming', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '曹智明', 1, 0);
-SET @caozhiming_user_id = (SELECT id FROM sys_user WHERE username = 'caozhiming' LIMIT 1);
+SELECT id INTO @caozhiming_user_id FROM sys_user WHERE username = 'caozhiming';
 
 -- 郑兰孔 - 青径村隧道进口
 INSERT IGNORE INTO sys_user (username, password, real_name, status, deleted) 
 VALUES ('zhenglankong', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '郑兰孔', 1, 0);
-SET @zhenglankong_user_id = (SELECT id FROM sys_user WHERE username = 'zhenglankong' LIMIT 1);
+SELECT id INTO @zhenglankong_user_id FROM sys_user WHERE username = 'zhenglankong';
 
 -- 2. 为管理员用户分配ADMIN角色（如果还没有分配）
 INSERT IGNORE INTO sys_user_role (user_id, role_id, deleted) 
@@ -39,48 +39,48 @@ SELECT @zhenglankong_user_id, 2, 0 WHERE @zhenglankong_user_id IS NOT NULL;
 -- 列屿隧道
 INSERT IGNORE INTO project (parent_id, node_type, project_name, project_code, project_description, project_status, deleted)
 VALUES (NULL, 'TUNNEL', '列屿隧道', 'TUNNEL-LIEYU', '列屿隧道', 'IN_PROGRESS', 0);
-SET @lieyu_tunnel_id = (SELECT id FROM project WHERE project_code = 'TUNNEL-LIEYU' LIMIT 1);
+SELECT id INTO @lieyu_tunnel_id FROM project WHERE project_code = 'TUNNEL-LIEYU';
 
 -- 林坪隧道
 INSERT IGNORE INTO project (parent_id, node_type, project_name, project_code, project_description, project_status, deleted)
 VALUES (NULL, 'TUNNEL', '林坪隧道', 'TUNNEL-LINPING', '林坪隧道', 'IN_PROGRESS', 0);
-SET @linping_tunnel_id = (SELECT id FROM project WHERE project_code = 'TUNNEL-LINPING' LIMIT 1);
+SELECT id INTO @linping_tunnel_id FROM project WHERE project_code = 'TUNNEL-LINPING';
 
 -- 青径村隧道
 INSERT IGNORE INTO project (parent_id, node_type, project_name, project_code, project_description, project_status, deleted)
 VALUES (NULL, 'TUNNEL', '青径村隧道', 'TUNNEL-QINGJING', '青径村隧道', 'IN_PROGRESS', 0);
-SET @qingjing_tunnel_id = (SELECT id FROM project WHERE project_code = 'TUNNEL-QINGJING' LIMIT 1);
+SELECT id INTO @qingjing_tunnel_id FROM project WHERE project_code = 'TUNNEL-QINGJING';
 
 -- 4. 创建工点（如果不存在）
 -- 列屿隧道进口
 INSERT IGNORE INTO project (parent_id, node_type, project_name, project_code, project_description, project_status, deleted)
 SELECT @lieyu_tunnel_id, 'SITE', '列屿隧道进口', 'SITE-LIEYU-ENTRANCE', '列屿隧道进口工点', 'IN_PROGRESS', 0
 WHERE @lieyu_tunnel_id IS NOT NULL;
-SET @lieyu_entrance_id = (SELECT id FROM project WHERE project_code = 'SITE-LIEYU-ENTRANCE' LIMIT 1);
+SELECT id INTO @lieyu_entrance_id FROM project WHERE project_code = 'SITE-LIEYU-ENTRANCE';
 
 -- 列屿隧道出口
 INSERT IGNORE INTO project (parent_id, node_type, project_name, project_code, project_description, project_status, deleted)
 SELECT @lieyu_tunnel_id, 'SITE', '列屿隧道出口', 'SITE-LIEYU-EXIT', '列屿隧道出口工点', 'IN_PROGRESS', 0
 WHERE @lieyu_tunnel_id IS NOT NULL;
-SET @lieyu_exit_id = (SELECT id FROM project WHERE project_code = 'SITE-LIEYU-EXIT' LIMIT 1);
+SELECT id INTO @lieyu_exit_id FROM project WHERE project_code = 'SITE-LIEYU-EXIT';
 
 -- 林坪隧道进口
 INSERT IGNORE INTO project (parent_id, node_type, project_name, project_code, project_description, project_status, deleted)
 SELECT @linping_tunnel_id, 'SITE', '林坪隧道进口', 'SITE-LINPING-ENTRANCE', '林坪隧道进口工点', 'IN_PROGRESS', 0
 WHERE @linping_tunnel_id IS NOT NULL;
-SET @linping_entrance_id = (SELECT id FROM project WHERE project_code = 'SITE-LINPING-ENTRANCE' LIMIT 1);
+SELECT id INTO @linping_entrance_id FROM project WHERE project_code = 'SITE-LINPING-ENTRANCE';
 
 -- 林坪隧道出口
 INSERT IGNORE INTO project (parent_id, node_type, project_name, project_code, project_description, project_status, deleted)
 SELECT @linping_tunnel_id, 'SITE', '林坪隧道出口', 'SITE-LINPING-EXIT', '林坪隧道出口工点', 'IN_PROGRESS', 0
 WHERE @linping_tunnel_id IS NOT NULL;
-SET @linping_exit_id = (SELECT id FROM project WHERE project_code = 'SITE-LINPING-EXIT' LIMIT 1);
+SELECT id INTO @linping_exit_id FROM project WHERE project_code = 'SITE-LINPING-EXIT';
 
 -- 青径村隧道进口
 INSERT IGNORE INTO project (parent_id, node_type, project_name, project_code, project_description, project_status, deleted)
 SELECT @qingjing_tunnel_id, 'SITE', '青径村隧道进口', 'SITE-QINGJING-ENTRANCE', '青径村隧道进口工点', 'IN_PROGRESS', 0
 WHERE @qingjing_tunnel_id IS NOT NULL;
-SET @qingjing_entrance_id = (SELECT id FROM project WHERE project_code = 'SITE-QINGJING-ENTRANCE' LIMIT 1);
+SELECT id INTO @qingjing_entrance_id FROM project WHERE project_code = 'SITE-QINGJING-ENTRANCE';
 
 -- 5. 分配管理员到工点
 -- 列屿隧道进口：谭涛

@@ -173,11 +173,11 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             throw new BusinessException("实际开始时间不能为空");
         }
         
-        // 验证实际开始时间不能是过去时间
+        // 验证实际开始时间不能是过去时间（允许3分钟内的误差）
         if (request.getActualStartTime() != null) {
             LocalDateTime now = LocalDateTime.now();
-            if (request.getActualStartTime().isBefore(now)) {
-                log.error("创建工序失败，实际开始时间不能是过去时间，实际开始时间: {}, 当前时间: {}", 
+            if (request.getActualStartTime().isBefore(now.minusMinutes(3))) {
+                log.error("创建工序失败，实际开始时间不能是过去时间（超过3分钟误差），实际开始时间: {}, 当前时间: {}", 
                         request.getActualStartTime(), now);
                 throw new BusinessException(ResultCode.PROCESS_START_TIME_INVALID);
             }
