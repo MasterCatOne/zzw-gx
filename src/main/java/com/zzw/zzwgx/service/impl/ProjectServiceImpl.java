@@ -299,9 +299,9 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
                     
                     // 生成文本描述
                     if (diffMinutes > 0) {
-                        info.setTimeDifferenceText("超时" + diffMinutes + "分钟");
+                        info.setTimeDifferenceText("超时" + formatMinutes(diffMinutes));
                     } else if (diffMinutes < 0) {
-                        info.setTimeDifferenceText("节时" + Math.abs(diffMinutes) + "分钟");
+                        info.setTimeDifferenceText("节时" + formatMinutes(Math.abs(diffMinutes)));
                     } else {
                         info.setTimeDifferenceText("按时完成");
                     }
@@ -311,9 +311,9 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
                         long diff = Duration.between(process.getEstimatedEndTime(), process.getActualEndTime()).toMinutes();
                         info.setTimeDifferenceMinutes((int) diff);
                         if (diff > 0) {
-                            info.setTimeDifferenceText("超时" + diff + "分钟");
+                            info.setTimeDifferenceText("超时" + formatMinutes(diff));
                         } else if (diff < 0) {
-                            info.setTimeDifferenceText("节时" + Math.abs(diff) + "分钟");
+                            info.setTimeDifferenceText("节时" + formatMinutes(Math.abs(diff)));
                         } else {
                             info.setTimeDifferenceText("按时完成");
                         }
@@ -323,15 +323,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
                 // 工序正在进行中：显示已进行时长（>=60分钟转小时+分钟）
                 long elapsedMinutes = Duration.between(process.getActualStartTime(), LocalDateTime.now()).toMinutes();
                 info.setElapsedMinutes((int) elapsedMinutes);
-                if (elapsedMinutes >= 60) {
-                    long hoursPart = elapsedMinutes / 60;
-                    long minutesPart = elapsedMinutes % 60;
-                    info.setTimeDifferenceText(minutesPart > 0
-                            ? "已进行" + hoursPart + "小时" + minutesPart + "分钟"
-                            : "已进行" + hoursPart + "小时");
-                } else {
-                    info.setTimeDifferenceText("已进行" + elapsedMinutes + "分钟");
-                }
+                info.setTimeDifferenceText("已进行" + formatMinutes(elapsedMinutes));
             }
             if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus())) {
                 info.setEndProcess(true);
@@ -804,6 +796,21 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
                 completedInfos.size());
         
         return response;
+    }
+
+    /**
+     * 将分钟数格式化为“X小时Y分钟”；不足1小时仅显示分钟，整小时仅显示小时
+     */
+    private String formatMinutes(long minutes) {
+        long hours = minutes / 60;
+        long mins = minutes % 60;
+        if (hours == 0) {
+            return minutes + "分钟";
+        }
+        if (mins == 0) {
+            return hours + "小时";
+        }
+        return hours + "小时" + mins + "分钟";
     }
 }
 
