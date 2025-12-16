@@ -2,6 +2,8 @@ package com.zzw.zzwgx.controller.admin;
 
 import com.zzw.zzwgx.common.Result;
 import com.zzw.zzwgx.common.enums.ResultCode;
+import com.zzw.zzwgx.dto.request.BindTemplateProjectsRequest;
+import com.zzw.zzwgx.dto.request.BindProjectTemplatesRequest;
 import com.zzw.zzwgx.dto.request.CreateProcessTemplateBatchRequest;
 import com.zzw.zzwgx.dto.request.CreateProcessTemplateRequest;
 import com.zzw.zzwgx.dto.request.UpdateProcessTemplateRequest;
@@ -146,6 +148,26 @@ public class ProcessTemplateController {
         log.info("更新工序模板，模板ID: {}", templateId);
         ProcessTemplateResponse response = processTemplateService.updateProcessTemplate(templateId, request);
         return Result.success(response);
+    }
+
+    @Operation(summary = "绑定模板到工点", description = "为指定模板绑定工点（SITE），传入目标工点列表。未在列表内的关联将被标记删除，列表内的关联若存在则恢复，不存在则创建。支持传单个值或数组，幂等更新。", tags = {"管理员管理-工序模板管理"})
+    @PutMapping("/templates/{templateId}/projects")
+    public Result<Void> bindTemplateProjects(
+            @Parameter(description = "模板ID（template表的ID）", required = true, example = "1") @PathVariable Long templateId,
+            @Valid @RequestBody BindTemplateProjectsRequest request) {
+        log.info("绑定模板到工点，模板ID: {}, 工点IDs: {}", templateId, request.getProjectIds());
+        processTemplateService.bindTemplateToProjects(templateId, request.getProjectIds());
+        return Result.success();
+    }
+
+    @Operation(summary = "按工点绑定模板", description = "为指定工点绑定模板列表，前端先选择工点，再选择模板列表。未在列表内的关联将被标记删除，列表内的关联若存在则恢复，不存在则创建。支持传单个值或数组，幂等更新。", tags = {"管理员管理-工序模板管理"})
+    @PutMapping("/projects/{projectId}/templates")
+    public Result<Void> bindProjectTemplates(
+            @Parameter(description = "工点ID（SITE）", required = true, example = "1") @PathVariable Long projectId,
+            @Valid @RequestBody BindProjectTemplatesRequest request) {
+        log.info("按工点绑定模板，工点ID: {}, 模板IDs: {}", projectId, request.getTemplateIds());
+        processTemplateService.bindProjectToTemplates(projectId, request.getTemplateIds());
+        return Result.success();
     }
 }
 

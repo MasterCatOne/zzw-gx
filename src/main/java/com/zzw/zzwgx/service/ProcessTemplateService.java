@@ -57,6 +57,16 @@ public interface ProcessTemplateService extends IService<ProcessTemplate> {
      * 转换ProcessTemplate为ProcessTemplateResponse
      */
     ProcessTemplateResponse convertToResponse(ProcessTemplate template);
+
+    /**
+     * 绑定模板与工点（SITE），传入目标工点列表，支持幂等更新
+     */
+    void bindTemplateToProjects(Long templateId, List<Long> projectIds);
+    
+    /**
+     * 按工点绑定模板列表（SITE），传入目标模板列表，支持幂等更新
+     */
+    void bindProjectToTemplates(Long projectId, List<Long> templateIds);
     
     /**
      * 调整同一工点下同一模板名称下其他工序模板的顺序

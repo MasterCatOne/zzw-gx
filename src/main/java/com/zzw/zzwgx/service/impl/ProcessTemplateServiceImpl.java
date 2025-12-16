@@ -28,8 +28,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -518,6 +523,101 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
         log.info("查询到模板数量: {}", result.size());
         return result;
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void bindTemplateToProjects(Long templateId, List<Long> projectIds) {
+        Template template = templateMapper.selectById(templateId);
+        if (template == null || (template.getDeleted() != null && template.getDeleted() == 1)) {
+            throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
+        }
+
+        List<Long> normalizedIds = normalizeProjectIds(projectIds);
+
+        // 如果未传任何项目，则仅将该模板的所有关联标记为删除
+        if (CollectionUtils.isEmpty(normalizedIds)) {
+            projectTemplateMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ProjectTemplate>()
+                    .eq(ProjectTemplate::getTemplateId, templateId)
+                    .set(ProjectTemplate::getDeleted, 1));
+            log.info("已清空模板的工点关联，模板ID: {}", templateId);
+            return;
+        }
+
+        // 验证工点存在且类型为 SITE
+        List<Project> projects = projectMapper.selectBatchIds(normalizedIds);
+        if (projects.size() != normalizedIds.size()) {
+            throw new BusinessException(ResultCode.PROJECT_NOT_FOUND);
+        }
+        boolean hasNonSite = projects.stream().anyMatch(p -> !"SITE".equals(p.getNodeType()));
+        if (hasNonSite) {
+            throw new BusinessException("仅支持绑定工点（SITE）类型的项目");
+        }
+
+        // 去重同一模板的重复关联（保留id最小一条，其余标记删除）
+        dedupTemplateProjects(templateId);
+
+        // 将不在目标列表内的关联标记删除
+        projectTemplateMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ProjectTemplate>()
+                .eq(ProjectTemplate::getTemplateId, templateId)
+                .notIn(ProjectTemplate::getProjectId, normalizedIds)
+                .set(ProjectTemplate::getDeleted, 1));
+
+        // 逐项 upsert（ON DUPLICATE KEY UPDATE deleted=0）
+        for (Long projectId : normalizedIds) {
+            projectTemplateMapper.upsertProjectTemplate(projectId, templateId);
+        }
+
+        log.info("模板绑定工点完成，模板ID: {}, 目标工点数量: {}", templateId, normalizedIds.size());
+    }
+    
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void bindProjectToTemplates(Long projectId, List<Long> templateIds) {
+        // 校验工点
+        Project project = projectMapper.selectById(projectId);
+        if (project == null || !"SITE".equals(project.getNodeType())) {
+            throw new BusinessException(ResultCode.PROJECT_NOT_FOUND);
+        }
+
+        // 规范化模板ID列表
+        List<Long> normalizedTemplateIds = normalizeProjectIds(templateIds);
+
+        // 如果未传任何模板，则仅将该工点的所有关联标记为删除
+        if (CollectionUtils.isEmpty(normalizedTemplateIds)) {
+            projectTemplateMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ProjectTemplate>()
+                    .eq(ProjectTemplate::getProjectId, projectId)
+                    .set(ProjectTemplate::getDeleted, 1));
+            log.info("已清空工点的模板关联，工点ID: {}", projectId);
+            return;
+        }
+
+        // 校验模板是否存在且未删除
+        List<Template> templates = templateMapper.selectBatchIds(normalizedTemplateIds);
+        if (templates.size() != normalizedTemplateIds.size()) {
+            throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
+        }
+        boolean hasDeletedTemplate = templates.stream()
+                .anyMatch(t -> t.getDeleted() != null && t.getDeleted() == 1);
+        if (hasDeletedTemplate) {
+            throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
+        }
+
+        // 去重该工点下的重复关联（保留id最小一条，其余标记删除）
+        dedupProjectTemplates(projectId);
+
+        // 将不在目标模板列表内的关联标记删除
+        projectTemplateMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ProjectTemplate>()
+                .eq(ProjectTemplate::getProjectId, projectId)
+                .notIn(ProjectTemplate::getTemplateId, normalizedTemplateIds)
+                .set(ProjectTemplate::getDeleted, 1));
+
+        // 逐项 upsert（ON DUPLICATE KEY UPDATE deleted=0）
+        for (Long templateId : normalizedTemplateIds) {
+            projectTemplateMapper.upsertProjectTemplate(projectId, templateId);
+        }
+
+        log.info("工点绑定模板完成，工点ID: {}, 目标模板数量: {}", projectId, normalizedTemplateIds.size());
+    }
     
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -681,6 +781,78 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
                     pt.setDescription(tp.getDescription());
                     return convertToResponse(pt);
                 })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 去重：同一模板同一工点如有多条记录，仅保留id最小的一条，其余标记为删除
+     */
+    private void dedupTemplateProjects(Long templateId) {
+        List<ProjectTemplate> relations = projectTemplateMapper.selectList(new LambdaQueryWrapper<ProjectTemplate>()
+                .eq(ProjectTemplate::getTemplateId, templateId));
+        if (CollectionUtils.isEmpty(relations)) {
+            return;
+        }
+        Map<Long, List<ProjectTemplate>> grouped = relations.stream()
+                .filter(pt -> pt.getProjectId() != null)
+                .collect(Collectors.groupingBy(ProjectTemplate::getProjectId));
+
+        List<ProjectTemplate> toUpdate = grouped.values().stream()
+                .filter(list -> list.size() > 1)
+                .flatMap(list -> {
+                    List<ProjectTemplate> sorted = list.stream()
+                            .sorted(Comparator.comparing(ProjectTemplate::getId, Comparator.nullsLast(Long::compareTo)))
+                            .toList();
+                    return sorted.stream().skip(1).peek(pt -> pt.setDeleted(1));
+                })
+                .collect(Collectors.toList());
+
+        if (!toUpdate.isEmpty()) {
+            toUpdate.forEach(projectTemplateMapper::updateById);
+            log.info("去重模板-工点关联，模板ID: {}, 处理条数: {}", templateId, toUpdate.size());
+        }
+    }
+
+    /**
+     * 去重：同一工点同一模板如有多条记录，仅保留id最小的一条，其余标记为删除
+     */
+    private void dedupProjectTemplates(Long projectId) {
+        List<ProjectTemplate> relations = projectTemplateMapper.selectList(new LambdaQueryWrapper<ProjectTemplate>()
+                .eq(ProjectTemplate::getProjectId, projectId));
+        if (CollectionUtils.isEmpty(relations)) {
+            return;
+        }
+        Map<Long, List<ProjectTemplate>> grouped = relations.stream()
+                .filter(pt -> pt.getTemplateId() != null)
+                .collect(Collectors.groupingBy(ProjectTemplate::getTemplateId));
+
+        List<ProjectTemplate> toUpdate = grouped.values().stream()
+                .filter(list -> list.size() > 1)
+                .flatMap(list -> {
+                    List<ProjectTemplate> sorted = list.stream()
+                            .sorted(Comparator.comparing(ProjectTemplate::getId, Comparator.nullsLast(Long::compareTo)))
+                            .toList();
+                    return sorted.stream().skip(1).peek(pt -> pt.setDeleted(1));
+                })
+                .collect(Collectors.toList());
+
+        if (!toUpdate.isEmpty()) {
+            toUpdate.forEach(projectTemplateMapper::updateById);
+            log.info("去重工点-模板关联，工点ID: {}, 处理条数: {}", projectId, toUpdate.size());
+        }
+    }
+
+    /**
+     * 规范化工点ID列表：去空、去重、保持顺序
+     */
+    private List<Long> normalizeProjectIds(List<Long> projectIds) {
+        if (CollectionUtils.isEmpty(projectIds)) {
+            return List.of();
+        }
+        return projectIds.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new))
+                .stream()
                 .collect(Collectors.toList());
     }
 }

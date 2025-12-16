@@ -1,9 +1,13 @@
 package com.zzw.zzwgx.dto.request;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.zzw.zzwgx.dto.deserializer.SingleOrListDeserializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+
+import java.util.List;
 
 /**
  * 管理员更新用户请求DTO
@@ -34,5 +38,13 @@ public class UpdateUserRequest {
     
     @Schema(description = "用户角色：WORKER（施工人员）/ADMIN（管理员）", example = "WORKER")
     private String roleCode;
+    
+    @Schema(description = "工点ID（可选，更新用户时可修改绑定的工点）。可以传单个值如 1，也可以传数组如 [1, 2]。如果提供此字段，将替换用户原有的工点绑定", example = "1")
+    @JsonDeserialize(using = SingleOrListDeserializer.class)
+    private List<Long> siteIds;
+    
+    @Schema(description = "隧道ID（可选，更新用户时可修改绑定的隧道）。可以传单个值如 3，也可以传数组如 [3, 4]。如果提供此字段，将替换用户原有的隧道绑定", example = "3")
+    @JsonDeserialize(using = SingleOrListDeserializer.class)
+    private List<Long> tunnelIds;
 }
 

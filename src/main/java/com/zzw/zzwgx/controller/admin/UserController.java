@@ -73,12 +73,13 @@ public class UserController {
         return Result.success(response);
     }
     
-    @Operation(summary = "修改用户账号", description = "管理员修改用户账号信息。可以修改姓名、身份证号、手机号、密码、状态、角色等信息。", tags = {"管理员管理-用户管理"})
+    @Operation(summary = "修改用户账号", description = "管理员修改用户账号信息。可以修改姓名、身份证号、手机号、密码、状态、角色等信息。更新用户时可同时修改绑定的工点或隧道（通过siteIds和tunnelIds字段），更新用户和分配项目在同一事务中执行，确保数据一致性。如果提供了siteIds或tunnelIds，将替换用户原有的工点和隧道绑定。", tags = {"管理员管理-用户管理"})
     @PutMapping("/users/{userId}")
     public Result<UserListResponse> updateUser(
             @Parameter(description = "用户ID", required = true, example = "1") @PathVariable Long userId,
             @Valid @RequestBody UpdateUserRequest request) {
-        log.info("管理员修改用户账号，用户ID: {}", userId);
+        log.info("管理员修改用户账号，用户ID: {}, 工点IDs: {}, 隧道IDs: {}", 
+                userId, request.getSiteIds(), request.getTunnelIds());
         User user = userService.updateUser(userId, request);
 
         // 转换为响应DTO

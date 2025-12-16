@@ -314,6 +314,23 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             }
         }
         
+        // 更新工点和隧道绑定（如果提供了 siteIds 或 tunnelIds）
+        // 如果提供了工点或隧道ID列表，将合并后统一更新项目绑定
+        // assignProjects 方法会先清空原有关系，然后创建新关系
+        if (request.getSiteIds() != null || request.getTunnelIds() != null) {
+            List<Long> projectIds = new java.util.ArrayList<>();
+            if (request.getSiteIds() != null && !request.getSiteIds().isEmpty()) {
+                projectIds.addAll(request.getSiteIds());
+            }
+            if (request.getTunnelIds() != null && !request.getTunnelIds().isEmpty()) {
+                projectIds.addAll(request.getTunnelIds());
+            }
+            log.info("更新用户项目绑定，用户ID: {}, 工点IDs: {}, 隧道IDs: {}, 合并后项目IDs: {}", 
+                    userId, request.getSiteIds(), request.getTunnelIds(), projectIds);
+            userProjectService.assignProjects(userId, projectIds);
+            log.debug("用户项目绑定更新成功，用户ID: {}", userId);
+        }
+        
         log.info("管理员更新用户成功，用户ID: {}", userId);
         return user;
     }
