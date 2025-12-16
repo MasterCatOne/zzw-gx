@@ -2,7 +2,6 @@ package com.zzw.zzwgx.controller.admin;
 
 import com.zzw.zzwgx.common.Result;
 import com.zzw.zzwgx.common.enums.ResultCode;
-import com.zzw.zzwgx.dto.request.BindTemplateProjectsRequest;
 import com.zzw.zzwgx.dto.request.BindProjectTemplatesRequest;
 import com.zzw.zzwgx.dto.request.CreateProcessTemplateBatchRequest;
 import com.zzw.zzwgx.dto.request.CreateProcessTemplateRequest;
@@ -51,7 +50,7 @@ public class ProcessTemplateController {
         return Result.success(templateNames);
     }
     
-    @Operation(summary = "获取模板列表", description = "获取模板列表，用于前端选择模板。如果传入工点ID，则只返回该工点下的模板。每个模板包含模板名称和对应的templateId（该模板下第一个工序模板的ID），前端选择模板后可以使用返回的templateId来创建循环。", tags = {"管理员管理-工序模板管理"})
+    @Operation(summary = "获取模板列表", description = "获取模板列表，用于前端选择模板。如果传入工点ID，则只返回该工点下的模板。返回字段：templateId（template表主键，用于绑定工点等）、firstTemplateProcessId（模板下首个工序模板ID，可用于创建循环时传递），以及模板名称、控制时长等。", tags = {"管理员管理-工序模板管理"})
     @GetMapping("/templates")
     public Result<List<TemplateListResponse>> getTemplateList(
             @Parameter(description = "工点ID（可选，传入则只返回该工点下的模板）", example = "1") @RequestParam(required = false) Long siteId) {
@@ -124,18 +123,18 @@ public class ProcessTemplateController {
         return Result.success(response);
     }
     
-    @Operation(summary = "创建工序模板", description = "创建新的工序模板项，需选择工点和工序字典ID。", tags = {"管理员管理-工序模板管理"})
+    @Operation(summary = "创建工序模板", description = "创建新的工序模板项，选择工序字典ID即可；不再要求选择工点，如需绑定工点请调用绑定接口。", tags = {"管理员管理-工序模板管理"})
     @PostMapping("/process-templates")
     public Result<ProcessTemplateResponse> createProcessTemplate(@Valid @RequestBody CreateProcessTemplateRequest request) {
-        log.info("创建工序模板，工点ID: {}, 模板名称: {}, 工序字典ID: {}", request.getSiteId(), request.getTemplateName(), request.getProcessCatalogId());
+        log.info("创建工序模板，模板名称: {}, 工序字典ID: {}", request.getTemplateName(), request.getProcessCatalogId());
         ProcessTemplateResponse response = processTemplateService.createProcessTemplate(request);
         return Result.success(response);
     }
     
-    @Operation(summary = "批量创建工序模板", description = "一次性为同一个模板名称创建多条工序模板，避免逐条新增。", tags = {"管理员管理-工序模板管理"})
+    @Operation(summary = "批量创建工序模板", description = "一次性为同一个模板名称创建多条工序模板，避免逐条新增。不再要求选择工点，需绑定工点请单独调用绑定接口。", tags = {"管理员管理-工序模板管理"})
     @PostMapping("/process-templates/batch")
     public Result<List<ProcessTemplateResponse>> createProcessTemplatesBatch(@Valid @RequestBody CreateProcessTemplateBatchRequest request) {
-        log.info("批量创建工序模板，工点ID: {}, 模板名称: {}, 工序数量: {}", request.getSiteId(), request.getTemplateName(), request.getProcesses().size());
+        log.info("批量创建工序模板，模板名称: {}, 工序数量: {}", request.getTemplateName(), request.getProcesses().size());
         List<ProcessTemplateResponse> responses = processTemplateService.createProcessTemplatesBatch(request);
         return Result.success(responses);
     }
@@ -150,17 +149,8 @@ public class ProcessTemplateController {
         return Result.success(response);
     }
 
-    @Operation(summary = "绑定模板到工点", description = "为指定模板绑定工点（SITE），传入目标工点列表。未在列表内的关联将被标记删除，列表内的关联若存在则恢复，不存在则创建。支持传单个值或数组，幂等更新。", tags = {"管理员管理-工序模板管理"})
-    @PutMapping("/templates/{templateId}/projects")
-    public Result<Void> bindTemplateProjects(
-            @Parameter(description = "模板ID（template表的ID）", required = true, example = "1") @PathVariable Long templateId,
-            @Valid @RequestBody BindTemplateProjectsRequest request) {
-        log.info("绑定模板到工点，模板ID: {}, 工点IDs: {}", templateId, request.getProjectIds());
-        processTemplateService.bindTemplateToProjects(templateId, request.getProjectIds());
-        return Result.success();
-    }
 
-    @Operation(summary = "按工点绑定模板", description = "为指定工点绑定模板列表，前端先选择工点，再选择模板列表。未在列表内的关联将被标记删除，列表内的关联若存在则恢复，不存在则创建。支持传单个值或数组，幂等更新。", tags = {"管理员管理-工序模板管理"})
+    @Operation(summary = "按工点绑定模板", description = "为指定工点绑定模板列表，前端先选择工点，再选择模板列表。对于已经绑定的模板不会重复新增，只对未绑定的模板建立关联（幂等增量绑定）。支持传单个值或数组。", tags = {"管理员管理-工序模板管理"})
     @PutMapping("/projects/{projectId}/templates")
     public Result<Void> bindProjectTemplates(
             @Parameter(description = "工点ID（SITE）", required = true, example = "1") @PathVariable Long projectId,

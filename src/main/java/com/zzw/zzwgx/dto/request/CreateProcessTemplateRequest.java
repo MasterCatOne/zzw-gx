@@ -16,10 +16,6 @@ public class CreateProcessTemplateRequest {
     @NotBlank(message = "模板名称不能为空")
     private String templateName;
     
-    @Schema(description = "工点ID（必填，从工点列表中选择）", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
-    @NotNull(message = "工点ID不能为空")
-    private Long siteId;
-    
     @Schema(description = "工序字典ID（从工序字典表选择）", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     @NotNull(message = "工序字典ID不能为空")
     private Long processCatalogId;

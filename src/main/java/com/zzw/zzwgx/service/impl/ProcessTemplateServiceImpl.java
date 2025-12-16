@@ -266,7 +266,10 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
                     
                     TemplateListResponse response = new TemplateListResponse();
                     response.setTemplateName(template.getTemplateName());
-                    response.setTemplateId(firstTemplateProcess.getId());
+                    // 返回 template 表主键
+                    response.setTemplateId(template.getId());
+                    // 兼容创建循环：提供首个工序模板ID（template_process 表）
+                    response.setFirstTemplateProcessId(firstTemplateProcess.getId());
                     response.setControlDuration(controlDuration);
                     return response;
                 })
@@ -320,7 +323,8 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
                     
                     TemplateListResponse response = new TemplateListResponse();
                     response.setTemplateName(template.getTemplateName());
-                    response.setTemplateId(firstTemplateProcess.getId());
+                    response.setTemplateId(template.getId());
+                    response.setFirstTemplateProcessId(firstTemplateProcess.getId());
                     response.setControlDuration(controlDuration);
                     return response;
                 })
@@ -355,7 +359,7 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
         }
         return resp;
     }
-    
+
     @Override
     @org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
     public void adjustOtherTemplatesOrder(Long siteId, String templateName, Long currentTemplateId, Integer oldOrder, Integer newOrder) {
@@ -526,52 +530,6 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void bindTemplateToProjects(Long templateId, List<Long> projectIds) {
-        Template template = templateMapper.selectById(templateId);
-        if (template == null || (template.getDeleted() != null && template.getDeleted() == 1)) {
-            throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
-        }
-
-        List<Long> normalizedIds = normalizeProjectIds(projectIds);
-
-        // 如果未传任何项目，则仅将该模板的所有关联标记为删除
-        if (CollectionUtils.isEmpty(normalizedIds)) {
-            projectTemplateMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ProjectTemplate>()
-                    .eq(ProjectTemplate::getTemplateId, templateId)
-                    .set(ProjectTemplate::getDeleted, 1));
-            log.info("已清空模板的工点关联，模板ID: {}", templateId);
-            return;
-        }
-
-        // 验证工点存在且类型为 SITE
-        List<Project> projects = projectMapper.selectBatchIds(normalizedIds);
-        if (projects.size() != normalizedIds.size()) {
-            throw new BusinessException(ResultCode.PROJECT_NOT_FOUND);
-        }
-        boolean hasNonSite = projects.stream().anyMatch(p -> !"SITE".equals(p.getNodeType()));
-        if (hasNonSite) {
-            throw new BusinessException("仅支持绑定工点（SITE）类型的项目");
-        }
-
-        // 去重同一模板的重复关联（保留id最小一条，其余标记删除）
-        dedupTemplateProjects(templateId);
-
-        // 将不在目标列表内的关联标记删除
-        projectTemplateMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ProjectTemplate>()
-                .eq(ProjectTemplate::getTemplateId, templateId)
-                .notIn(ProjectTemplate::getProjectId, normalizedIds)
-                .set(ProjectTemplate::getDeleted, 1));
-
-        // 逐项 upsert（ON DUPLICATE KEY UPDATE deleted=0）
-        for (Long projectId : normalizedIds) {
-            projectTemplateMapper.upsertProjectTemplate(projectId, templateId);
-        }
-
-        log.info("模板绑定工点完成，模板ID: {}, 目标工点数量: {}", templateId, normalizedIds.size());
-    }
-    
-    @Override
-    @Transactional(rollbackFor = Exception.class)
     public void bindProjectToTemplates(Long projectId, List<Long> templateIds) {
         // 校验工点
         Project project = projectMapper.selectById(projectId);
@@ -580,14 +538,11 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
         }
 
         // 规范化模板ID列表
-        List<Long> normalizedTemplateIds = normalizeProjectIds(templateIds);
+        List<Long> normalizedTemplateIds = normalizeIds(templateIds);
 
-        // 如果未传任何模板，则仅将该工点的所有关联标记为删除
+        // 如果未传任何模板，则不做任何变更（避免误清空）
         if (CollectionUtils.isEmpty(normalizedTemplateIds)) {
-            projectTemplateMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ProjectTemplate>()
-                    .eq(ProjectTemplate::getProjectId, projectId)
-                    .set(ProjectTemplate::getDeleted, 1));
-            log.info("已清空工点的模板关联，工点ID: {}", projectId);
+            log.info("按工点绑定模板时未传任何模板ID，不进行变更，工点ID: {}", projectId);
             return;
         }
 
@@ -602,39 +557,24 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
             throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
         }
 
-        // 去重该工点下的重复关联（保留id最小一条，其余标记删除）
-        dedupProjectTemplates(projectId);
-
-        // 将不在目标模板列表内的关联标记删除
-        projectTemplateMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ProjectTemplate>()
-                .eq(ProjectTemplate::getProjectId, projectId)
-                .notIn(ProjectTemplate::getTemplateId, normalizedTemplateIds)
-                .set(ProjectTemplate::getDeleted, 1));
-
-        // 逐项 upsert（ON DUPLICATE KEY UPDATE deleted=0）
+        // 幂等插入/恢复：存在则将 deleted 置为0，不存在则插入，避免唯一键冲突
         for (Long templateId : normalizedTemplateIds) {
             projectTemplateMapper.upsertProjectTemplate(projectId, templateId);
         }
 
         log.info("工点绑定模板完成，工点ID: {}, 目标模板数量: {}", projectId, normalizedTemplateIds.size());
     }
-    
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ProcessTemplateResponse createProcessTemplate(CreateProcessTemplateRequest request) {
-        log.info("创建工序模板，工点ID: {}, 模板名称: {}, 工序字典ID: {}", request.getSiteId(), request.getTemplateName(), request.getProcessCatalogId());
-        
-        // 验证工点是否存在且类型为 SITE
-        Project site = projectMapper.selectById(request.getSiteId());
-        if (site == null || !"SITE".equals(site.getNodeType())) {
-            throw new BusinessException("工点不存在或不是工点类型，ID: " + request.getSiteId());
-        }
-        
+        log.info("创建工序模板，模板名称: {}, 工序字典ID: {}", request.getTemplateName(), request.getProcessCatalogId());
+
         ProcessCatalog catalog = processCatalogService.getById(request.getProcessCatalogId());
         if (catalog == null) {
             throw new BusinessException("工序字典不存在，ID: " + request.getProcessCatalogId());
         }
-        
+
         // 1. 检查或创建模板（template表）
         Template template = templateMapper.selectOne(new LambdaQueryWrapper<Template>()
                 .eq(Template::getTemplateName, request.getTemplateName())
@@ -646,21 +586,9 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
             templateMapper.insert(template);
             log.info("创建新模板，模板ID: {}, 模板名称: {}", template.getId(), template.getTemplateName());
         }
-        
-        // 2. 检查或创建工点-模板关联（project_template表）
-        ProjectTemplate projectTemplate = projectTemplateMapper.selectOne(new LambdaQueryWrapper<ProjectTemplate>()
-                .eq(ProjectTemplate::getProjectId, request.getSiteId())
-                .eq(ProjectTemplate::getTemplateId, template.getId())
-                .eq(ProjectTemplate::getDeleted, 0)
-                .last("LIMIT 1"));
-        if (projectTemplate == null) {
-            projectTemplate = new ProjectTemplate();
-            projectTemplate.setProjectId(request.getSiteId());
-            projectTemplate.setTemplateId(template.getId());
-            projectTemplateMapper.insert(projectTemplate);
-            log.info("创建工点-模板关联，工点ID: {}, 模板ID: {}", request.getSiteId(), template.getId());
-        }
-        
+
+        // 2. 不再自动绑定工点，需通过绑定接口单独处理
+
         // 3. 检查是否存在重复的模板-工序记录（同一模板、同一顺序）
         TemplateProcess existingTemplateProcess = templateProcessMapper.selectOne(new LambdaQueryWrapper<TemplateProcess>()
                 .eq(TemplateProcess::getTemplateId, template.getId())
@@ -668,11 +596,11 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
                 .eq(TemplateProcess::getDeleted, 0)
                 .last("LIMIT 1"));
         if (existingTemplateProcess != null) {
-            throw new BusinessException(ResultCode.TEMPLATE_DUPLICATE.getCode(), 
-                    String.format("模板\"%s\"中顺序%d已被占用，请使用其他顺序", 
+            throw new BusinessException(ResultCode.TEMPLATE_DUPLICATE.getCode(),
+                    String.format("模板\"%s\"中顺序%d已被占用，请使用其他顺序",
                             request.getTemplateName(), request.getDefaultOrder()));
         }
-        
+
         // 4. 创建模板-工序关联（template_process表）
         TemplateProcess templateProcess = new TemplateProcess();
         templateProcess.setTemplateId(template.getId());
@@ -681,32 +609,25 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
         templateProcess.setDefaultOrder(request.getDefaultOrder());
         templateProcess.setDescription(request.getDescription());
         templateProcessMapper.insert(templateProcess);
-        
+
         // 5. 转换为 ProcessTemplate 对象返回（为了兼容接口）
         ProcessTemplate result = new ProcessTemplate();
         result.setId(templateProcess.getId());
         result.setTemplateId(template.getId());
         result.setTemplateName(request.getTemplateName());
-        result.setSiteId(request.getSiteId());
         result.setProcessCatalogId(request.getProcessCatalogId());
         result.setControlTime(request.getControlTime());
         result.setDefaultOrder(request.getDefaultOrder());
         result.setDescription(request.getDescription());
-        
+
         return convertToResponse(result);
     }
-    
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<ProcessTemplateResponse> createProcessTemplatesBatch(CreateProcessTemplateBatchRequest request) {
-        log.info("批量创建工序模板，工点ID: {}, 模板名称: {}, 工序数量: {}", request.getSiteId(), request.getTemplateName(), request.getProcesses().size());
-        
-        // 验证工点是否存在且类型为 SITE
-        Project site = projectMapper.selectById(request.getSiteId());
-        if (site == null || !"SITE".equals(site.getNodeType())) {
-            throw new BusinessException("工点不存在或不是工点类型，ID: " + request.getSiteId());
-        }
-        
+        log.info("批量创建工序模板，模板名称: {}, 工序数量: {}", request.getTemplateName(), request.getProcesses().size());
+
         // 1. 检查或创建模板（template表）
         Template template = templateMapper.selectOne(new LambdaQueryWrapper<Template>()
                 .eq(Template::getTemplateName, request.getTemplateName())
@@ -718,21 +639,9 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
             templateMapper.insert(template);
             log.info("创建新模板，模板ID: {}, 模板名称: {}", template.getId(), template.getTemplateName());
         }
-        
-        // 2. 检查或创建工点-模板关联（project_template表）
-        ProjectTemplate projectTemplate = projectTemplateMapper.selectOne(new LambdaQueryWrapper<ProjectTemplate>()
-                .eq(ProjectTemplate::getProjectId, request.getSiteId())
-                .eq(ProjectTemplate::getTemplateId, template.getId())
-                .eq(ProjectTemplate::getDeleted, 0)
-                .last("LIMIT 1"));
-        if (projectTemplate == null) {
-            projectTemplate = new ProjectTemplate();
-            projectTemplate.setProjectId(request.getSiteId());
-            projectTemplate.setTemplateId(template.getId());
-            projectTemplateMapper.insert(projectTemplate);
-            log.info("创建工点-模板关联，工点ID: {}, 模板ID: {}", request.getSiteId(), template.getId());
-        }
-        
+
+        // 2. 不再自动绑定工点，需通过绑定接口单独处理
+
         // 3. 先检查是否存在重复的模板-工序记录（同一模板、同一顺序）
         for (CreateProcessTemplateBatchRequest.Item item : request.getProcesses()) {
             TemplateProcess existingTemplateProcess = templateProcessMapper.selectOne(new LambdaQueryWrapper<TemplateProcess>()
@@ -741,12 +650,12 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
                     .eq(TemplateProcess::getDeleted, 0)
                     .last("LIMIT 1"));
             if (existingTemplateProcess != null) {
-                throw new BusinessException(ResultCode.TEMPLATE_DUPLICATE.getCode(), 
-                        String.format("模板\"%s\"中顺序%d已被占用，请使用其他顺序", 
+                throw new BusinessException(ResultCode.TEMPLATE_DUPLICATE.getCode(),
+                        String.format("模板\"%s\"中顺序%d已被占用，请使用其他顺序",
                                 request.getTemplateName(), item.getDefaultOrder()));
             }
         }
-        
+
         // 4. 批量创建模板-工序关联（template_process表）
         List<TemplateProcess> templateProcesses = new java.util.ArrayList<>();
         for (CreateProcessTemplateBatchRequest.Item item : request.getProcesses()) {
@@ -766,7 +675,7 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
         for (TemplateProcess tp : templateProcesses) {
             templateProcessMapper.insert(tp);
         }
-        
+
         // 5. 转换为 ProcessTemplate 对象返回（为了兼容接口）
         return templateProcesses.stream()
                 .map(tp -> {
@@ -774,7 +683,6 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
                     pt.setId(tp.getId());
                     pt.setTemplateId(tp.getTemplateId());
                     pt.setTemplateName(request.getTemplateName());
-                    pt.setSiteId(request.getSiteId());
                     pt.setProcessCatalogId(tp.getProcessCatalogId());
                     pt.setControlTime(tp.getControlTime());
                     pt.setDefaultOrder(tp.getDefaultOrder());
@@ -843,13 +751,13 @@ public class ProcessTemplateServiceImpl extends ServiceImpl<ProcessTemplateMappe
     }
 
     /**
-     * 规范化工点ID列表：去空、去重、保持顺序
+     * 规范化ID列表：去空、去重、保持顺序
      */
-    private List<Long> normalizeProjectIds(List<Long> projectIds) {
-        if (CollectionUtils.isEmpty(projectIds)) {
+    private List<Long> normalizeIds(List<Long> ids) {
+        if (CollectionUtils.isEmpty(ids)) {
             return List.of();
         }
-        return projectIds.stream()
+        return ids.stream()
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new))
                 .stream()
