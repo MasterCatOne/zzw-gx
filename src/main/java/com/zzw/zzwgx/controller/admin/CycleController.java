@@ -91,5 +91,14 @@ public class CycleController {
         CycleResponse response = cycleService.updateCycle(cycleId, request);
         return Result.success(response);
     }
+
+    @Operation(summary = "删除循环", description = "删除指定循环，并同时删除该循环下的所有工序（逻辑删除）。", tags = {"管理员管理-循环管理"})
+    @DeleteMapping("/cycles/{cycleId}")
+    public Result<Void> deleteCycle(
+            @Parameter(description = "循环ID", required = true, example = "1") @PathVariable Long cycleId) {
+        log.info("删除循环及其工序，循环ID: {}", cycleId);
+        cycleService.deleteCycle(cycleId);
+        return Result.success();
+    }
 }
 

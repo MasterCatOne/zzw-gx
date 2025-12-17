@@ -158,7 +158,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         int cycleNumber = latestCycle != null ? latestCycle.getCycleNumber() + 1 : 1;
         log.debug("计算循环次数，项目ID: {}, 当前循环次数: {}", request.getProjectId(), cycleNumber);
         
-        // 创建循环
+        // 创建循环对象（可能是插入新记录，也可能是恢复 deleted = 1 的旧记录）
         Cycle cycle = new Cycle();
         cycle.setProjectId(request.getProjectId());
         cycle.setCycleNumber(cycleNumber);
@@ -194,7 +194,32 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                 : BigDecimal.ZERO);
         cycle.setRockLevel(request.getRockLevel());
         cycle.setStatus(StringUtils.hasText(request.getStatus()) ? request.getStatus() : "IN_PROGRESS");
-        save(cycle);
+
+        // 先检查是否存在同一工点、同一循环号但 deleted = 1 的记录，如果有则恢复并复用
+        Cycle deletedCycle = baseMapper.selectByProjectIdAndCycleNumberIncludeDeleted(request.getProjectId(), cycleNumber);
+        if (deletedCycle != null && deletedCycle.getDeleted() != null && deletedCycle.getDeleted() == 1) {
+            log.info("检测到同一工点同一循环号的已删除记录，直接恢复并覆盖数据，项目ID: {}, 循环号: {}, 旧循环ID: {}",
+                    request.getProjectId(), cycleNumber, deletedCycle.getId());
+            // 覆盖业务字段（删除标志在自定义 SQL 中统一设置为 0）
+            deletedCycle.setControlDuration(controlDuration);
+            deletedCycle.setStartDate(cycle.getStartDate());
+            deletedCycle.setEndDate(cycle.getEndDate());
+            deletedCycle.setEstimatedStartDate(cycle.getEstimatedStartDate());
+            deletedCycle.setEstimatedEndDate(cycle.getEstimatedEndDate());
+            deletedCycle.setEstimatedMileage(cycle.getEstimatedMileage());
+            deletedCycle.setActualMileage(cycle.getActualMileage());
+            deletedCycle.setDevelopmentMethod(cycle.getDevelopmentMethod());
+            deletedCycle.setAdvanceLength(cycle.getAdvanceLength());
+            deletedCycle.setRockLevel(cycle.getRockLevel());
+            deletedCycle.setStatus(cycle.getStatus());
+            // 使用自定义 Mapper 方法恢复并更新（绕过 @TableLogic 的 deleted=0 过滤）
+            baseMapper.restoreAndUpdateCycle(deletedCycle);
+            cycle = deletedCycle;
+        } else {
+            // 正常插入新循环
+            save(cycle);
+        }
+
         log.info("循环创建成功，循环ID: {}, 循环次数: {}", cycle.getId(), cycleNumber);
         
         // 根据模板自动创建工序（模板已验证，直接创建）
@@ -259,6 +284,23 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         updateById(cycle);
         log.info("循环更新完成，循环ID: {}", cycleId);
         return convertToResponse(cycle);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteCycle(Long cycleId) {
+        log.info("删除循环及其下所有工序，循环ID: {}", cycleId);
+        Cycle cycle = getById(cycleId);
+        if (cycle == null) {
+            log.error("删除循环失败，循环不存在，循环ID: {}", cycleId);
+            throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
+        }
+        // 先删除该循环下的所有工序（逻辑删除）
+        processService.remove(new LambdaQueryWrapper<Process>()
+                .eq(Process::getCycleId, cycleId));
+        // 再删除循环本身（逻辑删除）
+        removeById(cycleId);
+        log.info("删除循环完成，循环ID: {}", cycleId);
     }
     
     @Override

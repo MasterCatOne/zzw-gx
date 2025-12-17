@@ -74,5 +74,12 @@ public interface CycleService extends IService<Cycle> {
      * @return 模板控制时长响应
      */
     TemplateControlDurationResponse getTemplateControlDuration(Long templateId);
+
+    /**
+     * 删除循环，并同时删除该循环下的所有工序（逻辑删除）
+     *
+     * @param cycleId 循环ID
+     */
+    void deleteCycle(Long cycleId);
 }
 
