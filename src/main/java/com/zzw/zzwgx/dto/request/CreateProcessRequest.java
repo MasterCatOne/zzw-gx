@@ -28,7 +28,7 @@ public class CreateProcessRequest {
     private LocalDateTime actualStartTime;
     
     @Schema(description = "施工人员用户ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "3")
-    @NotNull(message = "施工人员ID不能为空")
+//    @NotNull(message = "施工人员ID不能为空")
     private Long workerId;
     
     @Schema(description = "开始顺序，用于工序执行顺序", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")

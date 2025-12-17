@@ -69,6 +69,11 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             log.error("创建工序失败，循环不存在，循环ID: {}", request.getCycleId());
             throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
         }
+        // 如果循环已完成，禁止再新增工序
+        if ("COMPLETED".equals(cycle.getStatus())) {
+            log.warn("创建工序失败，所属循环已完成，无法继续添加工序，循环ID: {}", request.getCycleId());
+            throw new BusinessException("该循环已完成，不能再添加工序");
+        }
 
         // 获取现有工序列表
         List<Process> existingProcesses = getProcessesByCycleId(request.getCycleId());
@@ -140,6 +145,20 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
                 request.getProcessCatalogId(), catalog.getProcessName(), request.getControlTime());
         
         save(process);
+        
+        // 将工序的控制时间累加到循环的控制时间上
+        if (request.getControlTime() != null && request.getControlTime() > 0) {
+            Integer currentControlDuration = cycle.getControlDuration();
+            if (currentControlDuration == null) {
+                currentControlDuration = 0;
+            }
+            Integer newControlDuration = currentControlDuration + request.getControlTime();
+            cycle.setControlDuration(newControlDuration);
+            cycleMapper.updateById(cycle);
+            log.info("更新循环控制时间，循环ID: {}, 原控制时间: {}分钟, 新增工序控制时间: {}分钟, 新控制时间: {}分钟",
+                    request.getCycleId(), currentControlDuration, request.getControlTime(), newControlDuration);
+        }
+        
         log.info("工序创建成功，工序ID: {}, 工序名称: {}", process.getId(), process.getProcessName());
 
         return buildProcessResponse(process);
@@ -156,8 +175,11 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             log.error("创建工序失败，循环不存在，循环ID: {}", request.getCycleId());
             throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
         }
-
-        // 检查是否已有进行中的工序
+        // 如果循环已完成，禁止再新增工序
+        if ("COMPLETED".equals(cycle.getStatus())) {
+            log.warn("创建工序失败，所属循环已完成，无法继续添加工序，循环ID: {}", request.getCycleId());
+            throw new BusinessException("该循环已完成，不能再添加工序");
+        }        // 检查是否已有进行中的工序
         List<Process> existingProcesses = getProcessesByCycleId(request.getCycleId());
         Process inProgressProcess = existingProcesses.stream()
                 .filter(p -> ProcessStatus.IN_PROGRESS.getCode().equals(p.getProcessStatus()))
@@ -180,6 +202,22 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
                 log.error("创建工序失败，实际开始时间不能是过去时间（超过3分钟误差），实际开始时间: {}, 当前时间: {}", 
                         request.getActualStartTime(), now);
                 throw new BusinessException(ResultCode.PROCESS_START_TIME_INVALID);
+            }
+        }
+
+        // 验证新工序不能插入到已完成的工序前面
+        if (request.getStartOrder() != null) {
+            Integer maxCompletedOrder = existingProcesses.stream()
+                    .filter(p -> ProcessStatus.COMPLETED.getCode().equals(p.getProcessStatus()))
+                    .filter(p -> p.getStartOrder() != null)
+                    .map(Process::getStartOrder)
+                    .max(Integer::compareTo)
+                    .orElse(null);
+            
+            if (maxCompletedOrder != null && request.getStartOrder() <= maxCompletedOrder) {
+                log.error("创建工序失败，不能插入到已完成的工序前面，新工序顺序: {}, 最大已完成工序顺序: {}", 
+                        request.getStartOrder(), maxCompletedOrder);
+                throw new BusinessException("不能将工序插入到已完成的工序前面，当前最大已完成工序顺序为: " + maxCompletedOrder);
             }
         }
 
@@ -276,6 +314,20 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         }
 
         save(process);
+        
+        // 将工序的控制时间累加到循环的控制时间上
+        if (request.getControlTime() != null && request.getControlTime() > 0) {
+            Integer currentControlDuration = cycle.getControlDuration();
+            if (currentControlDuration == null) {
+                currentControlDuration = 0;
+            }
+            Integer newControlDuration = currentControlDuration + request.getControlTime();
+            cycle.setControlDuration(newControlDuration);
+            cycleMapper.updateById(cycle);
+            log.info("更新循环控制时间，循环ID: {}, 原控制时间: {}分钟, 新增工序控制时间: {}分钟, 新控制时间: {}分钟",
+                    request.getCycleId(), currentControlDuration, request.getControlTime(), newControlDuration);
+        }
+        
         if (hasInProgress) {
             if (replaceCurrentProcess) {
                 log.info("工序创建成功，替换当前进行中的工序为新工序，工序ID: {}, 工序名称: {}", 
@@ -663,8 +715,14 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         if (process == null) {
             throw new BusinessException(ResultCode.PROCESS_NOT_FOUND);
         }
-        if (process.getOperatorId() == null || !process.getOperatorId().equals(workerId)) {
-            throw new BusinessException(ResultCode.PREVIOUS_PROCESS_NOT_COMPLETED);
+        // 检查操作员：如果工序有操作员，则必须是当前用户；如果没有操作员，则允许当前用户完成
+        if (process.getOperatorId() != null && !process.getOperatorId().equals(workerId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "您不是该工序的操作员，无法完成");
+        }
+        // 如果工序没有操作员（operatorId为null），自动设置当前用户为操作员
+        if (process.getOperatorId() == null) {
+            process.setOperatorId(workerId);
+            log.info("工序没有操作员，自动设置当前用户为操作员，工序ID: {}, 用户ID: {}", processId, workerId);
         }
         if (process.getActualStartTime() == null) {
             throw new BusinessException("当前工序未开始，无法完成");
@@ -696,8 +754,14 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         if (process == null) {
             throw new BusinessException(ResultCode.PROCESS_NOT_FOUND);
         }
-        if (process.getOperatorId() == null || !process.getOperatorId().equals(workerId)) {
-            throw new BusinessException(ResultCode.FORBIDDEN);
+        // 检查操作员：如果工序有操作员，则必须是当前用户；如果没有操作员，则允许当前用户完成
+        if (process.getOperatorId() != null && !process.getOperatorId().equals(workerId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "您不是该工序的操作员，无法完成");
+        }
+        // 如果工序没有操作员（operatorId为null），自动设置当前用户为操作员
+        if (process.getOperatorId() == null) {
+            process.setOperatorId(workerId);
+            log.info("工序没有操作员，自动设置当前用户为操作员，工序ID: {}, 用户ID: {}", processId, workerId);
         }
         if (process.getActualStartTime() == null) {
             throw new BusinessException("当前工序未开始，无法完成");
