@@ -8,6 +8,7 @@ import com.alibaba.excel.write.metadata.WriteSheet;
 import com.alibaba.excel.write.metadata.holder.WriteSheetHolder;
 import com.alibaba.excel.write.metadata.holder.WriteWorkbookHolder;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zzw.zzwgx.common.enums.ProcessStatus;
@@ -310,12 +311,62 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             log.error("删除循环失败，循环不存在，循环ID: {}", cycleId);
             throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
         }
+        
+        // 保存被删除循环的信息，用于后续调整其他循环的cycle_number
+        Long projectId = cycle.getProjectId();
+        Integer deletedCycleNumber = cycle.getCycleNumber();
+        
         // 先删除该循环下的所有工序（逻辑删除）
         processService.remove(new LambdaQueryWrapper<Process>()
                 .eq(Process::getCycleId, cycleId));
+        
+        // 关键：在删除循环之前，先将它的cycle_number更新为临时值，释放唯一约束
+        // 这样后续调整其他循环时就不会与已删除的循环冲突
+        int tempCycleNumber = 999999; // 使用足够大的临时值
+        if (deletedCycleNumber != null && projectId != null) {
+            LambdaUpdateWrapper<Cycle> tempUpdateWrapper = new LambdaUpdateWrapper<>();
+            tempUpdateWrapper.eq(Cycle::getId, cycleId)
+                    .set(Cycle::getCycleNumber, tempCycleNumber);
+            update(tempUpdateWrapper);
+            log.debug("将被删除循环的cycle_number更新为临时值，循环ID: {}, 原循环号: {}, 临时循环号: {}",
+                    cycleId, deletedCycleNumber, tempCycleNumber);
+        }
+        
         // 再删除循环本身（逻辑删除）
         removeById(cycleId);
-        log.info("删除循环完成，循环ID: {}", cycleId);
+        
+        // 调整同一项目下所有后续循环的cycle_number（减1）
+        if (deletedCycleNumber != null && projectId != null) {
+            // 查找同一项目下所有cycle_number大于被删除循环的循环
+            List<Cycle> subsequentCycles = list(new LambdaQueryWrapper<Cycle>()
+                    .eq(Cycle::getProjectId, projectId)
+                    .gt(Cycle::getCycleNumber, deletedCycleNumber)
+                    .orderByAsc(Cycle::getCycleNumber));
+            
+            if (!subsequentCycles.isEmpty()) {
+                log.info("开始调整后续循环的cycle_number，项目ID: {}, 被删除循环号: {}, 需要调整的循环数量: {}",
+                        projectId, deletedCycleNumber, subsequentCycles.size());
+                
+                // 直接更新后续循环的cycle_number（减1）
+                // 由于被删除循环的cycle_number已经更新为临时值，不会产生冲突
+                for (Cycle subsequentCycle : subsequentCycles) {
+                    Integer oldCycleNumber = subsequentCycle.getCycleNumber();
+                    Integer newCycleNumber = oldCycleNumber - 1;
+                    
+                    LambdaUpdateWrapper<Cycle> updateWrapper = new LambdaUpdateWrapper<>();
+                    updateWrapper.eq(Cycle::getId, subsequentCycle.getId())
+                            .set(Cycle::getCycleNumber, newCycleNumber);
+                    update(updateWrapper);
+                    log.debug("调整循环cycle_number，循环ID: {}, 原循环号: {}, 新循环号: {}",
+                            subsequentCycle.getId(), oldCycleNumber, newCycleNumber);
+                }
+                
+                log.info("调整后续循环的cycle_number完成，项目ID: {}, 被删除循环号: {}, 已调整循环数量: {}",
+                        projectId, deletedCycleNumber, subsequentCycles.size());
+            }
+        }
+        
+        log.info("删除循环完成，循环ID: {}, 循环号: {}, 项目ID: {}", cycleId, deletedCycleNumber, projectId);
     }
     
     @Override

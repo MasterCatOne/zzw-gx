@@ -28,7 +28,7 @@ public class ProcessController {
     
     private final ProcessService processService;
     
-    @Operation(summary = "新建并开工工序", description = "为指定循环创建工序且状态直接为进行中，需填写实际开始时间；会根据实际/预计开始时间与控制时长计算预计结束时间。", tags = {"管理员管理-工序管理"})
+    @Operation(summary = "新建并开工工序", description = "为指定循环创建工序。如果新建工序位置与进行中工序位置一致（startOrder相等），则先清除原工序的时间字段，新工序继承原工序的预计开始时间和实际开始时间，并根据新工序的控制时间计算预计结束时间；如果新建工序替换了进行中的工序（startOrder < 进行中工序的startOrder），则使用原工序的时间，原工序被移到后面并清空时间字段；如果插入到进行中工序之后（startOrder > 进行中工序的startOrder），则不设置时间字段。", tags = {"管理员管理-工序管理"})
     @PostMapping("/processes/start-now")
     public Result<ProcessResponse> createProcessAndStart(@Valid @RequestBody CreateProcessRequest request) {
         log.info("创建并开工工序，循环ID: {}, 工序字典ID: {}, 施工人员ID: {}, 控制时长: {}, 实际开始时间: {}",

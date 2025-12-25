@@ -1,6 +1,7 @@
 package com.zzw.zzwgx.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zzw.zzwgx.common.enums.ProcessStatus;
@@ -191,17 +192,33 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
                 .findFirst()
                 .orElse(null);
         boolean hasInProgress = inProgressProcess != null;
-        boolean replaceCurrentProcess = hasInProgress
+        
+        // 判断新建工序的顺序是否和进行中的工序顺序一致（startOrder相等）
+        boolean sameOrderAsInProgress = hasInProgress
                 && request.getStartOrder() != null
+                && inProgressProcess.getStartOrder() != null
                 && Objects.equals(request.getStartOrder(), inProgressProcess.getStartOrder());
+        
+        // 判断新建工序是否替换了进行中的工序（新建工序的startOrder <= 进行中工序的startOrder）
+        boolean replaceInProgressProcess = hasInProgress
+                && request.getStartOrder() != null
+                && inProgressProcess.getStartOrder() != null
+                && request.getStartOrder() <= inProgressProcess.getStartOrder();
+        
+        // 判断是否插入到进行中工序之后（新建工序的startOrder > 进行中工序的startOrder）
+        boolean insertAfterInProgress = hasInProgress
+                && request.getStartOrder() != null
+                && inProgressProcess.getStartOrder() != null
+                && request.getStartOrder() > inProgressProcess.getStartOrder();
 
-        // 如果没有进行中的工序，则要求实际开始时间；如果有进行中的工序，则不需要实际开始时间
+        // 如果没有进行中的工序，则要求实际开始时间
         if (!hasInProgress && request.getActualStartTime() == null) {
             throw new BusinessException("实际开始时间不能为空");
         }
         
         // 验证实际开始时间不能是过去时间（允许3分钟内的误差）
-        if (request.getActualStartTime() != null) {
+        // 注意：如果替换进行中的工序，实际开始时间会被忽略，使用原工序的时间
+        if (request.getActualStartTime() != null && !replaceInProgressProcess) {
             LocalDateTime now = LocalDateTime.now();
             if (request.getActualStartTime().isBefore(now.minusMinutes(3))) {
                 log.error("创建工序失败，实际开始时间不能是过去时间（超过3分钟误差），实际开始时间: {}, 当前时间: {}", 
@@ -235,32 +252,76 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             adjustProcessOrdersForInsert(request.getCycleId(), request.getStartOrder());
         }
 
-        // 如果需要替换当前进行中的工序，先将其状态重置
-        if (replaceCurrentProcess) {
+        // 如果新建工序的顺序和进行中的工序顺序一致，先清除原工序的时间字段，并保存时间供新工序使用
+        LocalDateTime inheritedEstimatedStartTime = null;
+        LocalDateTime inheritedActualStartTime = null;
+        if (sameOrderAsInProgress) {
             Process current = getById(inProgressProcess.getId());
             if (current != null) {
-                current.setProcessStatus(ProcessStatus.NOT_STARTED.getCode());
-                current.setActualStartTime(null);
-                current.setActualEndTime(null);
-                updateById(current);
+                // 保存原工序的预计开始时间和实际开始时间，供新工序继承使用
+                inheritedEstimatedStartTime = current.getEstimatedStartTime();
+                inheritedActualStartTime = current.getActualStartTime();
+                
+                log.info("准备清除原工序时间字段，工序ID: {}, 原预计开始时间: {}, 原实际开始时间: {}, 原预计结束时间: {}",
+                        current.getId(), current.getEstimatedStartTime(), current.getActualStartTime(), current.getEstimatedEndTime());
+                
+                // 使用 UpdateWrapper 确保 null 值被正确更新到数据库
+                LambdaUpdateWrapper<Process> updateWrapper = new LambdaUpdateWrapper<>();
+                updateWrapper.eq(Process::getId, current.getId())
+                        .set(Process::getEstimatedStartTime, null)
+                        .set(Process::getActualStartTime, null)
+                        .set(Process::getEstimatedEndTime, null)
+                        .set(Process::getActualEndTime, null)
+                        .set(Process::getProcessStatus, ProcessStatus.NOT_STARTED.getCode());
+                boolean updateResult = update(updateWrapper);
+                
+                log.info("清除原工序时间字段完成，工序ID: {}, 更新结果: {}", current.getId(), updateResult);
+                
                 logProcessOperation(current.getId(), request.getWorkerId(), "RESET_IN_PROGRESS",
-                        "插入同顺序新工序，原进行中工序重置为未开始");
+                        "新建工序顺序与进行中工序一致，原进行中工序时间字段已清除，预计开始时间和实际开始时间将继承给新工序");
+            }
+        } else if (replaceInProgressProcess) {
+            // 如果需要替换进行中的工序（但顺序不一致），先将其状态重置并清空时间字段
+            Process current = getById(inProgressProcess.getId());
+            if (current != null) {
+                log.info("准备清除原工序时间字段（替换情况），工序ID: {}, 原预计开始时间: {}, 原实际开始时间: {}, 原预计结束时间: {}",
+                        current.getId(), current.getEstimatedStartTime(), current.getActualStartTime(), current.getEstimatedEndTime());
+                
+                // 使用 UpdateWrapper 确保 null 值被正确更新到数据库
+                LambdaUpdateWrapper<Process> updateWrapper = new LambdaUpdateWrapper<>();
+                updateWrapper.eq(Process::getId, current.getId())
+                        .set(Process::getEstimatedStartTime, null)
+                        .set(Process::getActualStartTime, null)
+                        .set(Process::getEstimatedEndTime, null)
+                        .set(Process::getActualEndTime, null)
+                        .set(Process::getProcessStatus, ProcessStatus.NOT_STARTED.getCode());
+                boolean updateResult = update(updateWrapper);
+                
+                log.info("清除原工序时间字段完成（替换情况），工序ID: {}, 更新结果: {}", current.getId(), updateResult);
+                
+                logProcessOperation(current.getId(), request.getWorkerId(), "RESET_IN_PROGRESS",
+                        "插入新工序替换进行中工序，原进行中工序重置为未开始并清空时间字段");
             }
         }
 
         Process process = new Process();
         process.setCycleId(request.getCycleId());
-        // 如果已有进行中的工序，新工序设置为未开始状态；否则设置为进行中状态
+        
+        // 根据是否有进行中的工序决定新工序的状态
         if (hasInProgress) {
-            if (replaceCurrentProcess) {
+            if (sameOrderAsInProgress || replaceInProgressProcess) {
+                // 顺序一致或替换进行中的工序，新工序设置为进行中状态
                 process.setProcessStatus(ProcessStatus.IN_PROGRESS.getCode());
             } else {
-            process.setProcessStatus(ProcessStatus.NOT_STARTED.getCode());
+                // 插入到进行中工序之后，新工序设置为未开始状态
+                process.setProcessStatus(ProcessStatus.NOT_STARTED.getCode());
                 log.debug("循环已有进行中的工序，新工序将创建为未开始状态，循环ID: {}", request.getCycleId());
             }
         } else {
+            // 如果没有进行中的工序，新工序为进行中状态
             process.setProcessStatus(ProcessStatus.IN_PROGRESS.getCode());
         }
+        
         process.setOperatorId(request.getWorkerId());
         process.setStartOrder(request.getStartOrder());
         process.setAdvanceLength(java.math.BigDecimal.ZERO);
@@ -286,36 +347,47 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         }
         process.setControlTime(request.getControlTime());
 
-        // 根据是否有进行中的工序决定是否设置实际开始时间
-        if (hasInProgress) {
-            if (replaceCurrentProcess) {
-                LocalDateTime startTime = LocalDateTime.now();
-                process.setActualStartTime(startTime);
-                process.setEstimatedStartTime(startTime);
+        // 根据情况设置时间字段
+        if (sameOrderAsInProgress) {
+            // 情况1：新建工序顺序和进行中工序顺序一致
+            // 继承原工序的预计开始时间和实际开始时间，根据新工序的控制时间计算预计结束时间
+            process.setActualStartTime(inheritedActualStartTime);
+            process.setEstimatedStartTime(inheritedEstimatedStartTime);
+            if (inheritedEstimatedStartTime != null && request.getControlTime() != null) {
+                process.setEstimatedEndTime(inheritedEstimatedStartTime.plusMinutes(request.getControlTime()));
+                log.debug("新建工序顺序与进行中工序一致，继承实际开始时间: {}, 继承预计开始时间: {}, 根据控制时间计算预计结束时间: {}",
+                        inheritedActualStartTime, inheritedEstimatedStartTime, process.getEstimatedEndTime());
             } else {
-                // 如果已有进行中的工序，新工序为未开始状态，不设置实际开始时间
-                process.setActualStartTime(null);
-                // 预计开始时间使用请求中的值，如果没有则使用实际开始时间（但实际开始时间为null，所以使用请求的预计开始时间）
-                process.setEstimatedStartTime(request.getEstimatedStartTime() != null 
-                        ? request.getEstimatedStartTime() 
-                        : request.getActualStartTime());
-                log.debug("循环已有进行中的工序，新工序不设置实际开始时间，循环ID: {}", request.getCycleId());
+                process.setEstimatedEndTime(null);
+                log.debug("新建工序顺序与进行中工序一致，但原工序预计开始时间为空或控制时间为空，不设置预计结束时间");
             }
-        } else {
-            // 如果没有进行中的工序，新工序为进行中状态，设置实际开始时间
+        } else if (replaceInProgressProcess) {
+            // 情况2：替换进行中的工序（顺序不一致但startOrder <= 进行中工序的startOrder），使用原进行中工序的时间
+            process.setActualStartTime(inProgressProcess.getActualStartTime());
+            process.setEstimatedStartTime(inProgressProcess.getEstimatedStartTime());
+            process.setEstimatedEndTime(inProgressProcess.getEstimatedEndTime());
+            log.debug("替换进行中的工序，使用原工序的时间，实际开始时间: {}, 预计开始时间: {}, 预计结束时间: {}",
+                    process.getActualStartTime(), process.getEstimatedStartTime(), process.getEstimatedEndTime());
+        } else if (insertAfterInProgress) {
+            // 情况2：插入到进行中工序之后，不设置任何时间字段
+            process.setActualStartTime(null);
+            process.setEstimatedStartTime(null);
+            process.setEstimatedEndTime(null);
+            log.debug("插入到进行中工序之后，不设置时间字段，循环ID: {}", request.getCycleId());
+        } else if (!hasInProgress) {
+            // 情况3：没有进行中的工序，新工序为进行中状态，设置实际开始时间
             process.setActualStartTime(request.getActualStartTime());
             // 预计开始时间为空时，默认等于实际开始时间
             LocalDateTime estimatedStart = request.getEstimatedStartTime() != null
                     ? request.getEstimatedStartTime()
                     : request.getActualStartTime();
             process.setEstimatedStartTime(estimatedStart);
-        }
-
-        // 计算预计结束时间
-        if (process.getEstimatedStartTime() != null && request.getControlTime() != null) {
-            process.setEstimatedEndTime(process.getEstimatedStartTime().plusMinutes(request.getControlTime()));
-            log.debug("自动计算预计结束时间，预计开始时间: {}, 控制时长: {}分钟, 预计结束时间: {}",
-                    process.getEstimatedStartTime(), request.getControlTime(), process.getEstimatedEndTime());
+            // 计算预计结束时间
+            if (process.getEstimatedStartTime() != null && request.getControlTime() != null) {
+                process.setEstimatedEndTime(process.getEstimatedStartTime().plusMinutes(request.getControlTime()));
+                log.debug("自动计算预计结束时间，预计开始时间: {}, 控制时长: {}分钟, 预计结束时间: {}",
+                        process.getEstimatedStartTime(), request.getControlTime(), process.getEstimatedEndTime());
+            }
         }
 
         save(process);
@@ -334,12 +406,16 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         }
         
         if (hasInProgress) {
-            if (replaceCurrentProcess) {
+            if (sameOrderAsInProgress) {
+                log.info("工序创建成功，顺序与进行中工序一致，原工序时间已清除，新工序ID: {}, 工序名称: {}", 
+                        process.getId(), process.getProcessName());
+                logProcessOperation(process.getId(), request.getWorkerId(), "REPLACE_AND_START", null);
+            } else if (replaceInProgressProcess) {
                 log.info("工序创建成功，替换当前进行中的工序为新工序，工序ID: {}, 工序名称: {}", 
                         process.getId(), process.getProcessName());
                 logProcessOperation(process.getId(), request.getWorkerId(), "REPLACE_AND_START", null);
             } else {
-                log.info("工序创建成功（循环已有进行中的工序，新工序为未开始状态），工序ID: {}, 工序名称: {}", 
+                log.info("工序创建成功（插入到进行中工序之后，新工序为未开始状态），工序ID: {}, 工序名称: {}", 
                         process.getId(), process.getProcessName());
                 logProcessOperation(process.getId(), request.getWorkerId(), "CREATE", null);
             }
