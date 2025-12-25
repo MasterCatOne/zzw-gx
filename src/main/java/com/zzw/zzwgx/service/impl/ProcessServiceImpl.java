@@ -745,7 +745,8 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         logProcessOperation(processId, workerId, "COMPLETED", null);
 
         // 完成后自动开启下一道未开始的工序
-        startNextProcess(process, workerId, null);
+        // 使用当前工序的结束时间作为下一个工序的开始时间
+        startNextProcess(process, workerId, process.getActualEndTime());
 
         // 如果本循环所有工序都已完成，则将循环状态置为已完成并记录结束时间
         tryCompleteCycle(process);
@@ -786,7 +787,8 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         logProcessOperation(processId, workerId, "COMPLETED_AND_NEXT", null);
 
         // 完成后自动开启下一道未开始的工序
-        startNextProcess(process, workerId, null);
+        // 使用当前工序的结束时间作为下一个工序的开始时间
+        startNextProcess(process, workerId, process.getActualEndTime());
 
         // 如果本循环所有工序都已完成，则将循环状态置为已完成并记录结束时间
         tryCompleteCycle(process);

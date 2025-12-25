@@ -18,6 +18,7 @@ import com.zzw.zzwgx.dto.request.CreateCycleRequest;
 import com.zzw.zzwgx.dto.request.UpdateCycleRequest;
 import com.zzw.zzwgx.dto.response.CycleReportDataResponse;
 import com.zzw.zzwgx.dto.response.CycleResponse;
+import com.zzw.zzwgx.dto.response.InProgressProcessOrderResponse;
 import com.zzw.zzwgx.dto.response.TemplateControlDurationResponse;
 import com.zzw.zzwgx.entity.Cycle;
 import com.zzw.zzwgx.entity.Process;
@@ -1775,6 +1776,41 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         response.setTemplateId(templateId);
         response.setTemplateName(template.getTemplateName());
         response.setControlDuration(controlDuration);
+        
+        return response;
+    }
+    
+    @Override
+    public InProgressProcessOrderResponse getInProgressProcessOrder(Long cycleId) {
+        log.info("获取当前循环进行中工序顺序，循环ID: {}", cycleId);
+        
+        // 获取循环信息
+        Cycle cycle = getById(cycleId);
+        if (cycle == null) {
+            log.warn("未找到循环，循环ID: {}", cycleId);
+            throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
+        }
+        
+        // 获取该循环下的所有工序
+        List<Process> processes = processService.getProcessesByCycleId(cycleId);
+        
+        // 查找进行中的工序（应该只有一个）
+        Process inProgressProcess = processes.stream()
+                .filter(p -> ProcessStatus.IN_PROGRESS.getCode().equals(p.getProcessStatus()))
+                .findFirst()
+                .orElse(null);
+        
+        // 构建响应
+        InProgressProcessOrderResponse response = new InProgressProcessOrderResponse();
+        if (inProgressProcess != null && inProgressProcess.getStartOrder() != null) {
+            response.setStartOrder(inProgressProcess.getStartOrder());
+            log.info("获取当前循环进行中工序顺序成功，循环ID: {}, 循环号: {}, 进行中工序startOrder: {}", 
+                    cycleId, cycle.getCycleNumber(), inProgressProcess.getStartOrder());
+        } else {
+            // 如果没有进行中的工序，返回null
+            response.setStartOrder(null);
+            log.info("当前循环没有进行中的工序，循环ID: {}, 循环号: {}", cycleId, cycle.getCycleNumber());
+        }
         
         return response;
     }

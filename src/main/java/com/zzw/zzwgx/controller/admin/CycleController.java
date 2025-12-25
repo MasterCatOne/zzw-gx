@@ -6,6 +6,7 @@ import com.zzw.zzwgx.dto.request.CreateCycleRequest;
 import com.zzw.zzwgx.dto.request.UpdateCycleRequest;
 import com.zzw.zzwgx.dto.response.CycleReportDataResponse;
 import com.zzw.zzwgx.dto.response.CycleResponse;
+import com.zzw.zzwgx.dto.response.InProgressProcessOrderResponse;
 import com.zzw.zzwgx.dto.response.TemplateControlDurationResponse;
 import com.zzw.zzwgx.service.CycleService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -100,6 +101,15 @@ public class CycleController {
         log.info("删除循环及其工序，循环ID: {}", cycleId);
         cycleService.deleteCycle(cycleId);
         return Result.success();
+    }
+    
+    @Operation(summary = "获取当前循环进行中工序顺序", description = "根据循环ID获取该循环下进行中工序的start_order（应该只有一个进行中的工序）。", tags = {"管理员管理-循环管理"})
+    @GetMapping("/cycles/{cycleId}/in-progress-process-orders")
+    public Result<InProgressProcessOrderResponse> getInProgressProcessOrder(
+            @Parameter(description = "循环ID", required = true, example = "1") @PathVariable Long cycleId) {
+        log.info("获取当前循环进行中工序顺序，循环ID: {}", cycleId);
+        InProgressProcessOrderResponse response = cycleService.getInProgressProcessOrder(cycleId);
+        return Result.success(response);
     }
 }
 

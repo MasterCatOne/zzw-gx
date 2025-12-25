@@ -6,6 +6,7 @@ import com.zzw.zzwgx.dto.request.CreateCycleRequest;
 import com.zzw.zzwgx.dto.request.UpdateCycleRequest;
 import com.zzw.zzwgx.dto.response.CycleReportDataResponse;
 import com.zzw.zzwgx.dto.response.CycleResponse;
+import com.zzw.zzwgx.dto.response.InProgressProcessOrderResponse;
 import com.zzw.zzwgx.dto.response.TemplateControlDurationResponse;
 import com.zzw.zzwgx.entity.Cycle;
 
@@ -81,5 +82,14 @@ public interface CycleService extends IService<Cycle> {
      * @param cycleId 循环ID
      */
     void deleteCycle(Long cycleId);
+    
+    /**
+     * 获取当前循环进行中工序的顺序
+     * 根据循环ID获取该循环下所有进行中工序的start_order列表
+     *
+     * @param cycleId 循环ID
+     * @return 进行中工序顺序响应（包含start_order列表）
+     */
+    InProgressProcessOrderResponse getInProgressProcessOrder(Long cycleId);
 }
 
