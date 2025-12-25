@@ -7,6 +7,7 @@ import com.zzw.zzwgx.common.enums.ProcessStatus;
 import com.zzw.zzwgx.common.enums.ResultCode;
 import com.zzw.zzwgx.common.exception.BusinessException;
 import com.zzw.zzwgx.dto.request.CreateProcessRequest;
+import com.zzw.zzwgx.dto.request.FillProcessTimeRequest;
 import com.zzw.zzwgx.dto.request.UpdateProcessOrderRequest;
 import com.zzw.zzwgx.dto.request.UpdateProcessRequest;
 import com.zzw.zzwgx.dto.response.*;
@@ -23,7 +24,10 @@ import com.zzw.zzwgx.service.CycleService;
 import com.zzw.zzwgx.service.ProcessCatalogService;
 import com.zzw.zzwgx.service.ProcessOperationLogService;
 import com.zzw.zzwgx.service.ProcessService;
+import com.zzw.zzwgx.service.UserProjectService;
 import com.zzw.zzwgx.service.UserService;
+import com.zzw.zzwgx.security.SecurityUtils;
+import org.springframework.util.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +57,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
     private final UserService userService;
     private final ProcessCatalogService processCatalogService;
     private final ProcessOperationLogService processOperationLogService;
+    private final UserProjectService userProjectService;
     
     @Lazy
     @Autowired
@@ -715,15 +720,15 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         if (process == null) {
             throw new BusinessException(ResultCode.PROCESS_NOT_FOUND);
         }
-        // 检查操作员：如果工序有操作员，则必须是当前用户；如果没有操作员，则允许当前用户完成
-        if (process.getOperatorId() != null && !process.getOperatorId().equals(workerId)) {
-            throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "您不是该工序的操作员，无法完成");
+        
+        // 检查权限：用户必须是有该工点权限的人，或者是系统管理员
+        if (!hasPermissionToCompleteProcess(process, workerId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "您没有该工点的权限，无法完成此工序");
         }
-        // 如果工序没有操作员（operatorId为null），自动设置当前用户为操作员
-        if (process.getOperatorId() == null) {
-            process.setOperatorId(workerId);
-            log.info("工序没有操作员，自动设置当前用户为操作员，工序ID: {}, 用户ID: {}", processId, workerId);
-        }
+        
+        // 设置操作员ID为完成工序的人（无论之前是否有操作员）
+        process.setOperatorId(workerId);
+        log.info("设置工序操作员，工序ID: {}, 操作员ID: {}", processId, workerId);
         if (process.getActualStartTime() == null) {
             throw new BusinessException("当前工序未开始，无法完成");
         }
@@ -754,15 +759,15 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         if (process == null) {
             throw new BusinessException(ResultCode.PROCESS_NOT_FOUND);
         }
-        // 检查操作员：如果工序有操作员，则必须是当前用户；如果没有操作员，则允许当前用户完成
-        if (process.getOperatorId() != null && !process.getOperatorId().equals(workerId)) {
-            throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "您不是该工序的操作员，无法完成");
+        
+        // 检查权限：用户必须是有该工点权限的人，或者是系统管理员
+        if (!hasPermissionToCompleteProcess(process, workerId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "您没有该工点的权限，无法完成此工序");
         }
-        // 如果工序没有操作员（operatorId为null），自动设置当前用户为操作员
-        if (process.getOperatorId() == null) {
-            process.setOperatorId(workerId);
-            log.info("工序没有操作员，自动设置当前用户为操作员，工序ID: {}, 用户ID: {}", processId, workerId);
-        }
+        
+        // 设置操作员ID为完成工序的人（无论之前是否有操作员）
+        process.setOperatorId(workerId);
+        log.info("设置工序操作员，工序ID: {}, 操作员ID: {}", processId, workerId);
         if (process.getActualStartTime() == null) {
             throw new BusinessException("当前工序未开始，无法完成");
         }
@@ -788,7 +793,240 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
 
         return buildProcessResponse(process);
     }
+    
+    // 授权方法已废弃，超过24小时的工序只能由系统管理员直接补填，无需授权步骤
+    // @Override
+    // @Transactional(rollbackFor = Exception.class)
+    // public void authorizeTimeFill(Long processId) {
+    //     log.info("系统管理员授权工序时间补填，工序ID: {}", processId);
+    //     
+    //     // 检查当前用户是否是系统管理员
+    //     var currentUser = SecurityUtils.getCurrentUser();
+    //     if (currentUser == null) {
+    //         log.error("授权失败，未获取到当前登录用户");
+    //         throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "未获取到当前登录用户");
+    //     }
+    //     
+    //     var roles = currentUser.getRoleCodes();
+    //     boolean isSystemAdmin = roles.stream().anyMatch(r -> "SYSTEM_ADMIN".equals(r));
+    //     if (!isSystemAdmin) {
+    //         log.error("授权失败，当前用户不是系统管理员，用户ID: {}", currentUser.getUserId());
+    //         throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "只有系统管理员可以授权时间补填");
+    //     }
+    //     
+    //     // 验证工序是否存在
+    //     Process process = getById(processId);
+    //     if (process == null) {
+    //         log.error("授权失败，工序不存在，工序ID: {}", processId);
+    //         throw new BusinessException(ResultCode.PROCESS_NOT_FOUND);
+    //     }
+    //     
+    //     // 设置授权标志
+    //     process.setTimeFillAuthorized(1);
+    //     updateById(process);
+    //     
+    //     // 记录操作日志
+    //     logProcessOperation(processId, currentUser.getUserId(), "AUTHORIZE_TIME_FILL", null);
+    //     
+    //     log.info("系统管理员授权工序时间补填成功，工序ID: {}, 授权人ID: {}", processId, currentUser.getUserId());
+    // }
+    
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ProcessResponse fillProcessTime(Long processId, Long workerId, FillProcessTimeRequest request) {
+        log.info("施工人员补填工序时间，用户ID: {}, 工序ID: {}, 实际开始时间: {}, 实际结束时间: {}", 
+                workerId, processId, request.getActualStartTime(), request.getActualEndTime());
+        
+        // 验证工序是否存在
+        Process process = getById(processId);
+        if (process == null) {
+            throw new BusinessException(ResultCode.PROCESS_NOT_FOUND);
+        }
+        
+        // 检查权限：用户必须是有该工点权限的人，或者是系统管理员
+        if (!hasPermissionToCompleteProcess(process, workerId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "您没有该工点的权限，无法补填此工序时间");
+        }
+        
+        // 如果用户没有提供时间，使用预计时间作为默认值
+        if (request.getActualStartTime() == null) {
+            if (process.getEstimatedStartTime() == null) {
+                throw new BusinessException("工序没有预计开始时间，请手动填写实际开始时间");
+            }
+            request.setActualStartTime(process.getEstimatedStartTime());
+            log.debug("用户未提供实际开始时间，使用预计开始时间: {}", process.getEstimatedStartTime());
+        }
+        
+        if (request.getActualEndTime() == null) {
+            if (process.getEstimatedEndTime() == null) {
+                throw new BusinessException("工序没有预计结束时间，请手动填写实际结束时间");
+            }
+            request.setActualEndTime(process.getEstimatedEndTime());
+            log.debug("用户未提供实际结束时间，使用预计结束时间: {}", process.getEstimatedEndTime());
+        }
+        
+        // 验证时间合理性
+        if (request.getActualStartTime() != null && request.getActualEndTime() != null) {
+            if (!request.getActualStartTime().isBefore(request.getActualEndTime())) {
+                throw new BusinessException("实际开始时间必须早于实际结束时间");
+            }
+        }
+        
+        // 计算从预计结束时间到当前时间的小时数
+        // 如果超过24小时，只能由系统管理员补填
+        LocalDateTime now = LocalDateTime.now();
+        boolean exceeds24Hours = false;
+        if (process.getEstimatedEndTime() != null) {
+            long hoursSinceEstimatedEnd = Duration.between(process.getEstimatedEndTime(), now).toHours();
+            exceeds24Hours = hoursSinceEstimatedEnd > 24;
+            log.debug("工序预计结束时间: {}, 当前时间: {}, 时间差: {}小时, 超过24小时: {}", 
+                    process.getEstimatedEndTime(), now, hoursSinceEstimatedEnd, exceeds24Hours);
+        } else {
+            log.warn("工序没有预计结束时间，无法判断是否超过24小时，工序ID: {}", processId);
+        }
+        
+        // 如果超过24小时，检查是否是系统管理员
+        if (exceeds24Hours) {
+            var currentUser = SecurityUtils.getCurrentUser();
+            if (currentUser == null) {
+                log.error("补填失败，超过24小时且未获取到当前登录用户，工序ID: {}", processId);
+                throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "未获取到当前登录用户");
+            }
+            var roles = currentUser.getRoleCodes();
+            boolean isSystemAdmin = roles.stream().anyMatch(r -> "SYSTEM_ADMIN".equals(r));
+            if (!isSystemAdmin) {
+                log.error("补填失败，超过24小时且不是系统管理员，工序ID: {}, 用户ID: {}, 预计结束时间: {}", 
+                        processId, workerId, process.getEstimatedEndTime());
+                throw new BusinessException("超过24小时的工序只能由系统管理员补填，请联系管理员");
+            }
+            log.info("超过24小时，系统管理员补填，工序ID: {}, 管理员ID: {}", processId, workerId);
+        }
+        
+        // 保存补填前的结束时间，用于计算时间差和更新后续工序
+        LocalDateTime oldEndTime = process.getActualEndTime();
+        
+        // 更新实际开始时间和实际结束时间
+        if (request.getActualStartTime() != null) {
+            process.setActualStartTime(request.getActualStartTime());
+        }
+        if (request.getActualEndTime() != null) {
+            process.setActualEndTime(request.getActualEndTime());
+        }
+        
+        // 设置操作员ID为当前用户
+        process.setOperatorId(workerId);
+        
+        // 如果工序状态不是已完成，更新为已完成
+        boolean wasCompleted = ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus());
+        if (!wasCompleted) {
+            process.setProcessStatus(ProcessStatus.COMPLETED.getCode());
+            log.info("补填时间后自动将工序状态更新为已完成，工序ID: {}", processId);
+        }
+        
+        updateById(process);
+        
+        // 记录操作日志
+        logProcessOperation(processId, workerId, "FILL_TIME", 
+                String.format("补填时间：开始时间=%s, 结束时间=%s", 
+                        request.getActualStartTime(), request.getActualEndTime()));
+        
+        // 如果工序已完成且补填了结束时间，需要更新后续工序的时间
+        if (wasCompleted && request.getActualEndTime() != null && process.getCycleId() != null && process.getStartOrder() != null) {
+            updateSubsequentProcessesTime(process, oldEndTime, request.getActualEndTime());
+        }
+        
+        // 如果工序之前未完成，触发后续流程
+        if (!wasCompleted) {
+            // 完成后自动开启下一道未开始的工序
+            startNextProcess(process, workerId);
+            
+            // 如果本循环所有工序都已完成，则将循环状态置为已完成并记录结束时间
+            tryCompleteCycle(process);
+        }
+        
+        log.info("施工人员补填工序时间成功，工序ID: {}, 用户ID: {}", processId, workerId);
+        return buildProcessResponse(process);
+    }
 
+    /**
+     * 检查用户是否有权限完成该工序
+     * 规则：用户必须是系统管理员，或者有该工序所属工点的权限（包括父节点权限）
+     * 
+     * @param process 工序对象
+     * @param userId 用户ID
+     * @return true表示有权限，false表示无权限
+     */
+    private boolean hasPermissionToCompleteProcess(Process process, Long userId) {
+        if (process == null || process.getCycleId() == null || userId == null) {
+            return false;
+        }
+        
+        // 获取当前用户信息
+        var currentUser = SecurityUtils.getCurrentUser();
+        if (currentUser == null) {
+            log.warn("未获取到当前登录用户，用户ID: {}", userId);
+            return false;
+        }
+        
+        // 检查是否是系统管理员
+        var roles = currentUser.getRoleCodes();
+        boolean isSystemAdmin = roles.stream().anyMatch(r -> "SYSTEM_ADMIN".equals(r));
+        if (isSystemAdmin) {
+            log.debug("系统管理员有权限完成所有工序，用户ID: {}", userId);
+            return true;
+        }
+        
+        // 获取工序所属的循环
+        Cycle cycle = cycleMapper.selectById(process.getCycleId());
+        if (cycle == null || cycle.getProjectId() == null) {
+            log.warn("无法获取工序所属的工点，工序ID: {}, 循环ID: {}", process.getId(), process.getCycleId());
+            return false;
+        }
+        
+        Long projectId = cycle.getProjectId();
+        
+        // 获取用户有权限的节点ID列表（可能包括父节点）
+        List<Long> allowedProjectIds = userProjectService.getProjectIdsByUser(userId);
+        if (CollectionUtils.isEmpty(allowedProjectIds)) {
+            log.debug("用户未分配任何工点权限，用户ID: {}", userId);
+            return false;
+        }
+        
+        // 检查用户是否有该工点的权限
+        // 1. 直接检查工点ID是否在分配列表中
+        if (allowedProjectIds.contains(projectId)) {
+            log.debug("用户直接分配了该工点，用户ID: {}, 工点ID: {}", userId, projectId);
+            return true;
+        }
+        
+        // 2. 检查工点的所有父节点是否在分配列表中
+        // 如果用户被分配到父节点（如标段、隧道），则自动包含其下所有子工点
+        Project project = projectMapper.selectById(projectId);
+        if (project == null) {
+            log.warn("工点不存在，工点ID: {}", projectId);
+            return false;
+        }
+        
+        // 向上遍历父节点，检查是否有任何一个父节点在用户的分配列表中
+        Long currentParentId = project.getParentId();
+        while (currentParentId != null) {
+            if (allowedProjectIds.contains(currentParentId)) {
+                log.debug("用户通过父节点拥有该工点权限，用户ID: {}, 工点ID: {}, 父节点ID: {}", 
+                        userId, projectId, currentParentId);
+                return true;
+            }
+            Project parentProject = projectMapper.selectById(currentParentId);
+            if (parentProject == null) {
+                break;
+            }
+            currentParentId = parentProject.getParentId();
+        }
+        
+        log.warn("用户没有该工点的权限，用户ID: {}, 工点ID: {}, 用户有权限的节点: {}", 
+                userId, projectId, allowedProjectIds);
+        return false;
+    }
+    
     /**
      * 当所在循环的所有工序都完成时，更新循环状态为已完成并填充结束时间
      */
@@ -850,6 +1088,169 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
     }
 
     /**
+     * 更新后续工序的时间（当补填已完成工序的时间时）
+     * 如果补填的时间改变了，后续工序的开始时间和结束时间都应该相应调整
+     * 
+     * @param currentProcess 当前补填的工序
+     * @param oldEndTime 补填前的结束时间（可能为null）
+     * @param newEndTime 补填后的结束时间
+     */
+    private void updateSubsequentProcessesTime(Process currentProcess, LocalDateTime oldEndTime, LocalDateTime newEndTime) {
+        if (currentProcess == null || currentProcess.getCycleId() == null || currentProcess.getStartOrder() == null || newEndTime == null) {
+            return;
+        }
+        
+        log.info("开始更新后续工序时间，当前工序ID: {}, 补填前的结束时间: {}, 补填后的结束时间: {}", 
+                currentProcess.getId(), oldEndTime, newEndTime);
+        
+        // 计算时间差（补填后的结束时间 - 补填前的结束时间）
+        long timeDiffMinutes = 0;
+        if (oldEndTime != null) {
+            timeDiffMinutes = Duration.between(oldEndTime, newEndTime).toMinutes();
+        }
+        
+        // 如果时间没有变化，不需要更新后续工序
+        if (oldEndTime != null && timeDiffMinutes == 0) {
+            log.debug("补填时间没有变化，不需要更新后续工序，当前工序ID: {}", currentProcess.getId());
+            return;
+        }
+        
+        // 获取同一循环下，顺序在当前工序之后的所有工序
+        List<Process> subsequentProcesses = lambdaQuery()
+                .eq(Process::getCycleId, currentProcess.getCycleId())
+                .gt(Process::getStartOrder, currentProcess.getStartOrder())
+                .orderByAsc(Process::getStartOrder)
+                .list();
+        
+        if (subsequentProcesses.isEmpty()) {
+            log.debug("没有后续工序需要更新，当前工序ID: {}", currentProcess.getId());
+            return;
+        }
+        
+        int updatedCount = 0;
+        // 使用前一个工序的结束时间作为基准，实现级联更新
+        LocalDateTime previousEndTime = newEndTime;
+        
+        for (Process nextProcess : subsequentProcesses) {
+            boolean needUpdate = false;
+            LocalDateTime newStartTime = null;
+            LocalDateTime newEndTimeForNext = null;
+            
+            // 判断后续工序的状态，分别处理
+            if (ProcessStatus.COMPLETED.getCode().equals(nextProcess.getProcessStatus())) {
+                // 已完成工序：调整开始时间和结束时间，保持原耗时
+                // 关键逻辑：后续工序的开始时间应该等于前一个工序的结束时间
+                LocalDateTime originalStartTime = nextProcess.getActualStartTime();
+                if (originalStartTime != null) {
+                    // 如果原开始时间不等于前一个工序的新结束时间，需要调整
+                    // 这里使用时间差判断，如果时间差超过1分钟，就认为需要调整
+                    long timeDiff = Duration.between(originalStartTime, previousEndTime).toMinutes();
+                    if (Math.abs(timeDiff) > 1) {
+                        // 调整开始时间到前一个工序的新结束时间
+                        newStartTime = previousEndTime;
+                        needUpdate = true;
+                        
+                        // 保持原耗时，调整结束时间
+                        if (nextProcess.getActualEndTime() != null && originalStartTime != null) {
+                            long originalDuration = Duration.between(originalStartTime, nextProcess.getActualEndTime()).toMinutes();
+                            newEndTimeForNext = newStartTime.plusMinutes(originalDuration);
+                            nextProcess.setActualEndTime(newEndTimeForNext);
+                        }
+                        nextProcess.setActualStartTime(newStartTime);
+                        if (nextProcess.getEstimatedStartTime() != null) {
+                            nextProcess.setEstimatedStartTime(newStartTime);
+                        }
+                        log.debug("更新已完成工序时间，工序ID: {}, 原开始时间: {}, 新开始时间: {}, 新结束时间: {}", 
+                                nextProcess.getId(), originalStartTime, newStartTime, newEndTimeForNext);
+                    } else {
+                        // 如果时间差很小（<=1分钟），认为不需要调整，但需要更新前一个工序的结束时间基准
+                        if (nextProcess.getActualEndTime() != null) {
+                            newEndTimeForNext = nextProcess.getActualEndTime();
+                        }
+                    }
+                }
+            } else if (ProcessStatus.IN_PROGRESS.getCode().equals(nextProcess.getProcessStatus())) {
+                // 进行中工序：调整开始时间和预计结束时间，必须清空实际结束时间
+                // 关键逻辑：后续工序的开始时间应该等于前一个工序的结束时间
+                // 无论是否需要调整开始时间，进行中的工序都不应该有实际结束时间
+                
+                // 首先清空实际结束时间（进行中的工序不应该有实际结束时间）
+                if (nextProcess.getActualEndTime() != null) {
+                    nextProcess.setActualEndTime(null);
+                    needUpdate = true;
+                    log.debug("清空进行中工序的实际结束时间，工序ID: {}", nextProcess.getId());
+                }
+                
+                LocalDateTime originalStartTime = nextProcess.getActualStartTime();
+                if (originalStartTime != null) {
+                    // 如果原开始时间不等于前一个工序的新结束时间，需要调整
+                    // 这里使用时间差判断，如果时间差超过1分钟，就认为需要调整
+                    long timeDiff = Duration.between(originalStartTime, previousEndTime).toMinutes();
+                    if (Math.abs(timeDiff) > 1) {
+                        // 调整开始时间到前一个工序的新结束时间
+                        newStartTime = previousEndTime;
+                        needUpdate = true;
+                        
+                        nextProcess.setActualStartTime(newStartTime);
+                        if (nextProcess.getEstimatedStartTime() != null) {
+                            nextProcess.setEstimatedStartTime(newStartTime);
+                        }
+                        // 重新计算预计结束时间
+                        if (nextProcess.getControlTime() != null) {
+                            newEndTimeForNext = newStartTime.plusMinutes(nextProcess.getControlTime());
+                            nextProcess.setEstimatedEndTime(newEndTimeForNext);
+                        }
+                        log.debug("更新进行中工序时间，工序ID: {}, 原开始时间: {}, 新开始时间: {}, 新预计结束时间: {}", 
+                                nextProcess.getId(), originalStartTime, newStartTime, newEndTimeForNext);
+                    } else {
+                        // 如果时间差很小（<=1分钟），认为不需要调整开始时间
+                        // 使用当前预计结束时间作为基准
+                        if (nextProcess.getEstimatedEndTime() != null) {
+                            newEndTimeForNext = nextProcess.getEstimatedEndTime();
+                        }
+                    }
+                }
+            } else {
+                // 未开始工序：不处理，跳过
+                // 使用当前预计结束时间作为基准（如果有的话）
+                if (nextProcess.getEstimatedEndTime() != null) {
+                    newEndTimeForNext = nextProcess.getEstimatedEndTime();
+                }
+                log.debug("跳过未开始工序，工序ID: {}, 状态: {}", nextProcess.getId(), nextProcess.getProcessStatus());
+            }
+            
+            if (needUpdate) {
+                updateById(nextProcess);
+                logProcessOperation(nextProcess.getId(), null, "UPDATE_TIME_BY_PREVIOUS_FILL", 
+                        String.format("因前序工序补填时间而调整：新开始时间=%s", newStartTime));
+                updatedCount++;
+            }
+            
+            // 更新前一个工序的结束时间基准，用于下一个工序的判断
+            if (newEndTimeForNext != null) {
+                previousEndTime = newEndTimeForNext;
+            } else if (needUpdate && newStartTime != null && nextProcess.getControlTime() != null) {
+                // 如果没有结束时间，但调整了开始时间，使用开始时间+控制时间作为基准
+                previousEndTime = newStartTime.plusMinutes(nextProcess.getControlTime());
+            } else if (!needUpdate) {
+                // 如果没有调整，使用当前工序的结束时间作为基准（如果有的话）
+                LocalDateTime currentEndTime = null;
+                if (ProcessStatus.COMPLETED.getCode().equals(nextProcess.getProcessStatus())) {
+                    currentEndTime = nextProcess.getActualEndTime();
+                } else {
+                    currentEndTime = nextProcess.getEstimatedEndTime();
+                }
+                if (currentEndTime != null) {
+                    previousEndTime = currentEndTime;
+                }
+            }
+        }
+        
+        log.info("更新后续工序时间完成，当前工序ID: {}, 后续工序总数: {}, 已更新数量: {}", 
+                currentProcess.getId(), subsequentProcesses.size(), updatedCount);
+    }
+    
+    /**
      * 记录工序操作日志
      */
     private void logProcessOperation(Long processId, Long userId, String action, String remark) {
@@ -875,6 +1276,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         response.setStatusDesc(status != null ? status.getDesc() : "");
         response.setControlTime(process.getControlTime());
         response.setEstimatedStartTime(process.getEstimatedStartTime());
+        response.setEstimatedEndTime(process.getEstimatedEndTime());
         response.setActualStartTime(process.getActualStartTime());
         response.setActualEndTime(process.getActualEndTime());
 
@@ -955,6 +1357,35 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         
         // 设置超时原因
         response.setOvertimeReason(process.getOvertimeReason());
+        
+        // 判断是否需要补填时间
+        // 规则：
+        // 1. 如果工序已完成，并且是节时（实际时间 <= 控制时间），则不需要补填
+        // 2. 如果工序已完成，并且超时（实际时间 > 控制时间），则需要补填
+        // 3. 如果工序在进行中，当前系统时间已经超过预计完成时间，则需要补填
+        boolean needsTimeFill = false;
+        boolean isCompleted = ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus());
+        
+        if (isCompleted) {
+            // 工序已完成：判断是否超时
+            if (process.getActualStartTime() != null && process.getActualEndTime() != null && process.getControlTime() != null) {
+                long actualMinutes = Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
+                // 如果实际时间 > 控制时间（超时），则需要补填
+                if (actualMinutes > process.getControlTime()) {
+                    needsTimeFill = true;
+                }
+                // 如果实际时间 <= 控制时间（节时或按时），则不需要补填
+            }
+        } else {
+            // 工序未完成（进行中或未开始）：判断当前时间是否超过预计完成时间
+            if (process.getEstimatedEndTime() != null) {
+                LocalDateTime now = LocalDateTime.now();
+                if (now.isAfter(process.getEstimatedEndTime())) {
+                    needsTimeFill = true;
+                }
+            }
+        }
+        response.setNeedsTimeFill(needsTimeFill);
 
         return response;
     }

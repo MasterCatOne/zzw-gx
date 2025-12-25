@@ -92,8 +92,9 @@ public class CycleController {
         return Result.success(response);
     }
 
-    @Operation(summary = "删除循环", description = "删除指定循环，并同时删除该循环下的所有工序（逻辑删除）。", tags = {"管理员管理-循环管理"})
+    @Operation(summary = "删除循环", description = "删除指定循环，并同时删除该循环下的所有工序（逻辑删除）。仅系统管理员可以使用此接口。", tags = {"管理员管理-循环管理"})
     @DeleteMapping("/cycles/{cycleId}")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public Result<Void> deleteCycle(
             @Parameter(description = "循环ID", required = true, example = "1") @PathVariable Long cycleId) {
         log.info("删除循环及其工序，循环ID: {}", cycleId);

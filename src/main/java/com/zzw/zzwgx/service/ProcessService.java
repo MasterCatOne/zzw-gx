@@ -3,6 +3,7 @@ package com.zzw.zzwgx.service;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.zzw.zzwgx.dto.request.CreateProcessRequest;
+import com.zzw.zzwgx.dto.request.FillProcessTimeRequest;
 import com.zzw.zzwgx.dto.request.UpdateProcessOrderRequest;
 import com.zzw.zzwgx.dto.request.UpdateProcessRequest;
 import com.zzw.zzwgx.dto.response.OvertimeProcessResponse;
@@ -103,5 +104,16 @@ public interface ProcessService extends IService<Process> {
      * 施工人员完成工序并检查循环状态（如果所有工序都完成，则更新循环状态为已完成）
      */
     ProcessResponse completeWorkerProcessAndCheckCycle(Long processId, Long workerId);
+    
+    // 授权方法已废弃，超过24小时的工序只能由系统管理员直接补填，无需授权步骤
+    // /**
+    //  * 系统管理员授权工序时间补填（超过24小时需要授权）
+    //  */
+    // void authorizeTimeFill(Long processId);
+    
+    /**
+     * 施工人员补填工序时间（24小时内可直接补填，超过24小时只能由系统管理员补填）
+     */
+    ProcessResponse fillProcessTime(Long processId, Long workerId, FillProcessTimeRequest request);
 }
 

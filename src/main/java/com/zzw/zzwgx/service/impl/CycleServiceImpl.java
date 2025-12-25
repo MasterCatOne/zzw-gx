@@ -290,6 +290,20 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
     @Transactional(rollbackFor = Exception.class)
     public void deleteCycle(Long cycleId) {
         log.info("删除循环及其下所有工序，循环ID: {}", cycleId);
+        
+        // 权限检查：只有系统管理员可以删除循环
+        var currentUser = SecurityUtils.getCurrentUser();
+        if (currentUser == null) {
+            log.error("删除循环失败，未获取到当前登录用户，循环ID: {}", cycleId);
+            throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "未获取到当前登录用户");
+        }
+        var roles = currentUser.getRoleCodes();
+        boolean isSystemAdmin = roles.stream().anyMatch(r -> "SYSTEM_ADMIN".equals(r));
+        if (!isSystemAdmin) {
+            log.error("删除循环失败，只有系统管理员可以删除循环，循环ID: {}, 用户ID: {}", cycleId, currentUser.getUserId());
+            throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "只有系统管理员可以删除循环");
+        }
+        
         Cycle cycle = getById(cycleId);
         if (cycle == null) {
             log.error("删除循环失败，循环不存在，循环ID: {}", cycleId);

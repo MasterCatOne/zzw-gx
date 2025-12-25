@@ -85,5 +85,15 @@ public class ProcessController {
         Page<OvertimeProcessResponse> page = processService.getOvertimeProcessesWithoutReason(pageNum, pageSize, projectName);
         return Result.success(page);
     }
+    
+    // 授权接口已废弃，超过24小时的工序只能由系统管理员直接补填，无需授权步骤
+    // @Operation(summary = "授权工序时间补填", description = "系统管理员授权指定工序的时间补填。超过24小时的工序补填需要系统管理员授权后才能进行。", tags = {"管理员管理-工序管理"})
+    // @PostMapping("/processes/{processId}/authorize-time-fill")
+    // public Result<Void> authorizeTimeFill(
+    //         @Parameter(description = "工序ID", required = true, example = "1") @PathVariable Long processId) {
+    //     log.info("系统管理员授权工序时间补填，工序ID: {}", processId);
+    //     processService.authorizeTimeFill(processId);
+    //     return Result.success();
+    // }
 }
 

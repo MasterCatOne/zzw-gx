@@ -115,6 +115,9 @@ public class ProgressDetailResponse {
         
         @Schema(description = "是否结束工序", example = "false")
         private boolean endProcess;
+        
+        @Schema(description = "是否需要补填时间（当前系统时间超过预计完成时间时需要补填）", example = "false")
+        private Boolean needsTimeFill;
     }
 }
 

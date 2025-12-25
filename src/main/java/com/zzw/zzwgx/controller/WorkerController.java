@@ -2,6 +2,7 @@ package com.zzw.zzwgx.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zzw.zzwgx.common.Result;
+import com.zzw.zzwgx.dto.request.FillProcessTimeRequest;
 import com.zzw.zzwgx.dto.request.WorkerStartProcessRequest;
 import com.zzw.zzwgx.dto.request.WorkerUpdateProfileRequest;
 import com.zzw.zzwgx.dto.response.*;
@@ -119,6 +120,18 @@ public class WorkerController {
         processService.completeWorkerProcessAndCheckCycle(processId, userId);
         // 未超时或已补充原因，视为可进入下一循环（此处仅返回提示，不创建新循环）
         return Result.success("已完成，可进入下一循环", null);
+    }
+    
+    @Operation(summary = "补填工序时间", description = "施工人员补填工序的实际开始时间和实际结束时间。24小时内可直接补填，超过24小时（从预计结束时间开始计算）只能由系统管理员补填。")
+    @PostMapping("/processes/{processId}/fill-time")
+    public Result<ProcessResponse> fillProcessTime(
+            @Parameter(description = "工序ID", required = true, example = "1001") @PathVariable Long processId,
+            @Valid @RequestBody FillProcessTimeRequest request) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        log.info("施工人员补填工序时间，用户ID: {}, 工序ID: {}, 实际开始时间: {}, 实际结束时间: {}", 
+                userId, processId, request.getActualStartTime(), request.getActualEndTime());
+        ProcessResponse response = processService.fillProcessTime(processId, userId, request);
+        return Result.success("时间补填成功", response);
     }
     
     @Operation(summary = "我的工点本周超耗统计", description = "按工点汇总当前施工人员本周完成工序的超时/节时总计（单位：小时）。")
