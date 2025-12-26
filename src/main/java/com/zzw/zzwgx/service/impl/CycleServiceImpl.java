@@ -29,11 +29,13 @@ import com.zzw.zzwgx.entity.Project;
 import com.zzw.zzwgx.entity.ProjectTemplate;
 import com.zzw.zzwgx.entity.Template;
 import com.zzw.zzwgx.entity.TemplateProcess;
+import com.zzw.zzwgx.entity.User;
 import com.zzw.zzwgx.mapper.CycleMapper;
 import com.zzw.zzwgx.mapper.ProjectMapper;
 import com.zzw.zzwgx.mapper.ProjectTemplateMapper;
 import com.zzw.zzwgx.mapper.TemplateMapper;
 import com.zzw.zzwgx.mapper.TemplateProcessMapper;
+import com.zzw.zzwgx.mapper.UserMapper;
 import com.zzw.zzwgx.security.SecurityUtils;
 import com.zzw.zzwgx.service.CycleService;
 import com.zzw.zzwgx.service.ProcessCatalogService;
@@ -77,6 +79,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
     private final TemplateMapper templateMapper;
     private final TemplateProcessMapper templateProcessMapper;
     private final ProjectTemplateMapper projectTemplateMapper;
+    private final UserMapper userMapper;
 
     private static final BigDecimal PROJECT_START_MILEAGE = new BigDecimal("84000");
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -588,82 +591,85 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
     
     @Override
     public void exportCycleReport(Long cycleId, jakarta.servlet.http.HttpServletResponse response) {
-        log.info("导出循环报表，循环ID: {}", cycleId);
+        log.info("导出循环报表（新模板），循环ID: {}", cycleId);
         Cycle cycle = getById(cycleId);
         if (cycle == null) {
             throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
         }
-        Project project = projectMapper.selectById(cycle.getProjectId());
-        String projectName = project != null ? project.getProjectName() : "循环报表";
         
-        // 计算时间信息
-        CycleTimeInfo timeInfo = calculateCycleTimeInfo(cycle, cycleId);
-        Double controlHours = timeInfo.controlMinutes != null ? timeInfo.controlMinutes / 60.0 : null;
+        // 获取工点信息
+        Project project = projectMapper.selectById(cycle.getProjectId());
+        if (project == null) {
+            throw new BusinessException(ResultCode.PROJECT_NOT_FOUND);
+        }
+        String siteName = project.getProjectName();
+        
+        // 获取隧道信息（父节点）
+        String tunnelName = "";
+        if (project.getParentId() != null) {
+            Project tunnel = projectMapper.selectById(project.getParentId());
+            if (tunnel != null && "TUNNEL".equals(tunnel.getNodeType())) {
+                tunnelName = tunnel.getProjectName();
+            }
+        }
         
         // 获取工序列表
         List<Process> processes = processService.getProcessesByCycleId(cycleId);
+        processes.sort(Comparator.comparing(Process::getStartOrder, Comparator.nullsLast(Integer::compareTo)));
         
         // 模板路径：从 static 目录读取模板文件
-        File templateFile = findTemplateFile();
+        File templateFile = findNewTemplateFile();
         if (templateFile == null || !templateFile.exists()) {
-            throw new BusinessException("未找到报表模板文件（static目录下的xlsx）");
+            throw new BusinessException("未找到报表模板文件（static目录下的工序时间统计表.xlsx）");
         }
         
         try {
             Map<String, TemplateCellValue> cellValues = new HashMap<>();
-            // 标题行（A1-P1 合并单元格）：工点名称
-            cellValues.put("A1", TemplateCellValue.string(projectName+"循环时间通报"));
+            
+            // 第一行：隧道名称+工点名称+工序时间统计表
+            String title = siteName + "工序时间统计表";
+            cellValues.put("A1", TemplateCellValue.string(title));
             
             // 第2行
-            cellValues.put("C2", TemplateCellValue.date(timeInfo.start, false)); // 循环开始时间
-            // F2：循环结束时间（F2,G2,H2合并），如果没有结束日期则显示"施工中"
-            if (timeInfo.end != null) {
-                cellValues.put("F2", TemplateCellValue.date(timeInfo.end, false));
+            // A2和B2是合并单元格：显示"开始日期："+循环开始日期
+            LocalDateTime startDate = cycle.getStartDate() != null ? cycle.getStartDate() : cycle.getEstimatedStartDate();
+            if (startDate != null) {
+                // 只显示日期部分（yyyy-MM-dd格式）
+                String startDateStr = startDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                cellValues.put("A2", TemplateCellValue.string("开始日期：" + startDateStr));
             } else {
-                cellValues.put("F2", TemplateCellValue.string("施工中"));
+                cellValues.put("A2", TemplateCellValue.string("开始日期："));
             }
-            cellValues.put("K2", TemplateCellValue.number(timeInfo.controlMinutes)); // 控制时长（分钟）
-            cellValues.put("L2", TemplateCellValue.number(controlHours)); // 控制时长（小时）
-            cellValues.put("O2", TemplateCellValue.number(cycle.getCycleNumber())); // 本月循环数（O2,P2合并）
-            
-            // 第3行
-            // 掌子面里程：优先使用实际里程，其次预估里程，都没有则不填
-            String mileage = "";
-            if (cycle.getActualMileage() != null) {
-                mileage = String.valueOf(cycle.getActualMileage());
-            } else if (cycle.getEstimatedMileage() != null) {
-                mileage = String.valueOf(cycle.getEstimatedMileage());
-            }
-            cellValues.put("C3", TemplateCellValue.string(mileage)); // 掌子面里程
-            cellValues.put("F3", TemplateCellValue.string(cycle.getRockLevel())); // 围岩等级（F3,G3,H3合并）
-            cellValues.put("K3", TemplateCellValue.string(cycle.getAdvanceLength() != null ? cycle.getAdvanceLength().toPlainString() : "")); // 进尺（K3,L3合并）
-            String devMethod = StringUtils.hasText(cycle.getDevelopmentMethod())
-                    ? cycle.getDevelopmentMethod()
-                    : "台阶法";
-            cellValues.put("O3", TemplateCellValue.string(devMethod)); // 开发方式（O3,P3合并）
-            
-            // 第4行
-            // 精确到秒，直接填充字符串
-            cellValues.put("C4", TemplateCellValue.string(formatDateTime(timeInfo.lastCycleBlastTime))); // 上循环响炮时间
-            cellValues.put("F4", TemplateCellValue.string(formatDateTime(timeInfo.theoreticalBlastTime))); // 本循环理论响炮时间（F4,G4,H4合并）
-            // K4、L4：响炮超时（合并单元格），如果没有响炮时间则显示"数据缺失"，否则显示"X天X小时X分钟"
-            if (timeInfo.currentCycleBlastTime == null) {
-                cellValues.put("K4", TemplateCellValue.string("数据缺失"));
-            } else if (timeInfo.blastOvertimeMinutes != null) {
-                cellValues.put("K4", TemplateCellValue.string(formatDaysHoursMinutes(timeInfo.blastOvertimeMinutes)));
+            // C2和D2是合并单元格：显示"结束日期："+循环结束日期
+            // 如果循环没有结束（endDate为null），不使用预计结束时间，只显示"结束日期："
+            if (cycle.getEndDate() != null) {
+                // 只显示日期部分（yyyy-MM-dd格式）
+                String endDateStr = cycle.getEndDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                cellValues.put("C2", TemplateCellValue.string("结束日期：" + endDateStr));
             } else {
-                cellValues.put("K4", TemplateCellValue.string(""));
+                cellValues.put("C2", TemplateCellValue.string("结束日期："));
             }
-            cellValues.put("N4", TemplateCellValue.number(timeInfo.cycleBlastDiffMinutes != null ? timeInfo.cycleBlastDiffMinutes.doubleValue() : null)); // 两循环响炮时间差（分钟）
-            cellValues.put("O4", TemplateCellValue.string(formatMinutesFromLong(timeInfo.cycleBlastDiffMinutes))); // 两循环响炮时间差（X小时Y分钟，O4,P4合并）
+            // E2：循环里程：+循环里程（优先使用实际里程，其次预估里程）
+            BigDecimal mileage = cycle.getActualMileage() != null ? cycle.getActualMileage() : cycle.getEstimatedMileage();
+            if (mileage != null) {
+                cellValues.put("E2", TemplateCellValue.string("循环里程：" + mileage));
+            } else {
+                cellValues.put("E2", TemplateCellValue.string("循环里程："));
+            }
+            // F2：围岩等级：+围岩等级
+            if (cycle.getRockLevel() != null) {
+                cellValues.put("F2", TemplateCellValue.string("围岩等级：" + cycle.getRockLevel()));
+            } else {
+                cellValues.put("F2", TemplateCellValue.string("围岩等级："));
+            }
+            // I2：进尺长度：*m（*替换为实际进尺长度）
+            if (cycle.getAdvanceLength() != null) {
+                cellValues.put("I2", TemplateCellValue.string("进尺长度：" + cycle.getAdvanceLength().toPlainString() + "m"));
+            } else {
+                cellValues.put("I2", TemplateCellValue.string("进尺长度：m"));
+            }
             
-            // 第5行
-            // 需要精确到秒，直接填充为字符串
-            cellValues.put("C5", TemplateCellValue.string(formatDateTime(timeInfo.currentCycleBlastTime))); // 循环实际响炮时间（装药爆破结束时间）
-            cellValues.put("F5", TemplateCellValue.string(formatDateTime(timeInfo.predictedNextByControl))); // 预测下循环响炮时间（按控制标准，F5,G5,H5合并）
-            cellValues.put("K5", TemplateCellValue.string(formatDateTime(timeInfo.predictedNextByInterval))); // 预测下循环响炮时间（按间隔，K5到P5合并）
-            
-            String fileName = projectName + "-循环报表.xlsx";
+            String fileName = (tunnelName.isEmpty() ? "" : tunnelName + "-") + siteName + "-工序时间统计表.xlsx";
             response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
             response.setHeader("Content-Disposition", "attachment; filename=\"" + java.net.URLEncoder.encode(fileName, java.nio.charset.StandardCharsets.UTF_8) + "\"");
             
@@ -673,7 +679,7 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                          .withTemplate(templateFile)
                          .inMemory(true) // 使用内存模式，避免 SXSSF 对已存在行的限制
                          .autoCloseStream(false)
-                         .registerWriteHandler(new TemplateCellWriteHandler(cellValues, processes))
+                         .registerWriteHandler(new NewTemplateCellWriteHandler(cellValues, processes, userMapper))
                          .build()) {
                 WriteSheet sheet = EasyExcel.writerSheet(0).build();
                 // 写入空数据以触发模板和处理器
@@ -694,6 +700,116 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             throw new BusinessException("导出循环报表失败");
         }
     }
+    
+    // TODO: 旧报表导出功能已注释，使用新模板重新实现
+    // @Override
+    // public void exportCycleReport(Long cycleId, jakarta.servlet.http.HttpServletResponse response) {
+    //     log.info("导出循环报表，循环ID: {}", cycleId);
+    //     Cycle cycle = getById(cycleId);
+    //     if (cycle == null) {
+    //         throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
+    //     }
+    //     Project project = projectMapper.selectById(cycle.getProjectId());
+    //     String projectName = project != null ? project.getProjectName() : "循环报表";
+    //     
+    //     // 计算时间信息
+    //     CycleTimeInfo timeInfo = calculateCycleTimeInfo(cycle, cycleId);
+    //     Double controlHours = timeInfo.controlMinutes != null ? timeInfo.controlMinutes / 60.0 : null;
+    //     
+    //     // 获取工序列表
+    //     List<Process> processes = processService.getProcessesByCycleId(cycleId);
+    //     
+    //     // 模板路径：从 static 目录读取模板文件
+    //     File templateFile = findTemplateFile();
+    //     if (templateFile == null || !templateFile.exists()) {
+    //         throw new BusinessException("未找到报表模板文件（static目录下的xlsx）");
+    //     }
+    //     
+    //     try {
+    //         Map<String, TemplateCellValue> cellValues = new HashMap<>();
+    //         // 标题行（A1-P1 合并单元格）：工点名称
+    //         cellValues.put("A1", TemplateCellValue.string(projectName+"循环时间通报"));
+    //         
+    //         // 第2行
+    //         cellValues.put("C2", TemplateCellValue.date(timeInfo.start, false)); // 循环开始时间
+    //         // F2：循环结束时间（F2,G2,H2合并），如果没有结束日期则显示"施工中"
+    //         if (timeInfo.end != null) {
+    //             cellValues.put("F2", TemplateCellValue.date(timeInfo.end, false));
+    //         } else {
+    //             cellValues.put("F2", TemplateCellValue.string("施工中"));
+    //         }
+    //         cellValues.put("K2", TemplateCellValue.number(timeInfo.controlMinutes)); // 控制时长（分钟）
+    //         cellValues.put("L2", TemplateCellValue.number(controlHours)); // 控制时长（小时）
+    //         cellValues.put("O2", TemplateCellValue.number(cycle.getCycleNumber())); // 本月循环数（O2,P2合并）
+    //         
+    //         // 第3行
+    //         // 掌子面里程：优先使用实际里程，其次预估里程，都没有则不填
+    //         String mileage = "";
+    //         if (cycle.getActualMileage() != null) {
+    //             mileage = String.valueOf(cycle.getActualMileage());
+    //         } else if (cycle.getEstimatedMileage() != null) {
+    //             mileage = String.valueOf(cycle.getEstimatedMileage());
+    //         }
+    //         cellValues.put("C3", TemplateCellValue.string(mileage)); // 掌子面里程
+    //         cellValues.put("F3", TemplateCellValue.string(cycle.getRockLevel())); // 围岩等级（F3,G3,H3合并）
+    //         cellValues.put("K3", TemplateCellValue.string(cycle.getAdvanceLength() != null ? cycle.getAdvanceLength().toPlainString() : "")); // 进尺（K3,L3合并）
+    //         String devMethod = StringUtils.hasText(cycle.getDevelopmentMethod())
+    //                 ? cycle.getDevelopmentMethod()
+    //                 : "台阶法";
+    //         cellValues.put("O3", TemplateCellValue.string(devMethod)); // 开发方式（O3,P3合并）
+    //         
+    //         // 第4行
+    //         // 精确到秒，直接填充字符串
+    //         cellValues.put("C4", TemplateCellValue.string(formatDateTime(timeInfo.lastCycleBlastTime))); // 上循环响炮时间
+    //         cellValues.put("F4", TemplateCellValue.string(formatDateTime(timeInfo.theoreticalBlastTime))); // 本循环理论响炮时间（F4,G4,H4合并）
+    //         // K4、L4：响炮超时（合并单元格），如果没有响炮时间则显示"数据缺失"，否则显示"X天X小时X分钟"
+    //         if (timeInfo.currentCycleBlastTime == null) {
+    //             cellValues.put("K4", TemplateCellValue.string("数据缺失"));
+    //         } else if (timeInfo.blastOvertimeMinutes != null) {
+    //             cellValues.put("K4", TemplateCellValue.string(formatDaysHoursMinutes(timeInfo.blastOvertimeMinutes)));
+    //         } else {
+    //             cellValues.put("K4", TemplateCellValue.string(""));
+    //         }
+    //         cellValues.put("N4", TemplateCellValue.number(timeInfo.cycleBlastDiffMinutes != null ? timeInfo.cycleBlastDiffMinutes.doubleValue() : null)); // 两循环响炮时间差（分钟）
+    //         cellValues.put("O4", TemplateCellValue.string(formatMinutesFromLong(timeInfo.cycleBlastDiffMinutes))); // 两循环响炮时间差（X小时Y分钟，O4,P4合并）
+    //         
+    //         // 第5行
+    //         // 需要精确到秒，直接填充为字符串
+    //         cellValues.put("C5", TemplateCellValue.string(formatDateTime(timeInfo.currentCycleBlastTime))); // 循环实际响炮时间（装药爆破结束时间）
+    //         cellValues.put("F5", TemplateCellValue.string(formatDateTime(timeInfo.predictedNextByControl))); // 预测下循环响炮时间（按控制标准，F5,G5,H5合并）
+    //         cellValues.put("K5", TemplateCellValue.string(formatDateTime(timeInfo.predictedNextByInterval))); // 预测下循环响炮时间（按间隔，K5到P5合并）
+    //         
+    //         String fileName = projectName + "-循环报表.xlsx";
+    //         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    //         response.setHeader("Content-Disposition", "attachment; filename=\"" + java.net.URLEncoder.encode(fileName, java.nio.charset.StandardCharsets.UTF_8) + "\"");
+    //         
+    //         // 先写入内存，确保文件完整，再输出到响应流，避免被中途截断导致"文件损坏"
+    //         try (java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+    //              ExcelWriter writer = EasyExcel.write(bos)
+    //                      .withTemplate(templateFile)
+    //                      .inMemory(true) // 使用内存模式，避免 SXSSF 对已存在行的限制
+    //                      .autoCloseStream(false)
+    //                      .registerWriteHandler(new TemplateCellWriteHandler(cellValues, processes))
+    //                      .build()) {
+    //             WriteSheet sheet = EasyExcel.writerSheet(0).build();
+    //             // 写入空数据以触发模板和处理器
+    //             writer.fill(new ArrayList<>(), sheet);
+    //             writer.finish();
+    //             
+    //             // 输出到响应流
+    //             byte[] data = bos.toByteArray();
+    //             response.setContentLength(data.length);
+    //             try (var out = response.getOutputStream()) {
+    //                 out.write(data);
+    //                 out.flush();
+    //             }
+    //         }
+    //         response.flushBuffer();
+    //     } catch (IOException e) {
+    //         log.error("导出循环报表失败，循环ID: {}", cycleId, e);
+    //         throw new BusinessException("导出循环报表失败");
+    //     }
+    // }
     
     @Override
     public CycleReportDataResponse getCycleReportData(Long cycleId) {
@@ -917,6 +1033,28 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         int hrs = minutes / 60;
         int mins = Math.abs(minutes % 60);
         return hrs + "小时" + mins + "分钟";
+    }
+    
+    /**
+     * 从 static 目录查找新模板文件（工序时间统计表.xlsx）
+     */
+    private File findNewTemplateFile() {
+        try {
+            Resource resource = resourceLoader.getResource("classpath:static/工序时间统计表.xlsx");
+            if (resource.exists()) {
+                try {
+                    return resource.getFile();
+                } catch (IOException e) {
+                    log.debug("模板文件在jar包中，复制到临时文件: {}", e.getMessage());
+                    return copyResourceToTempFile(resource);
+                }
+            }
+            log.warn("未找到报表模板文件（static目录下的工序时间统计表.xlsx）");
+            return null;
+        } catch (Exception e) {
+            log.error("查找报表模板文件失败", e);
+            return null;
+        }
     }
     
     /**
@@ -1865,6 +2003,617 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         }
         
         return response;
+    }
+    
+    /**
+     * 新模板的单元格写入处理器
+     * 从第4行开始填充工序信息，并在最后添加合计行
+     */
+    private static class NewTemplateCellWriteHandler implements SheetWriteHandler {
+        
+        private final Map<String, TemplateCellValue> cellValues;
+        private final List<Process> processes;
+        private final UserMapper userMapper;
+        
+        NewTemplateCellWriteHandler(Map<String, TemplateCellValue> cellValues, List<Process> processes, UserMapper userMapper) {
+            this.cellValues = cellValues;
+            this.processes = processes;
+            this.userMapper = userMapper;
+        }
+        
+        @Override
+        public void beforeSheetCreate(WriteWorkbookHolder writeWorkbookHolder, WriteSheetHolder writeSheetHolder) {
+            // no-op
+        }
+        
+        @Override
+        public void afterSheetCreate(WriteWorkbookHolder writeWorkbookHolder, WriteSheetHolder writeSheetHolder) {
+            Sheet sheet = writeSheetHolder.getSheet();
+            if (sheet == null) {
+                return;
+            }
+            
+            // 填充单个单元格数据（第1行、第2行等）
+            if (cellValues != null && !cellValues.isEmpty()) {
+                cellValues.forEach((ref, val) -> applyValue(sheet, ref, val));
+            }
+            
+            // 填充工序列表（从第4行开始，索引为3）
+            if (processes != null && !processes.isEmpty()) {
+                fillProcessList(sheet, processes);
+            }
+        }
+        
+        /**
+         * 填充工序列表到Excel表格中
+         * 从第4行开始（索引3），列结构：
+         * A=施工部位（category），B=工序名称，C=工序开始时间，D=工序结束时间，
+         * E=工序用时（分钟），F=工序控制时间（分钟），G=超时/节时，H=操作人员，I=情况说明
+         * 最后一行是合计行
+         */
+        private void fillProcessList(Sheet sheet, List<Process> processes) {
+            int startRowIndex = 3; // 第4行（从0开始计数）
+            
+            // 获取模板中第一行工序的格式作为参考（第4行，索引3）
+            Row templateFormatRow = sheet.getRow(startRowIndex);
+            
+            // 查找模板中的合计行（通常在工序行之后的第一行）
+            // 如果模板中有合计行，使用它的格式；否则使用工序行的格式
+            Row templateSummaryRow = null;
+            Integer templateSummaryRowIndex = null;
+            int scanRowIndex = startRowIndex + 1; // 假设合计行在工序行之后
+            while (scanRowIndex < sheet.getLastRowNum() + 1) {
+                Row row = sheet.getRow(scanRowIndex);
+                if (row != null) {
+                    Cell firstCell = row.getCell(0);
+                    if (firstCell != null) {
+                        String cellValue = getCellStringValue(firstCell);
+                        if (cellValue != null && cellValue.contains("合计")) {
+                            templateSummaryRow = row;
+                            templateSummaryRowIndex = scanRowIndex;
+                            break;
+                        }
+                    }
+                }
+                scanRowIndex++;
+            }
+            // 如果没找到合计行，使用工序行的格式
+            if (templateSummaryRow == null) {
+                templateSummaryRow = templateFormatRow;
+            }
+            
+            // 计算合计数据
+            int totalActualMinutes = 0;
+            int totalControlMinutes = 0;
+            int totalDiffMinutes = 0; // 超时节时总和（控制时间 - 实际时间）
+            boolean hasActual = false;
+            boolean hasControl = false;
+            
+            // 记录哪些行是超时行，用于后续统一设置红色边框
+            List<Integer> overtimeRowIndices = new ArrayList<>();
+            
+            // 填充工序数据
+            for (int i = 0; i < processes.size(); i++) {
+                Process process = processes.get(i);
+                int rowIndex = startRowIndex + i;
+                Row row = sheet.getRow(rowIndex);
+                if (row == null) {
+                    row = sheet.createRow(rowIndex);
+                }
+                
+                // 如果超过模板中的行数，需要复制格式
+                if (templateFormatRow != null) {
+                    // 先为整行应用模板格式（确保所有单元格都有格式，包括空单元格）
+                    applyRowFormatFromTemplate(row, templateFormatRow);
+                }
+                
+                // A列：施工部位（category）
+                String category = process.getCategory() != null ? process.getCategory() : "";
+                setCellValueWithFormat(row, 0, category, templateFormatRow, 0);
+                
+                // B列：工序名称
+                String processName = process.getProcessName() != null ? process.getProcessName() : "";
+                setCellValueWithFormat(row, 1, processName, templateFormatRow, 1);
+                
+                // C列：工序开始时间（只显示实际开始时间）
+                LocalDateTime startTime = process.getActualStartTime();
+                if (startTime != null) {
+                    setCellValueWithFormat(row, 2, startTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")), templateFormatRow, 2);
+                } else {
+                    // 没有实际开始时间则留空，但仍应用单元格格式
+                    applyCellFormat(row, 2, templateFormatRow, 2);
+                }
+                
+                // D列：工序结束时间（只显示实际结束时间）
+                LocalDateTime endTime = process.getActualEndTime();
+                if (endTime != null) {
+                    setCellValueWithFormat(row, 3, endTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")), templateFormatRow, 3);
+                } else {
+                    // 没有实际结束时间则留空，但仍应用单元格格式
+                    applyCellFormat(row, 3, templateFormatRow, 3);
+                }
+                
+                // E列：工序用时（分钟）
+                Integer actualMinutes = null;
+                if (process.getActualStartTime() != null && process.getActualEndTime() != null) {
+                    actualMinutes = (int) Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
+                } else if (process.getActualStartTime() != null) {
+                    // 进行中的工序，计算已进行时间
+                    actualMinutes = (int) Duration.between(process.getActualStartTime(), LocalDateTime.now()).toMinutes();
+                }
+                if (actualMinutes != null) {
+                    // 如果大于60分钟，显示为"90（1小时30分钟）"格式
+                    String eColumnValue = formatMinutesWithHours(actualMinutes);
+                    setCellValueWithFormat(row, 4, eColumnValue, templateFormatRow, 4);
+                    totalActualMinutes += actualMinutes;
+                    hasActual = true;
+                } else {
+                    applyCellFormat(row, 4, templateFormatRow, 4);
+                }
+                
+                // F列：工序控制时间（分钟）
+                if (process.getControlTime() != null) {
+                    setCellValueWithFormat(row, 5, process.getControlTime(), templateFormatRow, 5);
+                    totalControlMinutes += process.getControlTime();
+                    hasControl = true;
+                } else {
+                    applyCellFormat(row, 5, templateFormatRow, 5);
+                }
+                
+                // G列：超时/节时（控制时间 - 实际时间，负数表示超时，正数表示节时）
+                boolean isOvertime = false; // 标记是否超时
+                if (process.getControlTime() != null && actualMinutes != null) {
+                    int diffMinutes = process.getControlTime() - actualMinutes;
+                    totalDiffMinutes += diffMinutes;
+                    isOvertime = actualMinutes > process.getControlTime(); // 实际时间大于控制时间表示超时
+                    String diffText = diffMinutes < 0 ? "超时" + Math.abs(diffMinutes) + "分钟"
+                            : diffMinutes > 0 ? "节时" + diffMinutes + "分钟"
+                            : "按时";
+                    // 如果差值不为0，添加小时分钟格式
+                    if (diffMinutes != 0) {
+                        String hoursMinutes = formatHoursMinutes(Math.abs(diffMinutes));
+                        diffText += "（" + hoursMinutes + "）";
+                    }
+                    setCellValueWithFormat(row, 6, diffText, templateFormatRow, 6);
+                } else {
+                    applyCellFormat(row, 6, templateFormatRow, 6);
+                }
+                
+                // 记录超时行的索引，稍后统一设置红色边框
+                if (isOvertime) {
+                    overtimeRowIndices.add(rowIndex);
+                }
+                
+                // H列：操作人员
+                if (process.getOperatorId() != null) {
+                    User user = userMapper.selectById(process.getOperatorId());
+                    if (user != null) {
+                        String operatorName = user.getRealName() != null ? user.getRealName() : user.getUsername();
+                        setCellValueWithFormat(row, 7, operatorName, templateFormatRow, 7);
+                    } else {
+                        applyCellFormat(row, 7, templateFormatRow, 7);
+                    }
+                } else {
+                    applyCellFormat(row, 7, templateFormatRow, 7);
+                }
+                
+                // I列：情况说明（超时原因）
+                String overtimeReason = process.getOvertimeReason();
+                if (overtimeReason != null && !overtimeReason.isBlank()) {
+                    setCellValueWithFormat(row, 8, overtimeReason, templateFormatRow, 8);
+                } else {
+                    applyCellFormat(row, 8, templateFormatRow, 8);
+                }
+            }
+            
+            // 计算模板中「可容纳工序的行数」（合计行之前的行数）
+            int templateProcessCapacity = (templateSummaryRowIndex != null)
+                    ? (templateSummaryRowIndex - startRowIndex)
+                    : 0;
+
+            // 填充合计行：
+            // - 如果实际工序数量 <= 模板可容纳数量，则合计行放在模板原来的合计行位置
+            // - 否则（工序太多），合计行放在最后一个工序之后
+            int summaryRowIndex;
+            if (templateProcessCapacity > 0 && processes.size() <= templateProcessCapacity) {
+                summaryRowIndex = templateSummaryRowIndex;
+            } else {
+                summaryRowIndex = startRowIndex + processes.size();
+            }
+            
+            // 填充完所有工序后，统一设置超时行的红色边框
+            // 这样可以确保上下边框也被正确设置为红色，覆盖相邻行的边框设置
+            org.apache.poi.ss.usermodel.Workbook workbook = sheet.getWorkbook();
+            for (Integer overtimeRowIndex : overtimeRowIndices) {
+                Row overtimeRow = sheet.getRow(overtimeRowIndex);
+                if (overtimeRow != null) {
+                    // 如果下一行是合计行，则不设置下边框为红色
+                    boolean skipBottomBorder = (overtimeRowIndex + 1 == summaryRowIndex);
+                    setRowRedBorders(overtimeRow, workbook, skipBottomBorder);
+                    // 同时更新相邻行的对应边框为红色（传入合计行索引，避免合计行被设置红色边框）
+                    updateAdjacentRowBorders(sheet, overtimeRowIndex, workbook, summaryRowIndex);
+                }
+            }
+            Row summaryRow = sheet.getRow(summaryRowIndex);
+            if (summaryRow == null) {
+                summaryRow = sheet.createRow(summaryRowIndex);
+            }
+            
+            // 为合计行应用模板合计行的格式
+            if (templateSummaryRow != null) {
+                applyRowFormatFromTemplate(summaryRow, templateSummaryRow);
+            }
+            
+            // A列：合计
+            setCellValueWithFormat(summaryRow, 0, "合计", templateSummaryRow, 0);
+            
+            // E列：工序用时总和
+            if (hasActual) {
+                // 如果大于60分钟，显示为"90（1小时30分钟）"格式
+                String eColumnValue = formatMinutesWithHours(totalActualMinutes);
+                setCellValueWithFormat(summaryRow, 4, eColumnValue, templateSummaryRow, 4);
+            } else {
+                applyCellFormat(summaryRow, 4, templateSummaryRow, 4);
+            }
+            
+            // F列：工序控制时间总和
+            if (hasControl) {
+                setCellValueWithFormat(summaryRow, 5, totalControlMinutes, templateSummaryRow, 5);
+            } else {
+                applyCellFormat(summaryRow, 5, templateSummaryRow, 5);
+            }
+            
+            // G列：超时节时总和
+            if (hasActual || hasControl) {
+                String totalDiffText = totalDiffMinutes < 0 ? "超时" + Math.abs(totalDiffMinutes) + "分钟"
+                        : totalDiffMinutes > 0 ? "节时" + totalDiffMinutes + "分钟"
+                        : "按时";
+                // 如果差值不为0，添加小时分钟格式
+                if (totalDiffMinutes != 0) {
+                    String hoursMinutes = formatHoursMinutes(Math.abs(totalDiffMinutes));
+                    totalDiffText += "（" + hoursMinutes + "）";
+                }
+                setCellValueWithFormat(summaryRow, 6, totalDiffText, templateSummaryRow, 6);
+            } else {
+                applyCellFormat(summaryRow, 6, templateSummaryRow, 6);
+            }
+            
+            // 确保合计行的上边框是黑色的（覆盖可能来自超时行的红色边框）
+            ensureSummaryRowTopBorderBlack(summaryRow, workbook);
+        }
+        
+        /**
+         * 设置单元格值
+         */
+        private void setCellValue(Row row, int colIndex, Object value) {
+            Cell cell = row.getCell(colIndex);
+            if (cell == null) {
+                cell = row.createCell(colIndex);
+            }
+            if (value instanceof String) {
+                cell.setCellValue((String) value);
+            } else if (value instanceof Number) {
+                cell.setCellValue(((Number) value).doubleValue());
+            }
+        }
+        
+        /**
+         * 设置单元格值并应用格式（如果模板行存在）
+         */
+        private void setCellValueWithFormat(Row row, int colIndex, Object value, Row templateRow, int templateColIndex) {
+            Cell cell = row.getCell(colIndex);
+            if (cell == null) {
+                cell = row.createCell(colIndex);
+            }
+            
+            // 设置值
+            if (value instanceof String) {
+                cell.setCellValue((String) value);
+            } else if (value instanceof Number) {
+                cell.setCellValue(((Number) value).doubleValue());
+            }
+            
+            // 如果模板行存在，复制对应列的格式
+            if (templateRow != null) {
+                Cell templateCell = templateRow.getCell(templateColIndex);
+                org.apache.poi.ss.usermodel.Workbook workbook = row.getSheet().getWorkbook();
+                org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
+                if (templateCell != null && templateCell.getCellStyle() != null) {
+                    style.cloneStyleFrom(templateCell.getCellStyle());
+                }
+                // 确保数据居中（水平和垂直居中）
+                style.setAlignment(org.apache.poi.ss.usermodel.HorizontalAlignment.CENTER);
+                style.setVerticalAlignment(org.apache.poi.ss.usermodel.VerticalAlignment.CENTER);
+                cell.setCellStyle(style);
+            }
+        }
+        
+        /**
+         * 为单个单元格应用格式（即使值为空）
+         */
+        private void applyCellFormat(Row row, int colIndex, Row templateRow, int templateColIndex) {
+            if (templateRow == null) {
+                return;
+            }
+            Cell cell = row.getCell(colIndex);
+            if (cell == null) {
+                cell = row.createCell(colIndex);
+            }
+            Cell templateCell = templateRow.getCell(templateColIndex);
+            org.apache.poi.ss.usermodel.Workbook workbook = row.getSheet().getWorkbook();
+            org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
+            if (templateCell != null && templateCell.getCellStyle() != null) {
+                style.cloneStyleFrom(templateCell.getCellStyle());
+            }
+            // 确保数据居中（水平和垂直居中）
+            style.setAlignment(org.apache.poi.ss.usermodel.HorizontalAlignment.CENTER);
+            style.setVerticalAlignment(org.apache.poi.ss.usermodel.VerticalAlignment.CENTER);
+            cell.setCellStyle(style);
+        }
+        
+        /**
+         * 为整行应用模板格式（确保所有需要的列都有格式，包括行高）
+         */
+        private void applyRowFormatFromTemplate(Row row, Row templateRow) {
+            if (templateRow == null) {
+                return;
+            }
+            
+            // 复制行高
+            if (templateRow.getHeight() > 0) {
+                row.setHeight(templateRow.getHeight());
+            }
+            
+            // 复制行样式（如果存在）
+            if (templateRow.getRowStyle() != null) {
+                row.setRowStyle(templateRow.getRowStyle());
+            }
+            
+            // 需要应用格式的列索引：A(0), B(1), C(2), D(3), E(4), F(5), G(6), H(7), I(8)
+            int[] columnsToFormat = {0, 1, 2, 3, 4, 5, 6, 7, 8};
+            for (int colIndex : columnsToFormat) {
+                applyCellFormat(row, colIndex, templateRow, colIndex);
+            }
+        }
+        
+        /**
+         * 为单元格样式设置红色边框
+         */
+        private void setRedBorders(org.apache.poi.ss.usermodel.CellStyle style) {
+            org.apache.poi.ss.usermodel.IndexedColors borderColor = org.apache.poi.ss.usermodel.IndexedColors.RED;
+            // 使用 MEDIUM 边框样式，使红色更明显
+            style.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.MEDIUM);
+            style.setTopBorderColor(borderColor.getIndex());
+            style.setBorderBottom(org.apache.poi.ss.usermodel.BorderStyle.MEDIUM);
+            style.setBottomBorderColor(borderColor.getIndex());
+            style.setBorderLeft(org.apache.poi.ss.usermodel.BorderStyle.MEDIUM);
+            style.setLeftBorderColor(borderColor.getIndex());
+            style.setBorderRight(org.apache.poi.ss.usermodel.BorderStyle.MEDIUM);
+            style.setRightBorderColor(borderColor.getIndex());
+        }
+        
+        /**
+         * 设置整行的红色边框（用于超时工序）
+         * @param skipBottomBorder 如果为true，则不设置下边框为红色（用于避免合计行上方出现红色边框）
+         */
+        private void setRowRedBorders(Row row, org.apache.poi.ss.usermodel.Workbook workbook, boolean skipBottomBorder) {
+            if (row == null || workbook == null) {
+                return;
+            }
+            
+            // 遍历行的所有单元格，设置红色边框
+            // 需要遍历所有可能存在的列（0-8，覆盖A到I列）
+            for (int i = 0; i <= 8; i++) {
+                Cell cell = row.getCell(i);
+                if (cell == null) {
+                    // 如果单元格不存在，创建一个空单元格以确保边框设置
+                    cell = row.createCell(i);
+                }
+                
+                org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
+                // 保留原有样式（如果存在）
+                if (cell.getCellStyle() != null) {
+                    style.cloneStyleFrom(cell.getCellStyle());
+                }
+                
+                if (skipBottomBorder) {
+                    // 如果跳过下边框，只设置上、左、右边框为红色
+                    org.apache.poi.ss.usermodel.IndexedColors borderColor = org.apache.poi.ss.usermodel.IndexedColors.RED;
+                    style.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.MEDIUM);
+                    style.setTopBorderColor(borderColor.getIndex());
+                    style.setBorderLeft(org.apache.poi.ss.usermodel.BorderStyle.MEDIUM);
+                    style.setLeftBorderColor(borderColor.getIndex());
+                    style.setBorderRight(org.apache.poi.ss.usermodel.BorderStyle.MEDIUM);
+                    style.setRightBorderColor(borderColor.getIndex());
+                    // 下边框保持原样（不设置为红色）
+                    if (cell.getCellStyle() != null) {
+                        style.setBorderBottom(cell.getCellStyle().getBorderBottom());
+                        style.setBottomBorderColor(cell.getCellStyle().getBottomBorderColor());
+                    }
+                } else {
+                    // 设置红色边框（覆盖所有边框）
+                    setRedBorders(style);
+                }
+                cell.setCellStyle(style);
+            }
+        }
+        
+        /**
+         * 更新相邻行的对应边框为红色（确保超时行的上下边框显示为红色）
+         * @param summaryRowIndex 合计行的索引，如果下一行是合计行，则不设置红色边框
+         */
+        private void updateAdjacentRowBorders(Sheet sheet, int overtimeRowIndex, org.apache.poi.ss.usermodel.Workbook workbook, int summaryRowIndex) {
+            if (sheet == null || workbook == null) {
+                return;
+            }
+            
+            // 更新上一行的下边框为红色
+            if (overtimeRowIndex > 0) {
+                int prevRowIndex = overtimeRowIndex - 1;
+                // 如果上一行是合计行，则不处理红色边框
+                if (prevRowIndex == summaryRowIndex) {
+                    // 跳过合计行
+                } else {
+                    Row prevRow = sheet.getRow(prevRowIndex);
+                    if (prevRow != null) {
+                        for (int i = 0; i <= 8; i++) {
+                            Cell cell = prevRow.getCell(i);
+                            if (cell == null) {
+                                cell = prevRow.createCell(i);
+                            }
+                            org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
+                            if (cell.getCellStyle() != null) {
+                                style.cloneStyleFrom(cell.getCellStyle());
+                            }
+                            // 只更新下边框为红色
+                            style.setBorderBottom(org.apache.poi.ss.usermodel.BorderStyle.MEDIUM);
+                            style.setBottomBorderColor(org.apache.poi.ss.usermodel.IndexedColors.RED.getIndex());
+                            cell.setCellStyle(style);
+                        }
+                    }
+                }
+            }
+            
+            // 更新下一行的上边框为红色
+            int nextRowIndex = overtimeRowIndex + 1;
+            // 如果下一行是合计行，则不处理红色边框
+            if (nextRowIndex == summaryRowIndex) {
+                return;
+            }
+            
+            Row nextRow = sheet.getRow(nextRowIndex);
+            if (nextRow != null) {
+                for (int i = 0; i <= 8; i++) {
+                    Cell cell = nextRow.getCell(i);
+                    if (cell == null) {
+                        cell = nextRow.createCell(i);
+                    }
+                    org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
+                    if (cell.getCellStyle() != null) {
+                        style.cloneStyleFrom(cell.getCellStyle());
+                    }
+                    // 只更新上边框为红色
+                    style.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.MEDIUM);
+                    style.setTopBorderColor(org.apache.poi.ss.usermodel.IndexedColors.RED.getIndex());
+                    cell.setCellStyle(style);
+                }
+            }
+        }
+        
+        /**
+         * 确保合计行的所有边框都是黑色的（覆盖可能来自超时行的红色边框）
+         */
+        private void ensureSummaryRowTopBorderBlack(Row summaryRow, org.apache.poi.ss.usermodel.Workbook workbook) {
+            if (summaryRow == null || workbook == null) {
+                return;
+            }
+            
+            // 遍历合计行的所有单元格，确保所有边框都是黑色的
+            org.apache.poi.ss.usermodel.IndexedColors blackColor = org.apache.poi.ss.usermodel.IndexedColors.BLACK;
+            for (int i = 0; i <= 8; i++) {
+                Cell cell = summaryRow.getCell(i);
+                if (cell == null) {
+                    cell = summaryRow.createCell(i);
+                }
+                
+                org.apache.poi.ss.usermodel.CellStyle style = workbook.createCellStyle();
+                // 保留原有样式（如果存在）
+                if (cell.getCellStyle() != null) {
+                    style.cloneStyleFrom(cell.getCellStyle());
+                }
+                // 确保所有边框都是黑色的
+                style.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                style.setTopBorderColor(blackColor.getIndex());
+                style.setBorderBottom(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                style.setBottomBorderColor(blackColor.getIndex());
+                style.setBorderLeft(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                style.setLeftBorderColor(blackColor.getIndex());
+                style.setBorderRight(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                style.setRightBorderColor(blackColor.getIndex());
+                cell.setCellStyle(style);
+            }
+        }
+        
+        /**
+         * 格式化分钟数：统一显示为"90（1小时30分钟）"或"45（45分钟）"格式
+         */
+        private String formatMinutesWithHours(int minutes) {
+            String hoursMinutes = formatHoursMinutes(minutes);
+            return minutes + "（" + hoursMinutes + "）";
+        }
+        
+        /**
+         * 格式化分钟数为"X小时Y分钟"格式
+         */
+        private String formatHoursMinutes(int minutes) {
+            int hours = minutes / 60;
+            int mins = minutes % 60;
+            StringBuilder sb = new StringBuilder();
+            if (hours > 0) {
+                sb.append(hours).append("小时");
+            }
+            if (mins > 0) {
+                sb.append(mins).append("分钟");
+            }
+            if (sb.length() == 0) {
+                sb.append("0分钟");
+            }
+            return sb.toString();
+        }
+        
+        /**
+         * 获取单元格的字符串值
+         */
+        private String getCellStringValue(Cell cell) {
+            if (cell == null) {
+                return null;
+            }
+            switch (cell.getCellType()) {
+                case STRING:
+                    return cell.getStringCellValue();
+                case NUMERIC:
+                    if (org.apache.poi.ss.usermodel.DateUtil.isCellDateFormatted(cell)) {
+                        return cell.getDateCellValue().toString();
+                    } else {
+                        return String.valueOf(cell.getNumericCellValue());
+                    }
+                case BOOLEAN:
+                    return String.valueOf(cell.getBooleanCellValue());
+                case FORMULA:
+                    return cell.getCellFormula();
+                default:
+                    return null;
+            }
+        }
+        
+        /**
+         * 应用单元格值（用于填充单个单元格）
+         */
+        private void applyValue(Sheet sheet, String cellRef, TemplateCellValue value) {
+            if (value == null || cellRef == null) {
+                return;
+            }
+            CellReference ref = new CellReference(cellRef);
+            Row row = sheet.getRow(ref.getRow());
+            if (row == null) {
+                row = sheet.createRow(ref.getRow());
+            }
+            Cell cell = row.getCell(ref.getCol());
+            if (cell == null) {
+                cell = row.createCell(ref.getCol());
+            }
+            switch (value.type) {
+                case STRING -> cell.setCellValue(value.stringValue == null ? "" : value.stringValue);
+                case NUMBER -> cell.setCellValue(value.numberValue != null ? value.numberValue : 0d);
+                case DATE -> {
+                    if (value.dateValue != null) {
+                        cell.setCellValue(value.dateValue);
+                    }
+                }
+                default -> {
+                }
+            }
+        }
     }
 }
 
