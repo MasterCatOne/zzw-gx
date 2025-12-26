@@ -943,6 +943,16 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             log.debug("用户未提供实际结束时间，使用预计结束时间: {}", process.getEstimatedEndTime());
         }
         
+        // 对于已完成工序，重新计算正确的预计结束时间（基于预计开始时间+控制时间）
+        LocalDateTime correctEstimatedEndTime = process.getEstimatedEndTime();
+        if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus()) 
+                && process.getEstimatedStartTime() != null 
+                && process.getControlTime() != null) {
+            correctEstimatedEndTime = process.getEstimatedStartTime().plusMinutes(process.getControlTime());
+            log.debug("已完成工序重新计算预计结束时间，工序ID: {}, 预计开始时间: {}, 控制时间: {}分钟, 计算后的预计结束时间: {}", 
+                    processId, process.getEstimatedStartTime(), process.getControlTime(), correctEstimatedEndTime);
+        }
+        
         // 验证时间合理性
         if (request.getActualStartTime() != null && request.getActualEndTime() != null) {
             if (!request.getActualStartTime().isBefore(request.getActualEndTime())) {
@@ -950,7 +960,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             }
         }
         
-        // 验证实际开始时间不能早于预计开始时间
+        // 验证实际开始时间不能早于预计开始时间（对所有状态的工序都生效）
         if (request.getActualStartTime() != null && process.getEstimatedStartTime() != null) {
             if (request.getActualStartTime().isBefore(process.getEstimatedStartTime())) {
                 log.error("补填失败，实际开始时间早于预计开始时间，工序ID: {}, 实际开始时间: {}, 预计开始时间: {}", 
@@ -959,24 +969,32 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             }
         }
         
-        // 验证实际结束时间不能晚于预计结束时间
-        if (request.getActualEndTime() != null && process.getEstimatedEndTime() != null) {
-            if (request.getActualEndTime().isAfter(process.getEstimatedEndTime())) {
+        // 验证实际结束时间不能晚于预计结束时间（对所有状态的工序都生效）
+        // 对于已完成工序，使用重新计算的预计结束时间进行验证
+        LocalDateTime estimatedEndTimeForValidation = correctEstimatedEndTime != null 
+                ? correctEstimatedEndTime 
+                : process.getEstimatedEndTime();
+        if (request.getActualEndTime() != null && estimatedEndTimeForValidation != null) {
+            if (request.getActualEndTime().isAfter(estimatedEndTimeForValidation)) {
                 log.error("补填失败，实际结束时间晚于预计结束时间，工序ID: {}, 实际结束时间: {}, 预计结束时间: {}", 
-                        processId, request.getActualEndTime(), process.getEstimatedEndTime());
+                        processId, request.getActualEndTime(), estimatedEndTimeForValidation);
                 throw new BusinessException("实际结束时间不能晚于预计结束时间");
             }
         }
         
         // 计算从预计结束时间到当前时间的小时数
         // 如果超过24小时，只能由系统管理员补填
+        // 对于已完成工序，使用重新计算的预计结束时间
         LocalDateTime now = LocalDateTime.now();
         boolean exceeds24Hours = false;
-        if (process.getEstimatedEndTime() != null) {
-            long hoursSinceEstimatedEnd = Duration.between(process.getEstimatedEndTime(), now).toHours();
+        LocalDateTime estimatedEndTimeFor24HourCheck = correctEstimatedEndTime != null 
+                ? correctEstimatedEndTime 
+                : process.getEstimatedEndTime();
+        if (estimatedEndTimeFor24HourCheck != null) {
+            long hoursSinceEstimatedEnd = Duration.between(estimatedEndTimeFor24HourCheck, now).toHours();
             exceeds24Hours = hoursSinceEstimatedEnd > 24;
             log.debug("工序预计结束时间: {}, 当前时间: {}, 时间差: {}小时, 超过24小时: {}", 
-                    process.getEstimatedEndTime(), now, hoursSinceEstimatedEnd, exceeds24Hours);
+                    estimatedEndTimeFor24HourCheck, now, hoursSinceEstimatedEnd, exceeds24Hours);
         } else {
             log.warn("工序没有预计结束时间，无法判断是否超过24小时，工序ID: {}", processId);
         }
@@ -992,7 +1010,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             boolean isSystemAdmin = roles.stream().anyMatch(r -> "SYSTEM_ADMIN".equals(r));
             if (!isSystemAdmin) {
                 log.error("补填失败，超过24小时且不是系统管理员，工序ID: {}, 用户ID: {}, 预计结束时间: {}", 
-                        processId, workerId, process.getEstimatedEndTime());
+                        processId, workerId, estimatedEndTimeFor24HourCheck);
                 throw new BusinessException("超过24小时的工序只能由系统管理员补填，请联系管理员");
             }
             log.info("超过24小时，系统管理员补填，工序ID: {}, 管理员ID: {}", processId, workerId);
@@ -1007,6 +1025,16 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         }
         if (request.getActualEndTime() != null) {
             process.setActualEndTime(request.getActualEndTime());
+        }
+        
+        // 对于已完成工序，确保数据库中的预计结束时间是正确的（基于预计开始时间+控制时间）
+        if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus()) 
+                && process.getEstimatedStartTime() != null 
+                && process.getControlTime() != null) {
+            LocalDateTime correctEstimatedEndTimeForDB = process.getEstimatedStartTime().plusMinutes(process.getControlTime());
+            process.setEstimatedEndTime(correctEstimatedEndTimeForDB);
+            log.debug("更新已完成工序的预计结束时间到数据库，工序ID: {}, 预计结束时间: {}", 
+                    processId, correctEstimatedEndTimeForDB);
         }
         
         // 设置操作员ID为当前用户
@@ -1263,6 +1291,13 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
                         if (nextProcess.getEstimatedStartTime() != null) {
                             nextProcess.setEstimatedStartTime(newStartTime);
                         }
+                        // 更新预计结束时间：新的预计开始时间 + 控制时间
+                        if (nextProcess.getControlTime() != null) {
+                            LocalDateTime newEstimatedEndTime = newStartTime.plusMinutes(nextProcess.getControlTime());
+                            nextProcess.setEstimatedEndTime(newEstimatedEndTime);
+                            log.debug("更新已完成工序的预计结束时间，工序ID: {}, 新的预计结束时间: {}", 
+                                    nextProcess.getId(), newEstimatedEndTime);
+                        }
                         log.debug("更新已完成工序时间，工序ID: {}, 原开始时间: {}, 新开始时间: {}, 新结束时间: {}", 
                                 nextProcess.getId(), originalStartTime, newStartTime, newEndTimeForNext);
                     } else {
@@ -1285,63 +1320,113 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
                 }
                 
                 LocalDateTime originalStartTime = nextProcess.getActualStartTime();
-                if (originalStartTime != null) {
-                    // 如果原开始时间不等于前一个工序的新结束时间，需要调整
-                    // 这里使用时间差判断，如果时间差超过1分钟，就认为需要调整
-                    long timeDiff = Duration.between(originalStartTime, previousEndTime).toMinutes();
-                    if (Math.abs(timeDiff) > 1) {
-                        // 调整开始时间到前一个工序的新结束时间
-                        newStartTime = previousEndTime;
+                LocalDateTime originalEstimatedStartTime = nextProcess.getEstimatedStartTime();
+                // 确定新的预计开始时间：使用前一个工序的结束时间
+                LocalDateTime newEstimatedStartTime = previousEndTime;
+                
+                // 如果预计开始时间需要更新（与原值不同），则更新
+                if (originalEstimatedStartTime == null || !originalEstimatedStartTime.equals(newEstimatedStartTime)) {
+                    long timeDiff = 0;
+                    if (originalEstimatedStartTime != null) {
+                        timeDiff = Duration.between(originalEstimatedStartTime, newEstimatedStartTime).toMinutes();
+                    }
+                    // 如果时间差超过1分钟，或者预计开始时间为空，需要调整
+                    if (originalEstimatedStartTime == null || Math.abs(timeDiff) > 1) {
+                        newStartTime = newEstimatedStartTime;
                         needUpdate = true;
                         
-                        nextProcess.setActualStartTime(newStartTime);
-                        if (nextProcess.getEstimatedStartTime() != null) {
-                            nextProcess.setEstimatedStartTime(newStartTime);
+                        if (originalStartTime != null) {
+                            nextProcess.setActualStartTime(newStartTime);
                         }
-                        // 重新计算预计结束时间
+                        nextProcess.setEstimatedStartTime(newStartTime);
+                        // 重新计算预计结束时间：新的预计开始时间 + 控制时间
                         if (nextProcess.getControlTime() != null) {
                             newEndTimeForNext = newStartTime.plusMinutes(nextProcess.getControlTime());
                             nextProcess.setEstimatedEndTime(newEndTimeForNext);
                         }
-                        log.debug("更新进行中工序时间，工序ID: {}, 原开始时间: {}, 新开始时间: {}, 新预计结束时间: {}", 
-                                nextProcess.getId(), originalStartTime, newStartTime, newEndTimeForNext);
+                        log.debug("更新进行中工序时间，工序ID: {}, 原预计开始时间: {}, 新预计开始时间: {}, 新预计结束时间: {}", 
+                                nextProcess.getId(), originalEstimatedStartTime, newStartTime, newEndTimeForNext);
                     } else {
                         // 如果时间差很小（<=1分钟），认为不需要调整开始时间
-                        // 使用当前预计结束时间作为基准
-                        if (nextProcess.getEstimatedEndTime() != null) {
+                        // 但为了确保预计结束时间正确，仍然重新计算：预计开始时间 + 控制时间
+                        if (nextProcess.getControlTime() != null && originalEstimatedStartTime != null) {
+                            newEndTimeForNext = originalEstimatedStartTime.plusMinutes(nextProcess.getControlTime());
+                            // 只有当计算出的预计结束时间与当前值不同时才更新
+                            if (nextProcess.getEstimatedEndTime() == null || 
+                                !nextProcess.getEstimatedEndTime().equals(newEndTimeForNext)) {
+                                nextProcess.setEstimatedEndTime(newEndTimeForNext);
+                                needUpdate = true;
+                            }
+                        } else if (nextProcess.getEstimatedEndTime() != null) {
                             newEndTimeForNext = nextProcess.getEstimatedEndTime();
                         }
+                    }
+                } else {
+                    // 如果预计开始时间没有改变，确保预计结束时间正确：预计开始时间 + 控制时间
+                    if (nextProcess.getControlTime() != null && originalEstimatedStartTime != null) {
+                        LocalDateTime expectedEndTime = originalEstimatedStartTime.plusMinutes(nextProcess.getControlTime());
+                        if (nextProcess.getEstimatedEndTime() == null || 
+                            !nextProcess.getEstimatedEndTime().equals(expectedEndTime)) {
+                            nextProcess.setEstimatedEndTime(expectedEndTime);
+                            newEndTimeForNext = expectedEndTime;
+                            needUpdate = true;
+                        } else {
+                            newEndTimeForNext = nextProcess.getEstimatedEndTime();
+                        }
+                    } else if (nextProcess.getEstimatedEndTime() != null) {
+                        newEndTimeForNext = nextProcess.getEstimatedEndTime();
                     }
                 }
             } else {
                 // 未开始工序：设置预计开始时间为前一个工序的结束时间
                 // 这样在补填进行中的工序时，下一个工序的预计开始时间会从补填工序的结束时间开始
-                if (nextProcess.getEstimatedStartTime() == null || 
-                    !nextProcess.getEstimatedStartTime().equals(previousEndTime)) {
+                LocalDateTime originalEstimatedStartTime = nextProcess.getEstimatedStartTime();
+                LocalDateTime newEstimatedStartTime = previousEndTime;
+                
+                if (originalEstimatedStartTime == null || !originalEstimatedStartTime.equals(newEstimatedStartTime)) {
                     // 如果预计开始时间为空，或者不等于前一个工序的结束时间，需要更新
                     long timeDiff = 0;
-                    if (nextProcess.getEstimatedStartTime() != null) {
-                        timeDiff = Duration.between(nextProcess.getEstimatedStartTime(), previousEndTime).toMinutes();
+                    if (originalEstimatedStartTime != null) {
+                        timeDiff = Duration.between(originalEstimatedStartTime, newEstimatedStartTime).toMinutes();
                     }
-                    if (nextProcess.getEstimatedStartTime() == null || Math.abs(timeDiff) > 1) {
-                        nextProcess.setEstimatedStartTime(previousEndTime);
+                    if (originalEstimatedStartTime == null || Math.abs(timeDiff) > 1) {
+                        nextProcess.setEstimatedStartTime(newEstimatedStartTime);
                         needUpdate = true;
-                        // 重新计算预计结束时间
+                        // 重新计算预计结束时间：新的预计开始时间 + 控制时间
                         if (nextProcess.getControlTime() != null) {
-                            newEndTimeForNext = previousEndTime.plusMinutes(nextProcess.getControlTime());
+                            newEndTimeForNext = newEstimatedStartTime.plusMinutes(nextProcess.getControlTime());
                             nextProcess.setEstimatedEndTime(newEndTimeForNext);
                         }
                         log.debug("更新未开始工序的预计时间，工序ID: {}, 预计开始时间: {}, 预计结束时间: {}", 
-                                nextProcess.getId(), previousEndTime, newEndTimeForNext);
+                                nextProcess.getId(), newEstimatedStartTime, newEndTimeForNext);
                     } else {
-                        // 如果时间差很小（<=1分钟），认为不需要调整
-                        if (nextProcess.getEstimatedEndTime() != null) {
+                        // 如果时间差很小（<=1分钟），认为不需要调整开始时间
+                        // 但为了确保预计结束时间正确，仍然重新计算：预计开始时间 + 控制时间
+                        if (nextProcess.getControlTime() != null && originalEstimatedStartTime != null) {
+                            newEndTimeForNext = originalEstimatedStartTime.plusMinutes(nextProcess.getControlTime());
+                            // 只有当计算出的预计结束时间与当前值不同时才更新
+                            if (nextProcess.getEstimatedEndTime() == null || 
+                                !nextProcess.getEstimatedEndTime().equals(newEndTimeForNext)) {
+                                nextProcess.setEstimatedEndTime(newEndTimeForNext);
+                                needUpdate = true;
+                            }
+                        } else if (nextProcess.getEstimatedEndTime() != null) {
                             newEndTimeForNext = nextProcess.getEstimatedEndTime();
                         }
                     }
                 } else {
-                    // 如果预计开始时间已经等于前一个工序的结束时间，不需要更新
-                    if (nextProcess.getEstimatedEndTime() != null) {
+                    // 如果预计开始时间已经等于前一个工序的结束时间，确保预计结束时间正确：预计开始时间 + 控制时间
+                    if (nextProcess.getControlTime() != null && originalEstimatedStartTime != null) {
+                        LocalDateTime expectedEndTime = originalEstimatedStartTime.plusMinutes(nextProcess.getControlTime());
+                        if (nextProcess.getEstimatedEndTime() == null || 
+                            !nextProcess.getEstimatedEndTime().equals(expectedEndTime)) {
+                            nextProcess.setEstimatedEndTime(expectedEndTime);
+                            newEndTimeForNext = expectedEndTime;
+                            needUpdate = true;
+                        } else {
+                            newEndTimeForNext = nextProcess.getEstimatedEndTime();
+                        }
+                    } else if (nextProcess.getEstimatedEndTime() != null) {
                         newEndTimeForNext = nextProcess.getEstimatedEndTime();
                     }
                 }
@@ -1404,9 +1489,18 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         response.setStatusDesc(status != null ? status.getDesc() : "");
         response.setControlTime(process.getControlTime());
         response.setEstimatedStartTime(process.getEstimatedStartTime());
-        response.setEstimatedEndTime(process.getEstimatedEndTime());
         response.setActualStartTime(process.getActualStartTime());
         response.setActualEndTime(process.getActualEndTime());
+        
+        // 对于已完成工序，确保预计结束时间 = 预计开始时间 + 控制时间
+        if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus()) 
+                && process.getEstimatedStartTime() != null 
+                && process.getControlTime() != null) {
+            LocalDateTime calculatedEstimatedEndTime = process.getEstimatedStartTime().plusMinutes(process.getControlTime());
+            response.setEstimatedEndTime(calculatedEstimatedEndTime);
+        } else {
+            response.setEstimatedEndTime(process.getEstimatedEndTime());
+        }
 
         if (process.getOperatorId() != null) {
             User operator = userService.getById(process.getOperatorId());
@@ -1532,11 +1626,20 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         response.setAdvanceLength(process.getAdvanceLength());
         response.setProcessCatalogId(process.getProcessCatalogId());
         response.setEstimatedStartTime(process.getEstimatedStartTime());
-        response.setEstimatedEndTime(process.getEstimatedEndTime());
         response.setActualStartTime(process.getActualStartTime());
         response.setActualEndTime(process.getActualEndTime());
         response.setCreateTime(process.getCreateTime());
         response.setUpdateTime(process.getUpdateTime());
+        
+        // 对于已完成工序，确保预计结束时间 = 预计开始时间 + 控制时间
+        if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus()) 
+                && process.getEstimatedStartTime() != null 
+                && process.getControlTime() != null) {
+            LocalDateTime calculatedEstimatedEndTime = process.getEstimatedStartTime().plusMinutes(process.getControlTime());
+            response.setEstimatedEndTime(calculatedEstimatedEndTime);
+        } else {
+            response.setEstimatedEndTime(process.getEstimatedEndTime());
+        }
 
         if (process.getOperatorId() != null) {
             User operator = userService.getById(process.getOperatorId());

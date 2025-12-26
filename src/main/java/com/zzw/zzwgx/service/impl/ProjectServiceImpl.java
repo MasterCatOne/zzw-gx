@@ -283,7 +283,16 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
             info.setActualStartTime(process.getActualStartTime());
             info.setActualEndTime(process.getActualEndTime());
             info.setEstimatedStartTime(process.getEstimatedStartTime());
-            info.setEstimatedEndTime(process.getEstimatedEndTime());
+            
+            // 对于已完成工序，确保预计结束时间 = 预计开始时间 + 控制时间
+            if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus()) 
+                    && process.getEstimatedStartTime() != null 
+                    && process.getControlTime() != null) {
+                LocalDateTime calculatedEstimatedEndTime = process.getEstimatedStartTime().plusMinutes(process.getControlTime());
+                info.setEstimatedEndTime(calculatedEstimatedEndTime);
+            } else {
+                info.setEstimatedEndTime(process.getEstimatedEndTime());
+            }
             
             // 计算实际时间和节时/超时时间
             if (process.getActualStartTime() != null && process.getActualEndTime() != null) {
