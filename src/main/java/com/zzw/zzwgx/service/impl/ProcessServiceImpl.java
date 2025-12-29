@@ -1037,11 +1037,21 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
                     processId, correctEstimatedEndTimeForDB);
         }
         
-        // 设置操作员ID为当前用户
-        process.setOperatorId(workerId);
+        // 判断工序是否已完成
+        boolean wasCompleted = ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus());
+        
+        // 设置操作员ID：
+        // - 如果工序已有操作人员，不覆盖原有操作人员（管理员补填时保留原操作人员）
+        // - 如果工序没有操作人员，设置为当前用户
+        if (process.getOperatorId() != null) {
+            log.debug("工序已有操作人员，不覆盖操作人员，工序ID: {}, 原操作人员ID: {}, 当前用户ID: {}", 
+                    processId, process.getOperatorId(), workerId);
+        } else {
+            process.setOperatorId(workerId);
+            log.debug("设置操作员ID为当前用户，工序ID: {}, 操作员ID: {}", processId, workerId);
+        }
         
         // 如果工序状态不是已完成，更新为已完成
-        boolean wasCompleted = ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus());
         if (!wasCompleted) {
             process.setProcessStatus(ProcessStatus.COMPLETED.getCode());
             log.info("补填时间后自动将工序状态更新为已完成，工序ID: {}", processId);
@@ -1063,7 +1073,10 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         if (!wasCompleted) {
             // 完成后自动开启下一道未开始的工序
             // 使用补填的结束时间作为下一个工序的开始时间
-            startNextProcess(process, workerId, request.getActualEndTime());
+            // 使用当前工序的操作人员（如果工序原本有操作人员，则保留；如果没有，则使用补填人员）
+            // 这样即使管理员补填，下一个工序的操作人员仍然是原操作人员，而不是管理员
+            Long nextProcessOperatorId = process.getOperatorId();
+            startNextProcess(process, nextProcessOperatorId, request.getActualEndTime());
             
             // 如果本循环所有工序都已完成，则将循环状态置为已完成并记录结束时间
             tryCompleteCycle(process);

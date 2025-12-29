@@ -2227,9 +2227,9 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
             for (Integer overtimeRowIndex : overtimeRowIndices) {
                 Row overtimeRow = sheet.getRow(overtimeRowIndex);
                 if (overtimeRow != null) {
-                    // 如果下一行是合计行，则不设置下边框为红色
-                    boolean skipBottomBorder = (overtimeRowIndex + 1 == summaryRowIndex);
-                    setRowRedBorders(overtimeRow, workbook, skipBottomBorder);
+                    // 超时行的所有边框都应该设置为红色（包括下边框）
+                    // 即使下一行是合计行，也要设置下边框为红色，因为超时工序整行都应该变红
+                    setRowRedBorders(overtimeRow, workbook, false);
                     // 同时更新相邻行的对应边框为红色（传入合计行索引，避免合计行被设置红色边框）
                     updateAdjacentRowBorders(sheet, overtimeRowIndex, workbook, summaryRowIndex);
                 }
@@ -2278,8 +2278,11 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                 applyCellFormat(summaryRow, 6, templateSummaryRow, 6);
             }
             
-            // 确保合计行的上边框是黑色的（覆盖可能来自超时行的红色边框）
-            ensureSummaryRowTopBorderBlack(summaryRow, workbook);
+            // 确保合计行的边框颜色正确：
+            // - 如果上一行是超时工序，合计行的上边框应该是红色的（不掩盖超时行的红色下边框）
+            // - 如果上一行不是超时工序，合计行的上边框应该是黑色的
+            boolean prevRowIsOvertime = overtimeRowIndices.contains(summaryRowIndex - 1);
+            ensureSummaryRowBorders(summaryRow, workbook, prevRowIsOvertime);
         }
         
         /**
@@ -2501,15 +2504,19 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         }
         
         /**
-         * 确保合计行的所有边框都是黑色的（覆盖可能来自超时行的红色边框）
+         * 确保合计行的边框颜色正确
+         * @param summaryRow 合计行
+         * @param workbook 工作簿
+         * @param prevRowIsOvertime 上一行是否是超时工序，如果是，则上边框设置为红色；否则设置为黑色
          */
-        private void ensureSummaryRowTopBorderBlack(Row summaryRow, org.apache.poi.ss.usermodel.Workbook workbook) {
+        private void ensureSummaryRowBorders(Row summaryRow, org.apache.poi.ss.usermodel.Workbook workbook, boolean prevRowIsOvertime) {
             if (summaryRow == null || workbook == null) {
                 return;
             }
             
-            // 遍历合计行的所有单元格，确保所有边框都是黑色的
+            // 遍历合计行的所有单元格，设置边框颜色
             org.apache.poi.ss.usermodel.IndexedColors blackColor = org.apache.poi.ss.usermodel.IndexedColors.BLACK;
+            org.apache.poi.ss.usermodel.IndexedColors redColor = org.apache.poi.ss.usermodel.IndexedColors.RED;
             for (int i = 0; i <= 8; i++) {
                 Cell cell = summaryRow.getCell(i);
                 if (cell == null) {
@@ -2521,9 +2528,16 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
                 if (cell.getCellStyle() != null) {
                     style.cloneStyleFrom(cell.getCellStyle());
                 }
-                // 确保所有边框都是黑色的
-                style.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.THIN);
-                style.setTopBorderColor(blackColor.getIndex());
+                // 如果上一行是超时工序，上边框设置为红色（不掩盖超时行的红色下边框）
+                // 否则上边框设置为黑色
+                if (prevRowIsOvertime) {
+                    style.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.MEDIUM);
+                    style.setTopBorderColor(redColor.getIndex());
+                } else {
+                    style.setBorderTop(org.apache.poi.ss.usermodel.BorderStyle.THIN);
+                    style.setTopBorderColor(blackColor.getIndex());
+                }
+                // 其他边框都是黑色的
                 style.setBorderBottom(org.apache.poi.ss.usermodel.BorderStyle.THIN);
                 style.setBottomBorderColor(blackColor.getIndex());
                 style.setBorderLeft(org.apache.poi.ss.usermodel.BorderStyle.THIN);
