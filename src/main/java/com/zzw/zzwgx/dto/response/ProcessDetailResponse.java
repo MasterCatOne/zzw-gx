@@ -63,7 +63,7 @@ public class ProcessDetailResponse {
     @Schema(description = "预计结束时间", example = "2025-11-05T10:00:00")
     private LocalDateTime estimatedEndTime;
     
-    @Schema(description = "是否需要补填时间（当前系统时间超过预计完成时间时需要补填）", example = "false")
+    @Schema(description = "是否需要补填时间（仅已完成的工序：超时时需要补填）", example = "false")
     private Boolean needsTimeFill;
 }
 

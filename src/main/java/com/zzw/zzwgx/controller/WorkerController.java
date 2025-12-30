@@ -122,7 +122,7 @@ public class WorkerController {
         return Result.success("已完成，可进入下一循环", null);
     }
     
-    @Operation(summary = "补填工序时间", description = "施工人员补填工序的实际开始时间和实际结束时间。24小时内可直接补填，超过24小时（从预计结束时间开始计算）只能由系统管理员补填。")
+    @Operation(summary = "补填工序时间", description = "施工人员补填工序的实际开始时间和实际结束时间。允许在预计结束时间之外补填。24小时内可直接补填，超过24小时（从预计结束时间开始计算）只能由系统管理员补填。")
     @PostMapping("/processes/{processId}/fill-time")
     public Result<ProcessResponse> fillProcessTime(
             @Parameter(description = "工序ID", required = true, example = "1001") @PathVariable Long processId,

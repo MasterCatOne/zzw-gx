@@ -339,14 +339,15 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
             }
             
             // 判断是否需要补填时间
-            // 规则：
+            // 规则：只有已完成的工序才需要补填
             // 1. 如果工序已完成，并且是节时（实际时间 <= 控制时间），则不需要补填
             // 2. 如果工序已完成，并且超时（实际时间 > 控制时间），则需要补填
-            // 3. 如果工序在进行中，当前系统时间已经超过预计完成时间，则需要补填
+            // 3. 未完成的工序不进行判断，直接返回 false
             boolean needsTimeFill = false;
             boolean isCompleted = ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus());
             
             if (isCompleted) {
+                // 只有已完成的工序才进行判断
                 // 工序已完成：判断是否超时
                 if (process.getActualStartTime() != null && process.getActualEndTime() != null && process.getControlTime() != null) {
                     long actualMinutes = Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
@@ -354,17 +355,10 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
                     if (actualMinutes > process.getControlTime()) {
                         needsTimeFill = true;
                     }
-                    // 如果实际时间 <= 控制时间（节时或按时），则不需要补填
-                }
-            } else {
-                // 工序未完成（进行中或未开始）：判断当前时间是否超过预计完成时间
-                if (process.getEstimatedEndTime() != null) {
-                    LocalDateTime now = LocalDateTime.now();
-                    if (now.isAfter(process.getEstimatedEndTime())) {
-                        needsTimeFill = true;
-                    }
+                    // 如果实际时间 <= 控制时间（节时或按时），则不需要补填（保持 false）
                 }
             }
+            // 未完成的工序不进行判断，needsTimeFill 保持为 false
             info.setNeedsTimeFill(needsTimeFill);
             
             return info;

@@ -802,14 +802,17 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "您没有该工点的权限，无法完成此工序");
         }
         
+        // 验证工序状态：只能完成未完成的工序（NOT_STARTED 或 IN_PROGRESS）
+        if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus())) {
+            log.warn("尝试完成已完成的工序，用户ID: {}, 工序ID: {}", workerId, processId);
+            throw new BusinessException("该工序已完成，无法再次完成");
+        }
+        
         // 设置操作员ID为完成工序的人（无论之前是否有操作员）
         process.setOperatorId(workerId);
         log.info("设置工序操作员，工序ID: {}, 操作员ID: {}", processId, workerId);
         if (process.getActualStartTime() == null) {
             throw new BusinessException("当前工序未开始，无法完成");
-        }
-        if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus())) {
-            return buildProcessResponse(process);
         }
 
         // 使用当前时间作为实际结束时间
@@ -842,16 +845,17 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "您没有该工点的权限，无法完成此工序");
         }
         
+        // 验证工序状态：只能完成未完成的工序（NOT_STARTED 或 IN_PROGRESS）
+        if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus())) {
+            log.warn("尝试完成已完成的工序，用户ID: {}, 工序ID: {}", workerId, processId);
+            throw new BusinessException("该工序已完成，无法再次完成");
+        }
+        
         // 设置操作员ID为完成工序的人（无论之前是否有操作员）
         process.setOperatorId(workerId);
         log.info("设置工序操作员，工序ID: {}, 操作员ID: {}", processId, workerId);
         if (process.getActualStartTime() == null) {
             throw new BusinessException("当前工序未开始，无法完成");
-        }
-        if (ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus())) {
-            // 即使已完成，也检查循环状态
-            tryCompleteCycle(process);
-            return buildProcessResponse(process);
         }
 
         // 使用当前时间作为实际结束时间
@@ -969,18 +973,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             }
         }
         
-        // 验证实际结束时间不能晚于预计结束时间（对所有状态的工序都生效）
-        // 对于已完成工序，使用重新计算的预计结束时间进行验证
-        LocalDateTime estimatedEndTimeForValidation = correctEstimatedEndTime != null 
-                ? correctEstimatedEndTime 
-                : process.getEstimatedEndTime();
-        if (request.getActualEndTime() != null && estimatedEndTimeForValidation != null) {
-            if (request.getActualEndTime().isAfter(estimatedEndTimeForValidation)) {
-                log.error("补填失败，实际结束时间晚于预计结束时间，工序ID: {}, 实际结束时间: {}, 预计结束时间: {}", 
-                        processId, request.getActualEndTime(), estimatedEndTimeForValidation);
-                throw new BusinessException("实际结束时间不能晚于预计结束时间");
-            }
-        }
+        // 已移除实际结束时间不能晚于预计结束时间的限制，允许在预计结束时间之外补填
         
         // 计算从预计结束时间到当前时间的小时数
         // 如果超过24小时，只能由系统管理员补填
@@ -1594,12 +1587,12 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         response.setOvertimeReason(process.getOvertimeReason());
         
         // 判断是否需要补填时间
-        // 规则：
+        // 规则：只有已完成的工序才需要补填
         // 1. 如果工序已完成，并且是节时（实际时间 <= 控制时间），则不需要补填
         // 2. 如果工序已完成，并且超时（实际时间 > 控制时间），则需要补填
-        // 3. 如果工序在进行中，当前系统时间已经超过预计完成时间，则需要补填
-        boolean needsTimeFill = false;
+        // 3. 未完成的工序不进行判断，返回 null
         boolean isCompleted = ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus());
+        Boolean needsTimeFill = false; // 默认为 null，表示不适用
         
         if (isCompleted) {
             // 工序已完成：判断是否超时
@@ -1609,17 +1602,10 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
                 if (actualMinutes > process.getControlTime()) {
                     needsTimeFill = true;
                 }
-                // 如果实际时间 <= 控制时间（节时或按时），则不需要补填
-            }
-        } else {
-            // 工序未完成（进行中或未开始）：判断当前时间是否超过预计完成时间
-            if (process.getEstimatedEndTime() != null) {
-                LocalDateTime now = LocalDateTime.now();
-                if (now.isAfter(process.getEstimatedEndTime())) {
-                    needsTimeFill = true;
-                }
+                // 如果实际时间 <= 控制时间（节时或按时），则不需要补填（保持 false）
             }
         }
+        // 未完成的工序不进行判断，needsTimeFill 保持为 null
         response.setNeedsTimeFill(needsTimeFill);
 
         return response;
