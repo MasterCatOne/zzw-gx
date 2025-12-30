@@ -339,15 +339,15 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
             }
             
             // 判断是否需要补填时间
-            // 规则：只有已完成的工序才需要补填
-            // 1. 如果工序已完成，并且是节时（实际时间 <= 控制时间），则不需要补填
-            // 2. 如果工序已完成，并且超时（实际时间 > 控制时间），则需要补填
-            // 3. 未完成的工序不进行判断，直接返回 false
+            // 规则：
+            // 1. 已完成的工序：如果实际时间 > 控制时间（超时），则需要补填
+            // 2. 进行中的工序：如果已进行时间 > 控制时间（超时），则需要补填
+            // 3. 未开始的工序：不需要补填
             boolean needsTimeFill = false;
             boolean isCompleted = ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus());
+            boolean isInProgress = ProcessStatus.IN_PROGRESS.getCode().equals(process.getProcessStatus());
             
             if (isCompleted) {
-                // 只有已完成的工序才进行判断
                 // 工序已完成：判断是否超时
                 if (process.getActualStartTime() != null && process.getActualEndTime() != null && process.getControlTime() != null) {
                     long actualMinutes = Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
@@ -357,8 +357,19 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
                     }
                     // 如果实际时间 <= 控制时间（节时或按时），则不需要补填（保持 false）
                 }
+            } else if (isInProgress) {
+                // 工序进行中：判断是否超时
+                if (process.getActualStartTime() != null && process.getControlTime() != null) {
+                    // 计算从实际开始时间到当前时间已经过了多少分钟
+                    long elapsedMinutes = Duration.between(process.getActualStartTime(), LocalDateTime.now()).toMinutes();
+                    // 如果已进行时间 > 控制时间（超时），则需要补填
+                    if (elapsedMinutes > process.getControlTime()) {
+                        needsTimeFill = true;
+                    }
+                    // 如果已进行时间 <= 控制时间，则不需要补填（保持 false）
+                }
             }
-            // 未完成的工序不进行判断，needsTimeFill 保持为 false
+            // 未开始的工序不进行判断，needsTimeFill 保持为 false
             info.setNeedsTimeFill(needsTimeFill);
             
             return info;

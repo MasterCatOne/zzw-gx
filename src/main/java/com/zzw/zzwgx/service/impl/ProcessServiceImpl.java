@@ -930,6 +930,12 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "您没有该工点的权限，无法补填此工序时间");
         }
         
+//        // 验证工序状态：只能补填已完成的工序
+//        if (!ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus())) {
+//            log.warn("尝试补填未完成的工序，用户ID: {}, 工序ID: {}, 工序状态: {}", workerId, processId, process.getProcessStatus());
+//            throw new BusinessException("只能补填已完成的工序。进行中的工序请先完成，未开始的工序请先开始。");
+//        }
+        
         // 如果用户没有提供时间，使用预计时间作为默认值
         if (request.getActualStartTime() == null) {
             if (process.getEstimatedStartTime() == null) {
@@ -1009,9 +1015,6 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             log.info("超过24小时，系统管理员补填，工序ID: {}, 管理员ID: {}", processId, workerId);
         }
         
-        // 保存补填前的结束时间，用于计算时间差和更新后续工序
-        LocalDateTime oldEndTime = process.getActualEndTime();
-        
         // 更新实际开始时间和实际结束时间
         if (request.getActualStartTime() != null) {
             process.setActualStartTime(request.getActualStartTime());
@@ -1057,14 +1060,11 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
                 String.format("补填时间：开始时间=%s, 结束时间=%s", 
                         request.getActualStartTime(), request.getActualEndTime()));
         
-        // 如果补填了结束时间，需要更新后续工序的时间（无论工序之前是否已完成）
-        if (request.getActualEndTime() != null && process.getCycleId() != null && process.getStartOrder() != null) {
-            updateSubsequentProcessesTime(process, oldEndTime, request.getActualEndTime());
-        }
-        
-        // 如果工序之前未完成，触发后续流程
+        // 根据工序之前的状态决定后续处理：
+        // - 如果补填的是已完成的工序：不更新后续工序的时间
+        // - 如果补填的是进行中的工序：开启下一个工序，但不更新后续工序的时间
         if (!wasCompleted) {
-            // 完成后自动开启下一道未开始的工序
+            // 工序之前是进行中：补填后自动开启下一道未开始的工序
             // 使用补填的结束时间作为下一个工序的开始时间
             // 使用当前工序的操作人员（如果工序原本有操作人员，则保留；如果没有，则使用补填人员）
             // 这样即使管理员补填，下一个工序的操作人员仍然是原操作人员，而不是管理员
@@ -1074,6 +1074,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
             // 如果本循环所有工序都已完成，则将循环状态置为已完成并记录结束时间
             tryCompleteCycle(process);
         }
+        // 如果工序之前已完成，不更新后续工序的时间，也不开启下一工序
         
         log.info("施工人员补填工序时间成功，工序ID: {}, 用户ID: {}", processId, workerId);
         return buildProcessResponse(process);
@@ -1587,12 +1588,13 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         response.setOvertimeReason(process.getOvertimeReason());
         
         // 判断是否需要补填时间
-        // 规则：只有已完成的工序才需要补填
-        // 1. 如果工序已完成，并且是节时（实际时间 <= 控制时间），则不需要补填
-        // 2. 如果工序已完成，并且超时（实际时间 > 控制时间），则需要补填
-        // 3. 未完成的工序不进行判断，返回 null
+        // 规则：
+        // 1. 已完成的工序：如果实际时间 > 控制时间（超时），则需要补填
+        // 2. 进行中的工序：如果已进行时间 > 控制时间（超时），则需要补填
+        // 3. 未开始的工序：不需要补填
         boolean isCompleted = ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus());
-        Boolean needsTimeFill = false; // 默认为 null，表示不适用
+        boolean isInProgress = ProcessStatus.IN_PROGRESS.getCode().equals(process.getProcessStatus());
+        Boolean needsTimeFill = false; // 默认为 false
         
         if (isCompleted) {
             // 工序已完成：判断是否超时
@@ -1604,8 +1606,19 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
                 }
                 // 如果实际时间 <= 控制时间（节时或按时），则不需要补填（保持 false）
             }
+        } else if (isInProgress) {
+            // 工序进行中：判断是否超时
+            if (process.getActualStartTime() != null && process.getControlTime() != null) {
+                // 计算从实际开始时间到当前时间已经过了多少分钟
+                long elapsedMinutes = Duration.between(process.getActualStartTime(), LocalDateTime.now()).toMinutes();
+                // 如果已进行时间 > 控制时间（超时），则需要补填
+                if (elapsedMinutes > process.getControlTime()) {
+                    needsTimeFill = true;
+                }
+                // 如果已进行时间 <= 控制时间，则不需要补填（保持 false）
+            }
         }
-        // 未完成的工序不进行判断，needsTimeFill 保持为 null
+        // 未开始的工序不进行判断，needsTimeFill 保持为 false
         response.setNeedsTimeFill(needsTimeFill);
 
         return response;
