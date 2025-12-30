@@ -1589,7 +1589,7 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         
         // 判断是否需要补填时间
         // 规则：
-        // 1. 已完成的工序：如果实际时间 > 控制时间（超时），则需要补填
+        // 1. 已完成的工序：不需要补填，直接返回 false
         // 2. 进行中的工序：如果已进行时间 > 控制时间（超时），则需要补填
         // 3. 未开始的工序：不需要补填
         boolean isCompleted = ProcessStatus.COMPLETED.getCode().equals(process.getProcessStatus());
@@ -1597,15 +1597,8 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         Boolean needsTimeFill = false; // 默认为 false
         
         if (isCompleted) {
-            // 工序已完成：判断是否超时
-            if (process.getActualStartTime() != null && process.getActualEndTime() != null && process.getControlTime() != null) {
-                long actualMinutes = Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
-                // 如果实际时间 > 控制时间（超时），则需要补填
-                if (actualMinutes > process.getControlTime()) {
-                    needsTimeFill = true;
-                }
-                // 如果实际时间 <= 控制时间（节时或按时），则不需要补填（保持 false）
-            }
+            // 已完成的工序不需要补填，直接返回 false
+            needsTimeFill = false;
         } else if (isInProgress) {
             // 工序进行中：判断是否超时
             if (process.getActualStartTime() != null && process.getControlTime() != null) {

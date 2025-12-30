@@ -34,12 +34,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -340,7 +335,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
             
             // 判断是否需要补填时间
             // 规则：
-            // 1. 已完成的工序：如果实际时间 > 控制时间（超时），则需要补填
+            // 1. 已完成的工序：不需要补填，直接返回 false
             // 2. 进行中的工序：如果已进行时间 > 控制时间（超时），则需要补填
             // 3. 未开始的工序：不需要补填
             boolean needsTimeFill = false;
@@ -348,15 +343,8 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
             boolean isInProgress = ProcessStatus.IN_PROGRESS.getCode().equals(process.getProcessStatus());
             
             if (isCompleted) {
-                // 工序已完成：判断是否超时
-                if (process.getActualStartTime() != null && process.getActualEndTime() != null && process.getControlTime() != null) {
-                    long actualMinutes = Duration.between(process.getActualStartTime(), process.getActualEndTime()).toMinutes();
-                    // 如果实际时间 > 控制时间（超时），则需要补填
-                    if (actualMinutes > process.getControlTime()) {
-                        needsTimeFill = true;
-                    }
-                    // 如果实际时间 <= 控制时间（节时或按时），则不需要补填（保持 false）
-                }
+                // 已完成的工序不需要补填，直接返回 false
+                needsTimeFill = false;
             } else if (isInProgress) {
                 // 工序进行中：判断是否超时
                 if (process.getActualStartTime() != null && process.getControlTime() != null) {
@@ -600,29 +588,63 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
 
     /**
      * 将任意层级的节点展开为所有子层级的工点（node_type=SITE）ID
+     * 规则：
+     * 1. 如果只绑定了隧道，则展开隧道下所有工点
+     * 2. 如果绑定了隧道和隧道下的部分工点，则只返回绑定的工点（不展开隧道）
+     * 3. 如果只绑定了工点，则直接返回这些工点
      */
     private List<Long> expandToSiteProjectIds(List<Long> rootIds) {
         List<Long> result = new ArrayList<>();
         if (CollectionUtils.isEmpty(rootIds)) {
             return result;
         }
-        Queue<Long> queue = new ArrayDeque<>(rootIds);
-        while (!queue.isEmpty()) {
-            Long currentId = queue.poll();
-            Project project = getById(currentId);
+        
+        // 先分类：找出哪些是工点，哪些是隧道
+        List<Long> siteIds = new ArrayList<>();
+        List<Long> tunnelIds = new ArrayList<>();
+        Set<Long> rootIdSet = new HashSet<>(rootIds);
+        
+        for (Long id : rootIds) {
+            Project project = getById(id);
             if (project == null) {
                 continue;
             }
             if ("SITE".equalsIgnoreCase(project.getNodeType())) {
-                result.add(project.getId());
+                siteIds.add(id);
+            } else if ("TUNNEL".equalsIgnoreCase(project.getNodeType())) {
+                tunnelIds.add(id);
+            }
+        }
+        
+        // 1. 直接添加所有绑定的工点
+        result.addAll(siteIds);
+        
+        // 2. 对于每个绑定的隧道，检查是否有该隧道下的工点已经被绑定
+        for (Long tunnelId : tunnelIds) {
+            // 查询该隧道下的所有工点
+            List<Project> tunnelSites = list(new LambdaQueryWrapper<Project>()
+                    .eq(Project::getParentId, tunnelId)
+                    .eq(Project::getNodeType, "SITE")
+                    .eq(Project::getDeleted, 0));
+            
+            // 检查是否有该隧道下的工点已经被绑定
+            boolean hasBoundSites = tunnelSites.stream()
+                    .anyMatch(site -> rootIdSet.contains(site.getId()));
+            
+            if (hasBoundSites) {
+                // 如果该隧道下有工点已经被绑定，则只返回绑定的工点（不展开隧道）
+                // 这些工点已经在 siteIds 中，所以不需要额外处理
+                // 跳过展开该隧道
             } else {
-                List<Project> children = list(new LambdaQueryWrapper<Project>().eq(Project::getParentId, project.getId()));
-                if (!children.isEmpty()) {
-                    children.forEach(child -> queue.offer(child.getId()));
+                // 如果该隧道下没有工点被绑定，则展开隧道下所有工点
+                for (Project site : tunnelSites) {
+                    result.add(site.getId());
                 }
             }
         }
-        return result;
+        
+        // 去重并返回
+        return new ArrayList<>(new LinkedHashSet<>(result));
     }
     
     @Override
