@@ -65,8 +65,17 @@ public class ProgressDetailResponse {
     @Schema(description = "实际结束日期", example = "2025-11-05T14:00:00")
     private LocalDateTime actualEndDate;
     
+    @Schema(description = "循环累计用时（小时）", example = "12.50")
+    private BigDecimal cycleTotalHours;
+
+    @Schema(description = "循环累计用时描述，例如：\"12小时30分钟\"", example = "12小时30分钟")
+    private String cycleTotalTimeText;
+
     @Schema(description = "控制总时间（所有工序的控制时间总和，单位：小时），用于显示X/h", example = "5.0")
     private BigDecimal controlTotalTimeHours;
+
+    @Schema(description = "控制总时间描述，例如：\"5小时30分钟\"", example = "5小时30分钟")
+    private String controlTotalTimeText;
     
     @Schema(description = "工序列表")
     private List<ProcessInfo> processes;
@@ -82,6 +91,9 @@ public class ProgressDetailResponse {
         
         @Schema(description = "控制时间（分钟）", example = "120")
         private Integer controlTime;
+
+        @Schema(description = "控制时间（小时）", example = "2.00")
+        private BigDecimal controlTimeHours;
         
         @Schema(description = "实际时间（分钟）", example = "100")
         private Integer actualTime;

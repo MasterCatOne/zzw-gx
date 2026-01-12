@@ -52,7 +52,7 @@ public class CycleController {
     public Result<Page<CycleResponse>> getProjectCycles(
             @Parameter(description = "工点项目ID", required = true, example = "1") @PathVariable Long projectId,
             @Parameter(description = "页码，从1开始", example = "1") @RequestParam(defaultValue = "1") Integer pageNum,
-            @Parameter(description = "每页记录数", example = "10") @RequestParam(defaultValue = "10") Integer pageSize) {
+            @Parameter(description = "每页记录数", example = "10") @RequestParam(defaultValue = "1000") Integer pageSize) {
         Page<CycleResponse> page = cycleService.getCyclesByProject(projectId, pageNum, pageSize);
         return Result.success(page);
     }
@@ -111,5 +111,19 @@ public class CycleController {
         InProgressProcessOrderResponse response = cycleService.getInProgressProcessOrder(cycleId);
         return Result.success(response);
     }
+    
+    // 授权接口已废弃，补填循环可以直接调用，无需授权
+    // @Operation(summary = "授权循环时间补填", 
+    //          description = "系统管理员授权指定循环的时间补填。补填循环前必须先授权。", 
+    //          tags = {"管理员管理-循环管理"})
+    // @PostMapping("/cycles/{cycleId}/authorize-time-fill")
+    // @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    // public Result<Void> authorizeCycleTimeFill(
+    //         @Parameter(description = "循环ID", required = true, example = "1") 
+    //         @PathVariable Long cycleId) {
+    //     log.info("系统管理员授权循环时间补填，循环ID: {}", cycleId);
+    //     cycleService.authorizeCycleTimeFill(cycleId);
+    //     return Result.success("授权成功");
+    // }
 }
 

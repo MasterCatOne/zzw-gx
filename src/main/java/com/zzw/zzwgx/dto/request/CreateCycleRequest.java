@@ -12,7 +12,10 @@ import java.time.LocalDateTime;
 @Data
 @Schema(description = "创建新循环请求参数")
 public class CreateCycleRequest {
-    
+
+    @Schema(description = "循环ID（补填循环时使用，如果为null则创建新循环，非null则更新已存在循环）", example = "1")
+    private Long cycleId;
+
     @Schema(description = "工点项目ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     @NotNull(message = "项目ID不能为空")
     private Long projectId;

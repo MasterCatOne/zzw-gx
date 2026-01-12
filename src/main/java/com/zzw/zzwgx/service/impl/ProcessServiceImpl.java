@@ -981,38 +981,46 @@ public class ProcessServiceImpl extends ServiceImpl<ProcessMapper, Process> impl
         
         // 已移除实际结束时间不能晚于预计结束时间的限制，允许在预计结束时间之外补填
         
-        // 计算从预计结束时间到当前时间的小时数
-        // 如果超过24小时，只能由系统管理员补填
-        // 对于已完成工序，使用重新计算的预计结束时间
-        LocalDateTime now = LocalDateTime.now();
-        boolean exceeds24Hours = false;
-        LocalDateTime estimatedEndTimeFor24HourCheck = correctEstimatedEndTime != null 
-                ? correctEstimatedEndTime 
-                : process.getEstimatedEndTime();
-        if (estimatedEndTimeFor24HourCheck != null) {
-            long hoursSinceEstimatedEnd = Duration.between(estimatedEndTimeFor24HourCheck, now).toHours();
-            exceeds24Hours = hoursSinceEstimatedEnd > 24;
-            log.debug("工序预计结束时间: {}, 当前时间: {}, 时间差: {}小时, 超过24小时: {}", 
-                    estimatedEndTimeFor24HourCheck, now, hoursSinceEstimatedEnd, exceeds24Hours);
-        } else {
-            log.warn("工序没有预计结束时间，无法判断是否超过24小时，工序ID: {}", processId);
-        }
+        // 检查循环是否为补填循环，如果是补填循环，则移除24小时限制
+        Cycle cycle = cycleMapper.selectById(process.getCycleId());
+        boolean isTimeFillCycle = cycle != null && cycle.getIsTimeFill() != null && cycle.getIsTimeFill() == 1;
         
-        // 如果超过24小时，检查是否是系统管理员
-        if (exceeds24Hours) {
-            var currentUser = SecurityUtils.getCurrentUser();
-            if (currentUser == null) {
-                log.error("补填失败，超过24小时且未获取到当前登录用户，工序ID: {}", processId);
-                throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "未获取到当前登录用户");
+        if (isTimeFillCycle) {
+            log.info("工序所属循环为补填循环，移除24小时限制，工序ID: {}, 循环ID: {}", processId, process.getCycleId());
+        } else {
+            // 计算从预计结束时间到当前时间的小时数
+            // 如果超过24小时，只能由系统管理员补填
+            // 对于已完成工序，使用重新计算的预计结束时间
+            LocalDateTime now = LocalDateTime.now();
+            boolean exceeds24Hours = false;
+            LocalDateTime estimatedEndTimeFor24HourCheck = correctEstimatedEndTime != null 
+                    ? correctEstimatedEndTime 
+                    : process.getEstimatedEndTime();
+            if (estimatedEndTimeFor24HourCheck != null) {
+                long hoursSinceEstimatedEnd = Duration.between(estimatedEndTimeFor24HourCheck, now).toHours();
+                exceeds24Hours = hoursSinceEstimatedEnd > 24;
+                log.debug("工序预计结束时间: {}, 当前时间: {}, 时间差: {}小时, 超过24小时: {}", 
+                        estimatedEndTimeFor24HourCheck, now, hoursSinceEstimatedEnd, exceeds24Hours);
+            } else {
+                log.warn("工序没有预计结束时间，无法判断是否超过24小时，工序ID: {}", processId);
             }
-            var roles = currentUser.getRoleCodes();
-            boolean isSystemAdmin = roles.stream().anyMatch(r -> "SYSTEM_ADMIN".equals(r));
-            if (!isSystemAdmin) {
-                log.error("补填失败，超过24小时且不是系统管理员，工序ID: {}, 用户ID: {}, 预计结束时间: {}", 
-                        processId, workerId, estimatedEndTimeFor24HourCheck);
-                throw new BusinessException("超过24小时的工序只能由系统管理员补填，请联系管理员");
+            
+            // 如果超过24小时，检查是否是系统管理员
+            if (exceeds24Hours) {
+                var currentUser = SecurityUtils.getCurrentUser();
+                if (currentUser == null) {
+                    log.error("补填失败，超过24小时且未获取到当前登录用户，工序ID: {}", processId);
+                    throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "未获取到当前登录用户");
+                }
+                var roles = currentUser.getRoleCodes();
+                boolean isSystemAdmin = roles.stream().anyMatch(r -> "SYSTEM_ADMIN".equals(r));
+                if (!isSystemAdmin) {
+                    log.error("补填失败，超过24小时且不是系统管理员，工序ID: {}, 用户ID: {}, 预计结束时间: {}", 
+                            processId, workerId, estimatedEndTimeFor24HourCheck);
+                    throw new BusinessException("超过24小时的工序只能由系统管理员补填，请联系管理员");
+                }
+                log.info("超过24小时，系统管理员补填，工序ID: {}, 管理员ID: {}", processId, workerId);
             }
-            log.info("超过24小时，系统管理员补填，工序ID: {}, 管理员ID: {}", processId, workerId);
         }
         
         // 更新实际开始时间和实际结束时间

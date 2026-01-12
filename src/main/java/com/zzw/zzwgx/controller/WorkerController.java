@@ -2,11 +2,13 @@ package com.zzw.zzwgx.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zzw.zzwgx.common.Result;
+import com.zzw.zzwgx.dto.request.CreateCycleRequest;
 import com.zzw.zzwgx.dto.request.FillProcessTimeRequest;
 import com.zzw.zzwgx.dto.request.WorkerStartProcessRequest;
 import com.zzw.zzwgx.dto.request.WorkerUpdateProfileRequest;
 import com.zzw.zzwgx.dto.response.*;
 import com.zzw.zzwgx.security.SecurityUtils;
+import com.zzw.zzwgx.service.CycleService;
 import com.zzw.zzwgx.service.StatisticsService;
 import com.zzw.zzwgx.service.ProcessService;
 import com.zzw.zzwgx.service.UserService;
@@ -33,6 +35,7 @@ public class WorkerController {
     private final UserService userService;
     private final ProcessService processService;
     private final StatisticsService statisticsService;
+    private final CycleService cycleService;
     @Operation(summary = "获取个人信息", description = "获取当前登录用户的个人信息，包括用户ID、用户名、真实姓名、角色列表、身份证号、手机号等。")
     @GetMapping("/profile")
     public Result<UserProfileResponse> getProfile() {
@@ -46,7 +49,7 @@ public class WorkerController {
     @GetMapping("/processes")
     public Result<Page<WorkerProcessListResponse>> getMyProcesses(
             @Parameter(description = "页码，从1开始", example = "1") @RequestParam(defaultValue = "1") Integer pageNum,
-            @Parameter(description = "每页记录数", example = "10") @RequestParam(defaultValue = "10") Integer pageSize,
+            @Parameter(description = "每页记录数", example = "10") @RequestParam(defaultValue = "1000") Integer pageSize,
             @Parameter(description = "工点名称关键词，支持模糊搜索", example = "工点1") @RequestParam(required = false) String projectName,
             @Parameter(description = "工序状态：NOT_STARTED/IN_PROGRESS/COMPLETED", example = "IN_PROGRESS") @RequestParam(required = false) String status) {
         Long userId = SecurityUtils.getCurrentUserId();
@@ -122,7 +125,7 @@ public class WorkerController {
         return Result.success("已完成，可进入下一循环", null);
     }
     
-    @Operation(summary = "补填工序时间", description = "施工人员补填工序的实际开始时间和实际结束时间。允许在预计结束时间之外补填。24小时内可直接补填，超过24小时（从预计结束时间开始计算）只能由系统管理员补填。")
+    @Operation(summary = "补填工序时间", description = "施工人员补填工序的实际开始时间和实际结束时间。允许在预计结束时间之外补填。24小时内可直接补填，超过24小时（从预计结束时间开始计算）只能由系统管理员补填。补填循环下的工序不受24小时限制。")
     @PostMapping("/processes/{processId}/fill-time")
     public Result<ProcessResponse> fillProcessTime(
             @Parameter(description = "工序ID", required = true, example = "1001") @PathVariable Long processId,
@@ -131,6 +134,18 @@ public class WorkerController {
         log.info("施工人员补填工序时间，用户ID: {}, 工序ID: {}, 实际开始时间: {}, 实际结束时间: {}", 
                 userId, processId, request.getActualStartTime(), request.getActualEndTime());
         ProcessResponse response = processService.fillProcessTime(processId, userId, request);
+        return Result.success("时间补填成功", response);
+    }
+    
+    @Operation(summary = "补填循环时间", 
+             description = "施工人员补填循环的实际开始时间和实际结束时间。无需授权，可直接调用。移除所有时间限制，允许补填任意时间的循环。补填时会根据开始时间自动调整循环顺序（cycleNumber）。补填循环时只创建循环和工序，不设置工序时间，工序之后自行补填。返回创建的循环ID和循环号。")
+    @PostMapping("/cycles/fill-time")
+    public Result<CycleResponse> fillCycleTime(
+            @Valid @RequestBody CreateCycleRequest request) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        log.info("施工人员补填循环时间，用户ID: {}, 项目ID: {}", userId, request.getProjectId());
+        CycleResponse response = cycleService.fillCycleTime(null, userId, request);
+        log.info("补填循环成功，返回循环ID: {}, 循环号: {}", response.getId(), response.getCycleNumber());
         return Result.success("时间补填成功", response);
     }
     

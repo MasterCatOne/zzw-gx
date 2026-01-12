@@ -965,10 +965,39 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         CycleReportDataResponse.SummaryRowData summary = new CycleReportDataResponse.SummaryRowData();
         // 合计差值直接使用累加的totalDiffMinutes，而不是重新计算
         summary.setTotalActualMinutes(hasActual ? totalActualMinutes : null);
-        summary.setTotalActualTimeText(hasActual ? formatMinutesStatic(totalActualMinutes) : "");
+        
+        // 计算总实际耗时文本：如果循环完成了，使用实际开始时间和实际结束时间；如果循环没有完成，使用实际开始时间到当前系统时间
+        String totalActualTimeText = "";
+        if (cycle.getStartDate() != null) {
+            LocalDateTime endTimeForCalc;
+            
+            if (cycle.getEndDate() != null) {
+                // 循环已完成，使用实际结束时间
+                endTimeForCalc = cycle.getEndDate();
+                log.debug("循环已完成，使用实际结束时间计算总实际耗时，循环ID: {}, 结束时间: {}", cycleId, endTimeForCalc);
+            } else {
+                // 循环未完成，使用当前系统时间
+                endTimeForCalc = LocalDateTime.now();
+                log.debug("循环未完成，使用当前系统时间计算总实际耗时，循环ID: {}, 当前时间: {}", cycleId, endTimeForCalc);
+            }
+            
+            long totalMinutes = Duration.between(cycle.getStartDate(), endTimeForCalc).toMinutes();
+            totalActualTimeText = formatMinutesStatic((int) totalMinutes);
+        }
+        summary.setTotalActualTimeText(totalActualTimeText);
+        
         summary.setTotalControlMinutes(hasControl ? totalControlMinutes : null);
         summary.setTotalControlTimeText(hasControl ? formatMinutesHourMinuteStatic(totalControlMinutes) : "");
         summary.setTotalDiffText((hasActual || hasControl) ? formatMinutesWithSignStatic(totalDiffMinutes) : "");
+        // 新增：总控制时间和总实际耗时（小时，保留两位小数）
+        if (hasControl) {
+            summary.setTotalControlHours(java.math.BigDecimal.valueOf(totalControlMinutes)
+                    .divide(java.math.BigDecimal.valueOf(60), 2, java.math.RoundingMode.HALF_UP));
+        }
+        if (hasActual) {
+            summary.setTotalActualHours(java.math.BigDecimal.valueOf(totalActualMinutes)
+                    .divide(java.math.BigDecimal.valueOf(60), 2, java.math.RoundingMode.HALF_UP));
+        }
         response.setSummary(summary);
         
         return response;
@@ -2003,6 +2032,407 @@ public class CycleServiceImpl extends ServiceImpl<CycleMapper, Cycle> implements
         }
         
         return response;
+    }
+    
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void authorizeCycleTimeFill(Long cycleId) {
+        // 授权接口已废弃，补填循环可以直接调用，无需授权
+        log.warn("授权接口已废弃，补填循环可以直接调用，无需授权，循环ID: {}", cycleId);
+        throw new BusinessException("授权接口已废弃，补填循环可以直接调用，无需授权");
+    }
+    
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CycleResponse fillCycleTime(Long cycleId, Long userId, CreateCycleRequest request) {
+        log.info("补填循环时间，用户ID: {}, 循环ID: {}, 开始时间: {}, 结束时间: {}", 
+                userId, cycleId, request.getStartDate(), request.getEndDate());
+        
+        // 如果补填的是已存在的循环，验证循环是否存在
+        if (cycleId != null) {
+            Cycle existingCycle = getById(cycleId);
+            if (existingCycle == null) {
+                throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
+            }
+        }
+        
+        // 验证项目是否存在
+        Project project = projectMapper.selectById(request.getProjectId());
+        if (project == null) {
+            log.error("补填循环失败，项目不存在，项目ID: {}", request.getProjectId());
+            throw new BusinessException(ResultCode.PROJECT_NOT_FOUND);
+        }
+        
+        // 验证时间合理性
+        if (request.getStartDate() != null && request.getEndDate() != null) {
+            if (request.getEndDate().isBefore(request.getStartDate())) {
+                throw new BusinessException("循环结束时间不能早于开始时间");
+            }
+        }
+        
+        // 根据 templateId 获取模板信息
+        TemplateProcess templateProcess = templateProcessMapper.selectOne(
+                new LambdaQueryWrapper<TemplateProcess>()
+                        .eq(TemplateProcess::getTemplateId, request.getTemplateId())
+                        .eq(TemplateProcess::getDeleted, 0)
+                        .orderByAsc(TemplateProcess::getDefaultOrder)
+                        .last("LIMIT 1"));
+        if (templateProcess == null) {
+            log.error("补填循环失败，模板工序不存在，模板ID: {}", request.getTemplateId());
+            throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
+        }
+        
+        Template template = templateMapper.selectById(templateProcess.getTemplateId());
+        if (template == null) {
+            log.error("补填循环失败，模板不存在，模板ID: {}", templateProcess.getTemplateId());
+            throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
+        }
+        
+        // 验证该工点是否关联了该模板
+        ProjectTemplate projectTemplate = projectTemplateMapper.selectOne(new LambdaQueryWrapper<ProjectTemplate>()
+                .eq(ProjectTemplate::getProjectId, request.getProjectId())
+                .eq(ProjectTemplate::getTemplateId, request.getTemplateId())
+                .eq(ProjectTemplate::getDeleted, 0)
+                .last("LIMIT 1"));
+        
+        if (projectTemplate == null) {
+            log.error("补填循环失败，该工点未关联该模板，工点ID: {}, 模板ID: {}", 
+                    request.getProjectId(), template.getId());
+            throw new BusinessException("该工点未关联该模板");
+        }
+        
+        // 根据模板名称获取该模板下的所有工序模板
+        List<ProcessTemplate> templates = processTemplateService.getTemplatesByName(template.getTemplateName());
+        if (templates.isEmpty()) {
+            log.error("补填循环失败，模板没有工序定义，模板ID: {}, 模板名称: {}", 
+                    template.getId(), template.getTemplateName());
+            throw new BusinessException(ResultCode.TEMPLATE_NOT_FOUND);
+        }
+        
+        // 计算控制时长
+        Integer controlDuration = templates.stream()
+                .filter(t -> t.getControlTime() != null && t.getControlTime() > 0)
+                .mapToInt(ProcessTemplate::getControlTime)
+                .sum();
+        
+        if (controlDuration == null || controlDuration <= 0) {
+            log.error("补填循环失败，控制时长无效，工点ID: {}, 模板名称: {}, 控制时长: {}", 
+                    request.getProjectId(), template.getTemplateName(), controlDuration);
+            throw new BusinessException("模板中工序的控制时间总和无效，无法补填循环");
+        }
+        
+        // 根据开始时间确定应该插入到哪个位置（cycleNumber）
+        Integer targetCycleNumber = calculateTargetCycleNumber(request.getProjectId(), request.getStartDate(), cycleId);
+        log.info("计算补填循环的目标位置，项目ID: {}, 开始时间: {}, 目标循环号: {}", 
+                request.getProjectId(), request.getStartDate(), targetCycleNumber);
+        
+        Cycle cycle;
+        if (cycleId != null) {
+            // 更新现有循环
+            cycle = getById(cycleId);
+            if (cycle == null) {
+                throw new BusinessException(ResultCode.CYCLE_NOT_FOUND);
+            }
+            
+            // 如果循环号需要改变，先调整其他循环的cycleNumber
+            Integer currentCycleNumber = cycle.getCycleNumber();
+            if (!targetCycleNumber.equals(currentCycleNumber)) {
+                log.info("补填循环需要调整循环号，循环ID: {}, 原循环号: {}, 目标循环号: {}", 
+                        cycleId, currentCycleNumber, targetCycleNumber);
+                // 调整其他循环的cycleNumber（排除当前循环）
+                adjustCycleNumbersForUpdate(cycleId, request.getProjectId(), currentCycleNumber, targetCycleNumber);
+                cycle.setCycleNumber(targetCycleNumber);
+            }
+        } else {
+            // 创建新循环：需要确保目标cycleNumber可用
+            // 先检查目标cycleNumber是否被占用（包括逻辑删除的记录）
+            Cycle deletedCycle = baseMapper.selectByProjectIdAndCycleNumberIncludeDeleted(
+                    request.getProjectId(), targetCycleNumber);
+            
+            if (deletedCycle != null && deletedCycle.getDeleted() != null && deletedCycle.getDeleted() == 1) {
+                // 如果目标位置被逻辑删除的记录占用，调整它的 cycleNumber 到一个很大的值，释放目标位置
+                Integer newCycleNumber = getMaxCycleNumberForDeletedCycle(request.getProjectId());
+                log.info("目标循环号被逻辑删除的记录占用，调整该记录的循环号，项目ID: {}, 原循环号: {}, 新循环号: {}, 循环ID: {}", 
+                        request.getProjectId(), targetCycleNumber, newCycleNumber, deletedCycle.getId());
+                baseMapper.updateDeletedCycleNumber(deletedCycle.getId(), newCycleNumber);
+            }
+            
+            // 检查目标位置是否被正常记录占用
+            Cycle existingCycle = getCycleByProjectAndNumber(request.getProjectId(), targetCycleNumber);
+            if (existingCycle != null) {
+                // 目标位置被正常记录占用，需要调整循环号
+                log.info("目标循环号被正常记录占用，调整循环号，项目ID: {}, 目标循环号: {}", 
+                        request.getProjectId(), targetCycleNumber);
+                // 调整 >= targetCycleNumber 的所有循环（从大到小调整，避免重复）
+                adjustCycleNumbersForInsert(request.getProjectId(), targetCycleNumber);
+                // 调整后，再次检查是否还有 deleted=1 的记录占用
+                deletedCycle = baseMapper.selectByProjectIdAndCycleNumberIncludeDeleted(
+                        request.getProjectId(), targetCycleNumber);
+                if (deletedCycle != null && deletedCycle.getDeleted() != null && deletedCycle.getDeleted() == 1) {
+                    // 调整后发现 deleted=1 的记录占用，调整它的 cycleNumber
+                    Integer newCycleNumber = getMaxCycleNumberForDeletedCycle(request.getProjectId());
+                    log.info("调整后发现逻辑删除的记录占用，调整该记录的循环号，项目ID: {}, 原循环号: {}, 新循环号: {}, 循环ID: {}", 
+                            request.getProjectId(), targetCycleNumber, newCycleNumber, deletedCycle.getId());
+                    baseMapper.updateDeletedCycleNumber(deletedCycle.getId(), newCycleNumber);
+                }
+            } else {
+                // 目标位置未被正常记录占用，但可能需要在中间插入，需要调整后面的循环
+                log.info("目标位置未被正常记录占用，检查是否需要调整后续循环，项目ID: {}, 目标循环号: {}", 
+                        request.getProjectId(), targetCycleNumber);
+                // 检查是否有循环的cycleNumber >= targetCycleNumber（不包括 deleted=1 的）
+                long count = count(new LambdaQueryWrapper<Cycle>()
+                        .eq(Cycle::getProjectId, request.getProjectId())
+                        .ge(Cycle::getCycleNumber, targetCycleNumber));
+                if (count > 0) {
+                    // 有循环需要调整
+                    adjustCycleNumbersForInsert(request.getProjectId(), targetCycleNumber);
+                }
+                // 调整后，再次检查是否有 deleted=1 的记录占用
+                deletedCycle = baseMapper.selectByProjectIdAndCycleNumberIncludeDeleted(
+                        request.getProjectId(), targetCycleNumber);
+                if (deletedCycle != null && deletedCycle.getDeleted() != null && deletedCycle.getDeleted() == 1) {
+                    // 发现 deleted=1 的记录占用，调整它的 cycleNumber
+                    Integer newCycleNumber = getMaxCycleNumberForDeletedCycle(request.getProjectId());
+                    log.info("调整后发现逻辑删除的记录占用，调整该记录的循环号，项目ID: {}, 原循环号: {}, 新循环号: {}, 循环ID: {}", 
+                            request.getProjectId(), targetCycleNumber, newCycleNumber, deletedCycle.getId());
+                    baseMapper.updateDeletedCycleNumber(deletedCycle.getId(), newCycleNumber);
+                }
+            }
+            
+            // 创建新循环
+            cycle = new Cycle();
+            cycle.setProjectId(request.getProjectId());
+            cycle.setCycleNumber(targetCycleNumber);
+        }
+        
+        // 设置循环基本信息
+        cycle.setControlDuration(controlDuration);
+        cycle.setStartDate(request.getStartDate());
+        cycle.setEndDate(request.getEndDate());
+        cycle.setEstimatedStartDate(request.getEstimatedStartDate() != null ? request.getEstimatedStartDate() : request.getStartDate());
+        if (request.getEstimatedEndDate() != null) {
+            cycle.setEstimatedEndDate(request.getEstimatedEndDate());
+        } else if (request.getStartDate() != null && controlDuration != null) {
+            cycle.setEstimatedEndDate(request.getStartDate().plusMinutes(controlDuration));
+        }
+        if (request.getEstimatedMileage() != null) {
+            cycle.setEstimatedMileage(BigDecimal.valueOf(request.getEstimatedMileage()));
+        }
+        cycle.setAdvanceLength(request.getAdvanceLength() != null
+                ? BigDecimal.valueOf(request.getAdvanceLength())
+                : BigDecimal.ZERO);
+        cycle.setRockLevel(request.getRockLevel());
+        cycle.setDevelopmentMethod(request.getDevelopmentMethod());
+        
+        // 关键：标记为补填循环
+        cycle.setIsTimeFill(1);
+        
+        // 如果提供了结束时间，设置为已完成
+        if (request.getEndDate() != null) {
+            cycle.setStatus(StringUtils.hasText(request.getStatus()) ? request.getStatus() : "COMPLETED");
+        } else {
+            cycle.setStatus(StringUtils.hasText(request.getStatus()) ? request.getStatus() : "IN_PROGRESS");
+        }
+        
+        if (cycleId != null) {
+            // 更新现有循环
+            updateById(cycle);
+        } else {
+            // 创建新循环
+            save(cycle);
+        }
+        
+        log.info("补填循环成功，循环ID: {}, 循环号: {}, 是否为补填: {}", 
+                cycle.getId(), cycle.getCycleNumber(), cycle.getIsTimeFill());
+        
+        // 创建工序（不设置时间，工序之后自行补填）
+        if (cycleId == null || processService.getProcessesByCycleId(cycle.getId()).isEmpty()) {
+            // 新建循环或循环下没有工序，创建工序（不设置时间）
+            createProcessesFromTemplate(cycle.getId(), request.getProjectId(), 
+                    template.getTemplateName(), request.getStartDate(), userId);
+        }
+        // 如果循环已存在且有工序，不更新工序，工序之后自行补填
+        
+        return convertToResponse(cycle);
+    }
+    
+    /**
+     * 根据开始时间计算目标循环号
+     * 找到第一个开始时间晚于补填循环开始时间的循环，补填循环应该插入到它之前
+     * 
+     * @param projectId 项目ID
+     * @param startDate 补填循环的开始时间
+     * @param excludeCycleId 要排除的循环ID（如果补填的是已存在的循环，需要排除它自己）
+     */
+    private Integer calculateTargetCycleNumber(Long projectId, LocalDateTime startDate, Long excludeCycleId) {
+        // 获取该工点下的所有循环，按开始时间排序（排除当前循环）
+        LambdaQueryWrapper<Cycle> wrapper = new LambdaQueryWrapper<Cycle>()
+                .eq(Cycle::getProjectId, projectId)
+                .isNotNull(Cycle::getStartDate)
+                .orderByAsc(Cycle::getStartDate)
+                .orderByAsc(Cycle::getCycleNumber);
+        
+        if (excludeCycleId != null) {
+            wrapper.ne(Cycle::getId, excludeCycleId);
+        }
+        
+        List<Cycle> cycles = list(wrapper);
+        
+        if (cycles.isEmpty()) {
+            // 没有其他循环，返回1
+            return 1;
+        }
+        
+        // 找到第一个开始时间晚于补填循环开始时间的循环
+        for (Cycle cycle : cycles) {
+            if (cycle.getStartDate() != null && cycle.getStartDate().isAfter(startDate)) {
+                // 补填循环应该插入到这个循环之前，使用这个循环的cycleNumber
+                return cycle.getCycleNumber();
+            }
+        }
+        
+        // 如果所有循环的开始时间都早于补填循环，补填循环应该放在最后
+        Cycle latestCycle = getLatestCycleByProjectId(projectId);
+        if (latestCycle != null && !latestCycle.getId().equals(excludeCycleId)) {
+            return latestCycle.getCycleNumber() + 1;
+        }
+        // 如果最新循环就是当前循环，需要找到真正的最大循环号
+        if (excludeCycleId != null) {
+            Cycle maxCycle = list(new LambdaQueryWrapper<Cycle>()
+                    .eq(Cycle::getProjectId, projectId)
+                    .ne(Cycle::getId, excludeCycleId)
+                    .orderByDesc(Cycle::getCycleNumber)
+                    .last("LIMIT 1"))
+                    .stream()
+                    .findFirst()
+                    .orElse(null);
+            return maxCycle != null ? maxCycle.getCycleNumber() + 1 : 1;
+        }
+        return latestCycle != null ? latestCycle.getCycleNumber() + 1 : 1;
+    }
+    
+    /**
+     * 调整循环号：将指定位置及之后的所有循环的 cycleNumber +1
+     * 用于在插入补填循环时避免循环号冲突
+     * 注意：从大到小调整，避免调整过程中出现重复
+     */
+    private void adjustCycleNumbersForInsert(Long projectId, Integer targetCycleNumber) {
+        log.debug("调整循环号（插入模式），项目ID: {}, 目标循环号: {}", projectId, targetCycleNumber);
+        
+        // 获取所有需要调整的循环（cycleNumber >= targetCycleNumber）
+        // 从大到小排序，避免调整过程中出现重复
+        List<Cycle> cyclesToAdjust = list(new LambdaQueryWrapper<Cycle>()
+                .eq(Cycle::getProjectId, projectId)
+                .ge(Cycle::getCycleNumber, targetCycleNumber)
+                .orderByDesc(Cycle::getCycleNumber));
+        
+        if (cyclesToAdjust.isEmpty()) {
+            log.debug("没有需要调整的循环，项目ID: {}, 目标循环号: {}", projectId, targetCycleNumber);
+            return;
+        }
+        
+        log.info("开始调整循环号，项目ID: {}, 目标循环号: {}, 需要调整的循环数: {}", 
+                projectId, targetCycleNumber, cyclesToAdjust.size());
+        
+        // 从大到小批量更新：每个循环的 cycleNumber +1
+        // 这样可以避免在调整过程中出现重复的cycleNumber
+        // 使用批量更新确保事务一致性
+        for (Cycle cycle : cyclesToAdjust) {
+            Integer oldCycleNumber = cycle.getCycleNumber();
+            Integer newCycleNumber = oldCycleNumber + 1;
+            cycle.setCycleNumber(newCycleNumber);
+            boolean updated = updateById(cycle);
+            if (updated) {
+                log.debug("调整循环号成功，循环ID: {}, 原循环号: {}, 新循环号: {}", 
+                        cycle.getId(), oldCycleNumber, newCycleNumber);
+            } else {
+                log.warn("调整循环号失败，循环ID: {}, 原循环号: {}, 新循环号: {}", 
+                        cycle.getId(), oldCycleNumber, newCycleNumber);
+            }
+        }
+        
+        log.info("循环号调整完成（插入模式），项目ID: {}, 调整数量: {}", projectId, cyclesToAdjust.size());
+    }
+    
+    /**
+     * 获取用于 deleted=1 记录的 cycleNumber
+     * 返回一个唯一且递增的值，确保不会和正常记录以及其他 deleted=1 的记录冲突
+     * 
+     * @param projectId 项目ID
+     * @return 用于 deleted=1 记录的 cycleNumber（唯一且递增）
+     */
+    private Integer getMaxCycleNumberForDeletedCycle(Long projectId) {
+        // 查询该项目下所有记录（包括 deleted=1）的最大 cycleNumber
+        Integer maxCycleNumber = baseMapper.getMaxCycleNumberIncludeDeleted(projectId);
+        
+        if (maxCycleNumber == null) {
+            // 如果没有记录，使用 999000 作为起始值
+            return 999000;
+        }
+        
+        // 如果最大值已经 >= 999000，说明已经有 deleted=1 的记录，返回 max + 1（确保唯一且递增）
+        if (maxCycleNumber >= 999000) {
+            return maxCycleNumber + 1;
+        } else {
+            // 如果最大值 < 999000，说明都是正常记录，使用 999000 作为 deleted=1 记录的起始值
+            return 999000;
+        }
+    }
+    
+    /**
+     * 调整循环号：用于更新已存在循环的循环号
+     * 根据原循环号和目标循环号，调整其他循环的cycleNumber
+     * 
+     * @param currentCycleId 当前循环ID（要排除）
+     * @param projectId 项目ID
+     * @param currentCycleNumber 当前循环号
+     * @param targetCycleNumber 目标循环号
+     */
+    private void adjustCycleNumbersForUpdate(Long currentCycleId, Long projectId, 
+                                             Integer currentCycleNumber, Integer targetCycleNumber) {
+        log.debug("调整循环号（更新模式），项目ID: {}, 当前循环ID: {}, 原循环号: {}, 目标循环号: {}", 
+                projectId, currentCycleId, currentCycleNumber, targetCycleNumber);
+        
+        if (currentCycleNumber.equals(targetCycleNumber)) {
+            // 循环号没有变化，不需要调整
+            return;
+        }
+        
+        if (currentCycleNumber < targetCycleNumber) {
+            // 循环号增大：将 currentCycleNumber+1 到 targetCycleNumber 之间的循环号都减1
+            List<Cycle> cyclesToAdjust = list(new LambdaQueryWrapper<Cycle>()
+                    .eq(Cycle::getProjectId, projectId)
+                    .ne(Cycle::getId, currentCycleId)
+                    .gt(Cycle::getCycleNumber, currentCycleNumber)
+                    .le(Cycle::getCycleNumber, targetCycleNumber)
+                    .orderByAsc(Cycle::getCycleNumber));
+            
+            for (Cycle cycle : cyclesToAdjust) {
+                Integer oldCycleNumber = cycle.getCycleNumber();
+                cycle.setCycleNumber(oldCycleNumber - 1);
+                updateById(cycle);
+                log.debug("调整循环号（减小），循环ID: {}, 原循环号: {}, 新循环号: {}", 
+                        cycle.getId(), oldCycleNumber, cycle.getCycleNumber());
+            }
+        } else {
+            // 循环号减小：将 targetCycleNumber 到 currentCycleNumber-1 之间的循环号都加1
+            List<Cycle> cyclesToAdjust = list(new LambdaQueryWrapper<Cycle>()
+                    .eq(Cycle::getProjectId, projectId)
+                    .ne(Cycle::getId, currentCycleId)
+                    .ge(Cycle::getCycleNumber, targetCycleNumber)
+                    .lt(Cycle::getCycleNumber, currentCycleNumber)
+                    .orderByAsc(Cycle::getCycleNumber));
+            
+            for (Cycle cycle : cyclesToAdjust) {
+                Integer oldCycleNumber = cycle.getCycleNumber();
+                cycle.setCycleNumber(oldCycleNumber + 1);
+                updateById(cycle);
+                log.debug("调整循环号（增大），循环ID: {}, 原循环号: {}, 新循环号: {}", 
+                        cycle.getId(), oldCycleNumber, cycle.getCycleNumber());
+            }
+        }
+        
+        log.info("循环号调整完成（更新模式），项目ID: {}", projectId);
     }
     
     /**

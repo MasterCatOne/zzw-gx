@@ -32,7 +32,7 @@ public class UserController {
     @GetMapping("/users")
     public Result<Page<UserListResponse>> getUserList(
             @Parameter(description = "页码，从1开始", example = "1") @RequestParam(defaultValue = "1") Integer pageNum,
-            @Parameter(description = "每页记录数", example = "10") @RequestParam(defaultValue = "10") Integer pageSize,
+            @Parameter(description = "每页记录数", example = "10") @RequestParam(defaultValue = "1000") Integer pageSize,
             @Parameter(description = "用户名关键词，支持模糊搜索", example = "worker") @RequestParam(required = false) String username,
             @Parameter(description = "姓名关键词，支持模糊搜索", example = "张三") @RequestParam(required = false) String realName,
             @Parameter(description = "角色代码：WORKER/ADMIN/SYSTEM_ADMIN", example = "WORKER") @RequestParam(required = false) String roleCode) {

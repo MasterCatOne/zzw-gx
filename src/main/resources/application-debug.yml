@@ -1,6 +1,6 @@
 # 调试环境配置（端口8081，用于本地调试）
 server:
-  port: 8081
+  port: 8088
 
 spring:
   datasource:

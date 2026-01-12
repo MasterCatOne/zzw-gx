@@ -2,6 +2,7 @@ package com.zzw.zzwgx.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.zzw.zzwgx.entity.Cycle;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -42,5 +43,19 @@ public interface CycleMapper extends BaseMapper<Cycle> {
         WHERE id = #{id}
         """)
     int restoreAndUpdateCycle(Cycle cycle);
+    
+    /**
+     * 调整已逻辑删除的循环的 cycleNumber（绕过 @TableLogic 的自动过滤）
+     * 用于释放被 deleted=1 的记录占用的 cycleNumber
+     */
+    @Update("UPDATE cycle SET cycle_number = #{newCycleNumber}, update_time = NOW() WHERE id = #{id}")
+    int updateDeletedCycleNumber(@Param("id") Long id, @Param("newCycleNumber") Integer newCycleNumber);
+    
+    /**
+     * 查询项目下所有循环（包括 deleted=1）的最大 cycleNumber
+     * 用于为 deleted=1 的记录分配唯一的 cycleNumber
+     */
+    @Select("SELECT MAX(cycle_number) FROM cycle WHERE project_id = #{projectId}")
+    Integer getMaxCycleNumberIncludeDeleted(@Param("projectId") Long projectId);
 }
 

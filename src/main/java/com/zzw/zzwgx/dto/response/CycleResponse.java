@@ -55,6 +55,9 @@ public class CycleResponse {
     @Schema(description = "围岩等级", example = "LEVEL_II")
     private String rockLevel;
     
+    @Schema(description = "是否为时间补填的循环：0-否（正常循环），1-是（补填循环）", example = "0")
+    private Integer isTimeFill;
+    
     @Schema(description = "创建时间", example = "2025-11-05T08:00:00")
     private LocalDateTime createTime;
     

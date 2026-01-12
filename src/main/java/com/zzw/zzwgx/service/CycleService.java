@@ -91,5 +91,26 @@ public interface CycleService extends IService<Cycle> {
      * @return 进行中工序顺序响应（包含start_order列表）
      */
     InProgressProcessOrderResponse getInProgressProcessOrder(Long cycleId);
+    
+    /**
+     * 系统管理员授权循环时间补填（已废弃，补填循环可以直接调用，无需授权）
+     *
+     * @param cycleId 循环ID
+     */
+    @Deprecated
+    void authorizeCycleTimeFill(Long cycleId);
+    
+    /**
+     * 补填循环时间（无需授权，可直接调用）
+     * 移除所有时间限制，允许补填任意时间的循环
+     * 补填时会根据开始时间自动调整循环顺序（cycleNumber）
+     * 补填循环时只创建循环和工序，不设置工序时间，工序之后自行补填
+     *
+     * @param cycleId 循环ID（如果为null则创建新循环）
+     * @param userId 用户ID
+     * @param request 补填请求（使用CreateCycleRequest）
+     * @return 循环响应
+     */
+    CycleResponse fillCycleTime(Long cycleId, Long userId, CreateCycleRequest request);
 }
 

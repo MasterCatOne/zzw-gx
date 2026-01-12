@@ -9,10 +9,7 @@ import com.zzw.zzwgx.common.enums.ResultCode;
 import com.zzw.zzwgx.common.enums.RockLevel;
 import com.zzw.zzwgx.common.exception.BusinessException;
 import com.zzw.zzwgx.dto.request.ProjectRequest;
-import com.zzw.zzwgx.dto.response.ProjectListResponse;
-import com.zzw.zzwgx.dto.response.ProgressDetailResponse;
-import com.zzw.zzwgx.dto.response.ProjectTreeNodeResponse;
-import com.zzw.zzwgx.dto.response.SiteConstructionStatusResponse;
+import com.zzw.zzwgx.dto.response.*;
 import com.zzw.zzwgx.entity.Cycle;
 import com.zzw.zzwgx.entity.Process;
 import com.zzw.zzwgx.entity.Project;
@@ -169,11 +166,34 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
         // 获取当前循环的所有工序
         List<Process> processes = processService.getProcessesByCycleId(currentCycle.getId());
         
-        // 计算控制总时间：循环的控制时长（controlDuration，单位：分钟）转换为小时
+        // 计算控制总时间：循环的控制时长（controlDuration，单位：分钟）转换为小时和“X小时Y分钟”描述
         if (currentCycle.getControlDuration() != null) {
-            BigDecimal controlTotalTimeHours = BigDecimal.valueOf(currentCycle.getControlDuration())
+            long controlMinutes = currentCycle.getControlDuration();
+            BigDecimal controlTotalTimeHours = BigDecimal.valueOf(controlMinutes)
                     .divide(BigDecimal.valueOf(60), 2, java.math.RoundingMode.HALF_UP);
             response.setControlTotalTimeHours(controlTotalTimeHours);
+            response.setControlTotalTimeText(formatMinutes(controlMinutes));
+        }
+
+        // 计算循环累计用时：如果循环完成了，使用实际开始时间和实际结束时间；如果循环没有完成，使用实际开始时间到当前系统时间
+        if (currentCycle.getStartDate() != null) {
+            LocalDateTime endTimeForCalc;
+            
+            if (currentCycle.getEndDate() != null) {
+                // 循环已完成，使用实际结束时间
+                endTimeForCalc = currentCycle.getEndDate();
+                log.debug("循环已完成，使用实际结束时间计算累计用时: {}", endTimeForCalc);
+            } else {
+                // 循环未完成，使用当前系统时间
+                endTimeForCalc = LocalDateTime.now();
+                log.debug("循环未完成，使用当前系统时间计算累计用时: {}", endTimeForCalc);
+            }
+            
+            long totalMinutes = Duration.between(currentCycle.getStartDate(), endTimeForCalc).toMinutes();
+            BigDecimal cycleTotalHours = BigDecimal.valueOf(totalMinutes)
+                    .divide(BigDecimal.valueOf(60), 2, java.math.RoundingMode.HALF_UP);
+            response.setCycleTotalHours(cycleTotalHours);
+            response.setCycleTotalTimeText(formatMinutes(totalMinutes));
         }
         Process currentProcess = processes.stream()
                 .filter(p -> ProcessStatus.IN_PROGRESS.getCode().equals(p.getProcessStatus()))
@@ -272,6 +292,11 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
             info.setId(process.getId());
             info.setName(process.getProcessName());
             info.setControlTime(process.getControlTime());
+            if (process.getControlTime() != null) {
+                BigDecimal controlTimeHours = BigDecimal.valueOf(process.getControlTime())
+                        .divide(BigDecimal.valueOf(60), 2, java.math.RoundingMode.HALF_UP);
+                info.setControlTimeHours(controlTimeHours);
+            }
             info.setStatus(process.getProcessStatus());
             ProcessStatus status = ProcessStatus.fromCode(process.getProcessStatus());
             info.setStatusDesc(status != null ? status.getDesc() : "");
@@ -475,7 +500,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
                 .eq(Project::getDeleted, 0)
                 .orderByAsc(Project::getId));
         return tunnels.stream().map(p -> {
-            com.zzw.zzwgx.dto.response.TunnelOptionResponse resp = new com.zzw.zzwgx.dto.response.TunnelOptionResponse();
+            TunnelOptionResponse resp = new com.zzw.zzwgx.dto.response.TunnelOptionResponse();
             resp.setId(p.getId());
             resp.setName(p.getProjectName());
             return resp;
@@ -483,7 +508,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project> impl
     }
     
     @Override
-    public List<com.zzw.zzwgx.dto.response.SiteOptionResponse> listSitesByTunnelId(Long tunnelId) {
+    public List<SiteOptionResponse> listSitesByTunnelId(Long tunnelId) {
         log.info("根据隧道ID查询工点列表，隧道ID: {}", tunnelId);
         // 验证隧道是否存在
         Project tunnel = getById(tunnelId);

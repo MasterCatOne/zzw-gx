@@ -242,6 +242,16 @@ public class CycleReportDataResponse {
          * K列：总差值（X小时Y分钟）
          */
         private String totalDiffText;
+
+        /**
+         * 总控制标准（小时），由 totalControlMinutes / 60 计算，保留两位小数
+         */
+        private java.math.BigDecimal totalControlHours;
+
+        /**
+         * 总实际耗时（小时），由 totalActualMinutes / 60 计算，保留两位小数
+         */
+        private java.math.BigDecimal totalActualHours;
     }
 }
 

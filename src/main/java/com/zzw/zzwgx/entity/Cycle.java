@@ -65,6 +65,11 @@ public class Cycle {
     private String rockLevel;
     
     /**
+     * 是否为时间补填的循环：0-否（正常循环），1-是（补填循环）
+     */
+    private Integer isTimeFill;
+    
+    /**
      * 删除标志：0-未删除，1-已删除
      */
     @TableLogic
